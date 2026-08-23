@@ -12,10 +12,20 @@ import (
 
 func fullConfig() *config.Config {
 	return &config.Config{
+		Provider: "cursor",
 		Ollama: config.OllamaConfig{
-			BaseURL:       "http://ollama.example:11434",
-			EmbedModel:    "mxbai-embed-large",
-			GenerateModel: "qwen2.5:7b",
+			BaseURL:         "http://ollama.example:11434",
+			EmbedModel:      "mxbai-embed-large",
+			GenerateModel:   "qwen2.5:7b",
+			EmbedTimeout:    "5m",
+			GenerateTimeout: "45m",
+		},
+		Cursor: config.CursorConfig{
+			APIKey:          "cursor_test_key",
+			BaseURL:         "https://api.cursor.example",
+			Model:           "composer-2.5",
+			GenerateTimeout: "45m",
+			PollInterval:    "3s",
 		},
 		Docs: config.DocsConfig{
 			Root: "documentation",
@@ -46,6 +56,9 @@ func fullConfig() *config.Config {
 func TestDefaultConfig(t *testing.T) {
 	cfg := config.Default()
 
+	if cfg.Provider != config.DefaultProvider {
+		t.Fatalf("provider: got %q", cfg.Provider)
+	}
 	if cfg.Ollama.BaseURL != "http://localhost:11434" {
 		t.Fatalf("ollama.base_url: got %q", cfg.Ollama.BaseURL)
 	}
@@ -54,6 +67,21 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.Ollama.GenerateModel != "llama3.1" {
 		t.Fatalf("ollama.generate_model: got %q", cfg.Ollama.GenerateModel)
+	}
+	if cfg.Ollama.EmbedTimeout != config.DefaultEmbedTimeoutStr {
+		t.Fatalf("ollama.embed_timeout: got %q", cfg.Ollama.EmbedTimeout)
+	}
+	if cfg.Ollama.GenerateTimeout != config.DefaultGenerateTimeoutStr {
+		t.Fatalf("ollama.generate_timeout: got %q", cfg.Ollama.GenerateTimeout)
+	}
+	if cfg.Ollama.GenerateTimeoutDuration() != config.DefaultGenerateTimeout {
+		t.Fatalf("generate timeout duration: got %s", cfg.Ollama.GenerateTimeoutDuration())
+	}
+	if cfg.Cursor.BaseURL != config.DefaultCursorBaseURL {
+		t.Fatalf("cursor.base_url: got %q", cfg.Cursor.BaseURL)
+	}
+	if cfg.Cursor.Model != config.DefaultCursorModel {
+		t.Fatalf("cursor.model: got %q", cfg.Cursor.Model)
 	}
 	if cfg.Docs.Root != "docs" {
 		t.Fatalf("docs.root: got %q", cfg.Docs.Root)
@@ -142,9 +170,19 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, key := range []string{"ollama", "docs", "index", "store"} {
+	for _, key := range []string{"provider", "ollama", "cursor", "docs", "index", "store"} {
 		if _, ok := keys[key]; !ok {
 			t.Fatalf("saved config missing top-level key %q", key)
+		}
+	}
+
+	var cursor map[string]json.RawMessage
+	if err := json.Unmarshal(keys["cursor"], &cursor); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"base_url", "model", "generate_timeout", "poll_interval"} {
+		if _, ok := cursor[key]; !ok {
+			t.Fatalf("saved config missing cursor.%s", key)
 		}
 	}
 
@@ -152,7 +190,7 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 	if err := json.Unmarshal(keys["ollama"], &ollama); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"base_url", "embed_model", "generate_model"} {
+	for _, key := range []string{"base_url", "embed_model", "generate_model", "embed_timeout", "generate_timeout"} {
 		if _, ok := ollama[key]; !ok {
 			t.Fatalf("saved config missing ollama.%s", key)
 		}

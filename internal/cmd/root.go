@@ -62,6 +62,31 @@ func openStore(root string, cfg *config.Config) (*store.Store, error) {
 	return store.Open(config.StorePath(root, cfg))
 }
 
+func loadProviders(cfg *config.Config) (embed.Providers, error) {
+	return embed.NewProviders(cfg)
+}
+
+func requireEmbedder(ctx context.Context, providers embed.Providers) error {
+	if h, ok := providers.Embedder.(interface{ Healthy(context.Context) error }); ok {
+		if err := h.Healthy(ctx); err != nil {
+			return fmt.Errorf("%w (run: ollama serve)", err)
+		}
+	}
+	return nil
+}
+
+func requireGeneration(ctx context.Context, providers embed.Providers) error {
+	if err := requireEmbedder(ctx, providers); err != nil {
+		return err
+	}
+	if h, ok := providers.Generator.(interface{ Healthy(context.Context) error }); ok {
+		if err := h.Healthy(ctx); err != nil {
+			return fmt.Errorf("generation backend unavailable: %w", err)
+		}
+	}
+	return nil
+}
+
 func newInitCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
@@ -84,9 +109,15 @@ func newInitCmd() *cobra.Command {
 			gitignore := filepath.Join(root, ".gitignore")
 			appendGitignore(gitignore, ".archivist/\n")
 			fmt.Println("Created .archivist.json and .archivist/")
-			fmt.Println("Ensure Ollama is running with models:")
+			fmt.Println("Embeddings use Ollama:")
 			fmt.Printf("  ollama pull %s\n", cfg.Ollama.EmbedModel)
-			fmt.Printf("  ollama pull %s\n", cfg.Ollama.GenerateModel)
+			fmt.Println("Generation provider:", cfg.Provider)
+			if cfg.UsesCursorGeneration() {
+				fmt.Printf("  export %s=your_cursor_api_key\n", config.CursorAPIKeyEnv)
+				fmt.Printf("  cursor model: %s\n", cfg.Cursor.Model)
+			} else {
+				fmt.Printf("  ollama pull %s\n", cfg.Ollama.GenerateModel)
+			}
 			return nil
 		},
 	}
@@ -129,7 +160,7 @@ func newIndexCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			client := embed.NewOllamaClient(cfg.Ollama.BaseURL, cfg.Ollama.EmbedModel, cfg.Ollama.GenerateModel)
+			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
 			if err := client.Healthy(cmd.Context()); err != nil {
 				return fmt.Errorf("%w (run: ollama serve)", err)
 			}
@@ -170,7 +201,7 @@ func newSearchCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			client := embed.NewOllamaClient(cfg.Ollama.BaseURL, cfg.Ollama.EmbedModel, cfg.Ollama.GenerateModel)
+			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
 			query := args[0]
 			opts := search.Options{TopK: topK, AsJSON: jsonOut}
 			if chunkType != "" {
@@ -198,7 +229,7 @@ func newSearchCmd() *cobra.Command {
 func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
-		Short: "Show index and Ollama status",
+		Short: "Show index and provider status",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
@@ -210,8 +241,7 @@ func newStatusCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			client := embed.NewOllamaClient(cfg.Ollama.BaseURL, cfg.Ollama.EmbedModel, cfg.Ollama.GenerateModel)
-			ollamaErr := client.Healthy(context.Background())
+			health := embed.CheckHealth(context.Background(), cfg)
 
 			chunks, _ := st.ChunkCount()
 			files, _ := st.FileCount()
@@ -219,22 +249,26 @@ func newStatusCmd() *cobra.Command {
 			docsSync, hasDocs, _ := st.DocsSyncAt()
 
 			type status struct {
-				OllamaOK      bool   `json:"ollama_ok"`
-				OllamaError   string `json:"ollama_error,omitempty"`
-				ChunkCount    int    `json:"chunk_count"`
-				FileCount     int    `json:"file_count"`
-				LastIndexedAt string `json:"last_indexed_at,omitempty"`
-				DocsSyncAt    string `json:"docs_sync_at,omitempty"`
-				Stale         bool   `json:"stale"`
+				Provider       string `json:"provider"`
+				EmbedderOK     bool   `json:"embedder_ok"`
+				EmbedderError  string `json:"embedder_error,omitempty"`
+				GeneratorOK    bool   `json:"generator_ok"`
+				GeneratorError string `json:"generator_error,omitempty"`
+				ChunkCount     int    `json:"chunk_count"`
+				FileCount      int    `json:"file_count"`
+				LastIndexedAt  string `json:"last_indexed_at,omitempty"`
+				DocsSyncAt     string `json:"docs_sync_at,omitempty"`
+				Stale          bool   `json:"stale"`
 			}
 			s := status{
-				OllamaOK:   ollamaErr == nil,
-				ChunkCount: chunks,
-				FileCount:  files,
-				Stale:      hasIdx && hasDocs && lastIdx.After(docsSync),
-			}
-			if ollamaErr != nil {
-				s.OllamaError = ollamaErr.Error()
+				Provider:      health.Provider,
+				EmbedderOK:    health.EmbedderOK,
+				EmbedderError: health.EmbedderError,
+				GeneratorOK:   health.GeneratorOK,
+				GeneratorError: health.GeneratorError,
+				ChunkCount:    chunks,
+				FileCount:     files,
+				Stale:         hasIdx && hasDocs && lastIdx.After(docsSync),
 			}
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
@@ -249,11 +283,24 @@ func newStatusCmd() *cobra.Command {
 				return enc.Encode(s)
 			}
 
-			fmt.Printf("Ollama: ")
-			if s.OllamaOK {
+			fmt.Printf("Provider: %s\n", s.Provider)
+			fmt.Printf("Embeddings (Ollama): ")
+			if s.EmbedderOK {
 				fmt.Println("ok")
 			} else {
-				fmt.Println("unavailable -", s.OllamaError)
+				fmt.Println("unavailable -", s.EmbedderError)
+			}
+			genLabel := "Generation"
+			if cfg.UsesCursorGeneration() {
+				genLabel = "Generation (Cursor)"
+			} else {
+				genLabel = "Generation (Ollama)"
+			}
+			fmt.Printf("%s: ", genLabel)
+			if s.GeneratorOK {
+				fmt.Println("ok")
+			} else {
+				fmt.Println("unavailable -", s.GeneratorError)
 			}
 			fmt.Printf("Chunks: %d (%d files)\n", s.ChunkCount, s.FileCount)
 			if hasIdx {
@@ -298,17 +345,20 @@ func newDocsUpdateCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			client := embed.NewOllamaClient(cfg.Ollama.BaseURL, cfg.Ollama.EmbedModel, cfg.Ollama.GenerateModel)
-			if err := client.Healthy(cmd.Context()); err != nil {
-				return fmt.Errorf("%w (run: ollama serve)", err)
+			providers, err := loadProviders(cfg)
+			if err != nil {
+				return err
+			}
+			if err := requireGeneration(cmd.Context(), providers); err != nil {
+				return err
 			}
 
 			return docs.Update(cmd.Context(), docs.UpdateOptions{
 				RepoRoot: root,
 				Cfg:      cfg,
 				Store:    st,
-				Embedder: client,
-				Gen:      client,
+				Embedder: providers.Embedder,
+				Gen:      providers.Generator,
 				DryRun:   dryRun,
 				All:      all,
 				Scope:    scope,
@@ -374,17 +424,20 @@ Provide flags directly, or pass a JSON object via --stdin:
 				return err
 			}
 
-			client := embed.NewOllamaClient(cfg.Ollama.BaseURL, cfg.Ollama.EmbedModel, cfg.Ollama.GenerateModel)
-			if err := client.Healthy(cmd.Context()); err != nil {
-				return fmt.Errorf("%w (run: ollama serve)", err)
+			providers, err := loadProviders(cfg)
+			if err != nil {
+				return err
+			}
+			if err := requireGeneration(cmd.Context(), providers); err != nil {
+				return err
 			}
 
 			result, err := docs.RecordDecision(cmd.Context(), docs.RecordDecisionOptions{
 				RepoRoot: root,
 				Cfg:      cfg,
 				Store:    st,
-				Embedder: client,
-				Gen:      client,
+				Embedder: providers.Embedder,
+				Gen:      providers.Generator,
 				Input:    input,
 				DryRun:   dryRun,
 				Output:   output,

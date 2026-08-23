@@ -8,22 +8,40 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	"github.com/bwireman/archivist/internal/config"
 )
 
 type OllamaClient struct {
 	baseURL       string
 	embedModel    string
 	generateModel string
-	httpClient    *http.Client
+	embedHTTP     *http.Client
+	generateHTTP  *http.Client
 	dimensions    int
 }
 
 func NewOllamaClient(baseURL, embedModel, generateModel string) *OllamaClient {
+	return NewOllamaClientWithTimeouts(baseURL, embedModel, generateModel, config.DefaultEmbedTimeout, config.DefaultGenerateTimeout)
+}
+
+func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {
+	return NewOllamaClientWithTimeouts(
+		cfg.BaseURL,
+		cfg.EmbedModel,
+		cfg.GenerateModel,
+		cfg.EmbedTimeoutDuration(),
+		cfg.GenerateTimeoutDuration(),
+	)
+}
+
+func NewOllamaClientWithTimeouts(baseURL, embedModel, generateModel string, embedTimeout, generateTimeout time.Duration) *OllamaClient {
 	return &OllamaClient{
 		baseURL:       baseURL,
 		embedModel:    embedModel,
 		generateModel: generateModel,
-		httpClient:    &http.Client{Timeout: 120 * time.Second},
+		embedHTTP:     &http.Client{Timeout: embedTimeout},
+		generateHTTP:  &http.Client{Timeout: generateTimeout},
 	}
 }
 
@@ -32,7 +50,7 @@ func (c *OllamaClient) Healthy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.embedHTTP.Do(req)
 	if err != nil {
 		return fmt.Errorf("ollama unreachable: %w", err)
 	}
@@ -63,7 +81,7 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.embedHTTP.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +128,7 @@ func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, err
 		return "", err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.httpClient.Do(req)
+	resp, err := c.generateHTTP.Do(req)
 	if err != nil {
 		return "", err
 	}
