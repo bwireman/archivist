@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +34,7 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newSearchCmd())
 	root.AddCommand(newStatusCmd())
 	root.AddCommand(newDocsCmd())
+	root.AddCommand(newDecisionsCmd())
 	return root
 }
 
@@ -317,4 +319,143 @@ func newDocsUpdateCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&all, "all", false, "update all pages regardless of staleness")
 	cmd.Flags().StringVar(&scope, "scope", "", "limit to pages matching scope")
 	return cmd
+}
+
+func newDecisionsCmd() *cobra.Command {
+	decisionsCmd := &cobra.Command{
+		Use:   "decisions",
+		Short: "Record architecture decisions",
+	}
+	decisionsCmd.AddCommand(newDecisionsRecordCmd())
+	return decisionsCmd
+}
+
+func newDecisionsRecordCmd() *cobra.Command {
+	var (
+		title   string
+		summary string
+		ctxText string
+		status  string
+		files   string
+		output  string
+		stdin   bool
+		dryRun  bool
+		topK    int
+	)
+
+	cmd := &cobra.Command{
+		Use:   "record",
+		Short: "Record a decision as an ADR with relevant code context",
+		Long: `Record an architecture decision for bot or automation use.
+
+Provide flags directly, or pass a JSON object via --stdin:
+
+  {
+    "title": "Use SQLite for local index",
+    "summary": "Embedded SQLite keeps the index portable and inspectable.",
+    "context": "Bot noticed repeated storage tradeoff discussion.",
+    "status": "accepted",
+    "files": ["internal/store/store.go"]
+  }
+`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			root, cfg, err := loadEnv()
+			if err != nil {
+				return err
+			}
+			st, err := openStore(root, cfg)
+			if err != nil {
+				return err
+			}
+			defer st.Close()
+
+			input, err := decisionInputFromFlags(stdin, title, summary, ctxText, status, files)
+			if err != nil {
+				return err
+			}
+
+			client := embed.NewOllamaClient(cfg.Ollama.BaseURL, cfg.Ollama.EmbedModel, cfg.Ollama.GenerateModel)
+			if err := client.Healthy(cmd.Context()); err != nil {
+				return fmt.Errorf("%w (run: ollama serve)", err)
+			}
+
+			result, err := docs.RecordDecision(cmd.Context(), docs.RecordDecisionOptions{
+				RepoRoot: root,
+				Cfg:      cfg,
+				Store:    st,
+				Embedder: client,
+				Gen:      client,
+				Input:    input,
+				DryRun:   dryRun,
+				Output:   output,
+				TopK:     topK,
+			})
+			if err != nil {
+				return err
+			}
+
+			if jsonOut {
+				enc := json.NewEncoder(os.Stdout)
+				enc.SetIndent("", "  ")
+				return enc.Encode(result)
+			}
+
+			if dryRun {
+				fmt.Printf("Would write: %s\n\n", result.Path)
+				fmt.Println(result.Content)
+				return nil
+			}
+
+			fmt.Printf("Recorded decision: %s\n", result.Path)
+			if len(result.RelatedFiles) > 0 {
+				fmt.Printf("Related code: %s\n", strings.Join(result.RelatedFiles, ", "))
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&title, "title", "", "decision title")
+	cmd.Flags().StringVar(&summary, "summary", "", "decision summary")
+	cmd.Flags().StringVar(&ctxText, "context", "", "extra context from the bot about what was observed")
+	cmd.Flags().StringVar(&status, "status", "accepted", "decision status: proposed|accepted|deprecated|superseded")
+	cmd.Flags().StringVar(&files, "files", "", "comma-separated file paths to include as code context")
+	cmd.Flags().StringVar(&output, "output", "", "output ADR path (default: auto-numbered under docs/decisions/)")
+	cmd.Flags().BoolVar(&stdin, "stdin", false, "read decision input as JSON from stdin")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "preview ADR without writing")
+	cmd.Flags().IntVar(&topK, "top", 8, "number of related code chunks to retrieve")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "output result as JSON")
+	return cmd
+}
+
+func decisionInputFromFlags(useStdin bool, title, summary, ctxText, status, files string) (docs.DecisionInput, error) {
+	if useStdin {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return docs.DecisionInput{}, err
+		}
+		input, err := docs.ParseDecisionInputJSON(data)
+		if err != nil {
+			return docs.DecisionInput{}, err
+		}
+		if input.Status == "" && status != "" {
+			input.Status = status
+		}
+		return input, nil
+	}
+
+	input := docs.DecisionInput{
+		Title:   title,
+		Summary: summary,
+		Context: ctxText,
+		Status:  status,
+	}
+	if files != "" {
+		for _, f := range strings.Split(files, ",") {
+			f = strings.TrimSpace(f)
+			if f != "" {
+				input.Files = append(input.Files, f)
+			}
+		}
+	}
+	return input, nil
 }
