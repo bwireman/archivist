@@ -10,7 +10,6 @@ import (
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/dump"
 	"github.com/bwireman/archivist/internal/embed"
-	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/search"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
@@ -60,37 +59,6 @@ func openStore(root string, cfg *config.Config) (*store.Store, error) {
 	return store.Open(config.StorePath(root, cfg))
 }
 
-func newInitCmd() *cobra.Command {
-	return &cobra.Command{
-		Use:   "init",
-		Short: "Initialize archivist config and data directory",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			root, err := repoRoot()
-			if err != nil {
-				return err
-			}
-			if err := os.MkdirAll(root, 0o755); err != nil {
-				return err
-			}
-			cfg := config.Default()
-			if err := config.Save(root, cfg); err != nil {
-				return err
-			}
-			if err := os.MkdirAll(config.DataDir(root), 0o755); err != nil {
-				return err
-			}
-			gitignore := filepath.Join(root, ".gitignore")
-			if err := appendGitignore(gitignore, ".archivist/\n"); err != nil {
-				return err
-			}
-			fmt.Println("Created .archivist.json and .archivist/")
-			fmt.Println("Embeddings use Ollama:")
-			fmt.Printf("  ollama pull %s\n", cfg.Ollama.EmbedModel)
-			return nil
-		},
-	}
-}
-
 func appendGitignore(path, line string) error {
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -111,45 +79,6 @@ func appendGitignore(path, line string) error {
 	defer f.Close()
 	_, err = f.WriteString(line)
 	return err
-}
-
-func newIndexCmd() *cobra.Command {
-	var scope string
-	cmd := &cobra.Command{
-		Use:   "index",
-		Short: "Incrementally index code, docs, git history, and ADRs",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			root, cfg, err := loadEnv()
-			if err != nil {
-				return err
-			}
-			st, err := openStore(root, cfg)
-			if err != nil {
-				return err
-			}
-			defer st.Close()
-
-			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
-			if err := client.Healthy(cmd.Context()); err != nil {
-				return fmt.Errorf("%w (run: ollama serve)", err)
-			}
-
-			idx := &index.Indexer{
-				RepoRoot: root,
-				Cfg:      cfg,
-				Store:    st,
-				Embedder: client,
-			}
-			if err := idx.Index(cmd.Context(), scope); err != nil {
-				return err
-			}
-			count, _ := st.ChunkCount()
-			fmt.Printf("Indexed successfully (%d chunks)\n", count)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&scope, "scope", "", "limit indexing to a subdirectory")
-	return cmd
 }
 
 func newSearchCmd() *cobra.Command {

@@ -23,6 +23,15 @@ type Indexer struct {
 	Cfg      *config.Config
 	Store    *store.Store
 	Embedder embed.Embedder
+	Reporter Reporter
+
+	progress Progress
+}
+
+func (idx *Indexer) report() {
+	if idx.Reporter != nil {
+		idx.Reporter(idx.progress)
+	}
 }
 
 func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
@@ -31,8 +40,67 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 		root = filepath.Join(idx.RepoRoot, scopePath)
 	}
 
+	idx.progress = Progress{Phase: PhaseScan}
+	idx.report()
+
+	n, err := idx.countFiles(root)
+	if err != nil {
+		return err
+	}
+	idx.progress.FilesTotal = n
+	idx.progress.Phase = PhaseFiles
+	idx.report()
+
 	seen := make(map[string]struct{})
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err = idx.walkFiles(root, func(rel, abs string) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		seen[rel] = struct{}{}
+		idx.progress.Path = rel
+		idx.progress.Detail = ""
+		idx.report()
+		if err := idx.indexFile(ctx, rel, abs); err != nil {
+			return err
+		}
+		idx.progress.FilesSeen++
+		idx.report()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
+	if err := idx.pruneFiles(seen, scopePath); err != nil {
+		return err
+	}
+	if err := idx.indexGit(ctx); err != nil {
+		return err
+	}
+	if err := idx.Store.SetLastIndexedAt(time.Now().UTC()); err != nil {
+		return err
+	}
+	idx.progress.Phase = PhaseDone
+	idx.progress.Path = ""
+	idx.progress.Detail = ""
+	idx.report()
+	return nil
+}
+
+func (idx *Indexer) countFiles(root string) (int, error) {
+	n := 0
+	err := idx.walkFiles(root, func(rel, abs string) error {
+		n++
+		idx.progress.FilesTotal = n
+		idx.progress.Path = rel
+		idx.report()
+		return nil
+	})
+	return n, err
+}
+
+func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error {
+	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -50,20 +118,8 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 		if idx.shouldSkipFile(rel) {
 			return nil
 		}
-		seen[rel] = struct{}{}
-		return idx.indexFile(ctx, rel, path)
+		return fn(rel, path)
 	})
-	if err != nil {
-		return err
-	}
-
-	if err := idx.pruneFiles(seen, scopePath); err != nil {
-		return err
-	}
-	if err := idx.indexGit(ctx); err != nil {
-		return err
-	}
-	return idx.Store.SetLastIndexedAt(time.Now().UTC())
 }
 
 func (idx *Indexer) shouldSkipDir(path string) bool {
@@ -119,6 +175,7 @@ func (idx *Indexer) indexFile(ctx context.Context, rel, abs string) error {
 			return err
 		}
 		if ok {
+			idx.progress.FilesRemoved++
 			return idx.Store.DeleteFile(rel)
 		}
 		return nil
@@ -130,6 +187,7 @@ func (idx *Indexer) indexFile(ctx context.Context, rel, abs string) error {
 		return err
 	}
 	if ok && existing.ContentHash == hash {
+		idx.progress.FilesUnchanged++
 		return nil
 	}
 
@@ -155,20 +213,27 @@ func (idx *Indexer) indexFile(ctx context.Context, rel, abs string) error {
 	if err != nil {
 		return err
 	}
-	return idx.Store.ReplaceFileChunks(store.FileRecord{
+	if err := idx.Store.ReplaceFileChunks(store.FileRecord{
 		Path:        rel,
 		ContentHash: hash,
 		IndexedAt:   time.Now().UTC(),
-	}, stored)
+	}, stored); err != nil {
+		return err
+	}
+	idx.progress.FilesIndexed++
+	return nil
 }
 
 func (idx *Indexer) embedChunks(ctx context.Context, chunks []chunk.Chunk) ([]store.Chunk, error) {
 	out := make([]store.Chunk, 0, len(chunks))
 	now := time.Now().UTC()
-	for _, c := range chunks {
+	for i, c := range chunks {
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
+		idx.progress.Path = c.Path
+		idx.progress.Detail = fmt.Sprintf("embed %d/%d", i+1, len(chunks))
+		idx.report()
 		emb, err := idx.Embedder.Embed(ctx, c.Content)
 		if err != nil {
 			return nil, fmt.Errorf("embed %s: %w", c.Path, err)
@@ -184,19 +249,33 @@ func (idx *Indexer) embedChunks(ctx context.Context, chunks []chunk.Chunk) ([]st
 			Metadata:    c.Metadata,
 			CreatedAt:   now,
 		})
+		idx.progress.ChunksEmbedded++
 	}
 	return out, nil
 }
 
 func (idx *Indexer) indexGit(ctx context.Context) error {
+	idx.progress.Phase = PhaseGit
+	idx.progress.Path = ""
+	idx.progress.Detail = ""
+	idx.report()
+
 	commits, err := gitindex.ListCommits(idx.RepoRoot, 500)
 	if err != nil {
 		return err
 	}
+	idx.progress.CommitsTotal = len(commits)
+	idx.report()
 	for _, c := range commits {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		idx.progress.Path = c.Hash
+		if len(c.Hash) > 7 {
+			idx.progress.Path = c.Hash[:7]
+		}
+		idx.progress.Detail = c.Subject
+		idx.report()
 		if _, ok, err := idx.Store.GetCommit(c.Hash); err != nil {
 			return err
 		} else if ok {
@@ -216,11 +295,18 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 		}, stored); err != nil {
 			return err
 		}
+		idx.progress.CommitsNew++
+		idx.report()
 	}
 	return nil
 }
 
 func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error {
+	idx.progress.Phase = PhasePrune
+	idx.progress.Path = ""
+	idx.progress.Detail = ""
+	idx.report()
+
 	paths, err := idx.Store.AllFilePaths()
 	if err != nil {
 		return err
@@ -230,9 +316,13 @@ func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error
 			continue
 		}
 		if _, ok := seen[p]; !ok {
+			idx.progress.Path = p
+			idx.report()
 			if err := idx.Store.DeleteFile(p); err != nil {
 				return err
 			}
+			idx.progress.FilesRemoved++
+			idx.report()
 		}
 	}
 	return nil

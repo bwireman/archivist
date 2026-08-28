@@ -146,6 +146,39 @@ func TestIndexSkipGlobs(t *testing.T) {
 	}
 }
 
+func TestIndexReportsProgress(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "foo.go", "package foo\n\nfunc Foo() {}\n")
+
+	idx, _ := newIndexer(t, root, &embed.FakeEmbedder{Dim: 8})
+	var last index.Progress
+	var sawScan, sawFiles bool
+	idx.Reporter = func(p index.Progress) {
+		last = p
+		if p.Phase == index.PhaseScan {
+			sawScan = true
+		}
+		if p.Phase == index.PhaseFiles {
+			sawFiles = true
+		}
+	}
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if !sawScan || !sawFiles {
+		t.Fatal("expected scan and files phases")
+	}
+	if last.Phase != index.PhaseDone {
+		t.Fatalf("last phase %s", last.Phase)
+	}
+	if last.FilesIndexed < 1 {
+		t.Fatalf("expected indexed files, got %+v", last)
+	}
+	if last.FilesTotal < 1 {
+		t.Fatalf("expected files total, got %+v", last)
+	}
+}
+
 func TestIndexDropsFileThatBecameBinary(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "data.bin", "package data\n\nfunc Data() {}\n")

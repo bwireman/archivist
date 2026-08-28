@@ -2,7 +2,7 @@
   "ollama": {
     "base_url": "http://localhost:11434",
     "embed_model": "qwen3-embedding:0.6b",
-    "embed_timeout": "2m"
+    "embed_timeout": "5m"
   },
   "index": {
     "skip_dirs": [

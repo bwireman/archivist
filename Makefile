@@ -31,7 +31,7 @@ run: ## Run archivist (e.g. make run ARGS='dump --help')
 	go run $(PKG) $(ARGS)
 
 index: build ## Incrementally index the repository (needs Ollama)
-	./$(BIN) index
+	./$(BIN) index --plain
 
 dump-docs: build ## Dump indexed ADRs to docs/dump/decisions.md
 	./$(BIN) dump --type adr -o $(DUMP)
