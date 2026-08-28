@@ -73,10 +73,21 @@ func (idx *Indexer) shouldSkipDir(path string) bool {
 			return true
 		}
 	}
-	return false
+	rel, err := filepath.Rel(idx.RepoRoot, path)
+	if err != nil {
+		return false
+	}
+	rel = filepath.ToSlash(rel)
+	dumpDir := filepath.ToSlash(config.DefaultDumpDir)
+	return rel == dumpDir || strings.HasPrefix(rel, dumpDir+"/")
 }
 
 func (idx *Indexer) shouldSkipFile(rel string) bool {
+	rel = filepath.ToSlash(rel)
+	dumpDir := filepath.ToSlash(config.DefaultDumpDir)
+	if rel == dumpDir || strings.HasPrefix(rel, dumpDir+"/") {
+		return true
+	}
 	ext := strings.ToLower(filepath.Ext(rel))
 	binExts := map[string]bool{
 		".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".ico": true,

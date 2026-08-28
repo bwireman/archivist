@@ -1,0 +1,18 @@
+---
+description: Regularly re-index the repository with Archivist
+alwaysApply: true
+---
+
+# Index regularly
+
+Keep the Archivist index current. Run `make index` (needs Ollama) when you finish a turn that changed indexed files: Go sources, markdown docs, ADRs under `docs/decisions/`, or anything else the indexer walks.
+
+```bash
+make index
+```
+
+- Do this at the end of the turn, not only after writing an ADR
+- Skip if you only touched `docs/dump/`, `.archivist/`, or files the indexer ignores
+- Skip if you already indexed those changes this turn
+- If Ollama is down, say so and continue; do not retry in a loop
+- After indexing new or updated ADRs, also dump: `make dump-docs`

@@ -1,8 +1,9 @@
 BIN  ?= archivist
 PKG  := ./cmd/archivist
 ARGS ?=
+DUMP ?= docs/dump/decisions.md
 
-.PHONY: all build test vet fmt tidy check install run clean help
+.PHONY: all build test vet fmt tidy check install run index dump-docs refresh-docs clean help
 
 all: build
 
@@ -28,6 +29,14 @@ install: ## Install archivist to GOPATH/bin
 
 run: ## Run archivist (e.g. make run ARGS='dump --help')
 	go run $(PKG) $(ARGS)
+
+index: build ## Incrementally index the repository (needs Ollama)
+	./$(BIN) index
+
+dump-docs: build ## Dump indexed ADRs to docs/dump/decisions.md
+	./$(BIN) dump --type adr -o $(DUMP)
+
+refresh-docs: index dump-docs ## Index, then dump ADRs into docs/dump/
 
 clean: ## Remove the local binary
 	rm -f $(BIN)

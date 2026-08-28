@@ -1,0 +1,21 @@
+---
+description: Dump indexed decisions into docs/dump for later LLM sessions
+alwaysApply: true
+---
+
+# Dump docs
+
+Archivist does not generate documentation. After recording a decision, or when wrapping up work that changed architecture, dump indexed context into `docs/dump/`.
+
+```bash
+make refresh-docs                         # index, then export all ADRs
+./archivist dump --type adr -o docs/dump/decisions.md
+./archivist dump "sqlite vs postgres" -o docs/dump/sqlite.md
+```
+
+- `make dump-docs` writes `docs/dump/decisions.md` from indexed ADRs (no Ollama)
+- Index first (`make index`) so new ADRs and code show up; Ollama is required for that
+- Query dumps are for one topic; use a short filename under `docs/dump/`
+- Do not hand-edit `docs/dump/` — regenerate it
+- Do not write dumps into `docs/decisions/` (that directory is source ADRs only)
+- `docs/dump/` is not indexed, so dumps will not feed back into the index

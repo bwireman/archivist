@@ -1,0 +1,35 @@
+---
+description: Record architecture decisions as ADRs that Archivist indexes
+alwaysApply: true
+---
+
+# Record decisions
+
+When you choose between real alternatives (storage, APIs, defaults, rejected approaches), write an ADR before you finish. Skip this for typos, formatting, and obvious bugfixes.
+
+## File
+
+- Path: `docs/decisions/NNN-slug.md`
+- `NNN` is the next number already used in that directory (`001`, `002`, …)
+- `slug` is a lowercase hyphenated title
+
+```markdown
+# Use SQLite for the local index
+
+- Status: accepted
+- Date: 2026-08-28
+
+## Context
+Why the question came up.
+
+## Decision
+What we chose, in one or two sentences.
+
+## Consequences
+- What becomes easier
+- What we are accepting
+```
+
+Status is `proposed`, `accepted`, `deprecated`, or `superseded`. Only state facts from this repo; do not invent APIs.
+
+Then `make refresh-docs` (index + dump). If Ollama is down, still write the ADR; skip `make index` and dump whatever is already indexed.

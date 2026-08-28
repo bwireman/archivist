@@ -14,6 +14,8 @@ const (
 	DefaultIndexDB         = "index.db"
 	DefaultEmbedTimeout    = 2 * time.Minute
 	DefaultEmbedTimeoutStr = "2m"
+	DefaultDecisionsDir    = "docs/decisions"
+	DefaultDumpDir         = "docs/dump"
 )
 
 type Config struct {
