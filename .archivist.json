@@ -1,0 +1,24 @@
+{
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "embed_model": "qwen3-embedding:0.6b",
+    "embed_timeout": "2m"
+  },
+  "index": {
+    "skip_dirs": [
+      ".git",
+      "vendor",
+      "node_modules",
+      ".archivist"
+    ],
+    "skip_globs": [],
+    "adr_paths": [
+      "**/adr/**",
+      "docs/decisions/**",
+      "**/ADR*.md"
+    ]
+  },
+  "store": {
+    "path": ".archivist/index.db"
+  }
+}
