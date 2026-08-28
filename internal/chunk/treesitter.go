@@ -52,9 +52,9 @@ func SplitWithTreeSitter(path, content string, chunkType Type) []Chunk {
 	src := []byte(content)
 	var chunks []Chunk
 
-	// file header context
-	headerEnd := min(30, len(strings.Split(content, "\n")))
-	header := strings.Join(strings.Split(content, "\n")[:headerEnd], "\n")
+	lines := strings.Split(content, "\n")
+	headerEnd := min(30, len(lines))
+	header := strings.Join(lines[:headerEnd], "\n")
 
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {
@@ -84,11 +84,4 @@ func SplitWithTreeSitter(path, content string, chunkType Type) []Chunk {
 		return SplitGeneric(path, content, chunkType, defaultMaxChunkSize, defaultOverlap)
 	}
 	return chunks
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

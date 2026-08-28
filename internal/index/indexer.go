@@ -77,40 +77,50 @@ func (idx *Indexer) shouldSkipDir(path string) bool {
 	if err != nil {
 		return false
 	}
+	return isDumpPath(rel)
+}
+
+func (idx *Indexer) shouldSkipFile(rel string) bool {
+	rel = filepath.ToSlash(rel)
+	if isDumpPath(rel) {
+		return true
+	}
+	ext := strings.ToLower(filepath.Ext(rel))
+	if binaryExts[ext] {
+		return true
+	}
+	return chunk.MatchAnyPattern(rel, idx.Cfg.Index.SkipGlobs)
+}
+
+func isDumpPath(rel string) bool {
 	rel = filepath.ToSlash(rel)
 	dumpDir := filepath.ToSlash(config.DefaultDumpDir)
 	return rel == dumpDir || strings.HasPrefix(rel, dumpDir+"/")
 }
 
-func (idx *Indexer) shouldSkipFile(rel string) bool {
-	rel = filepath.ToSlash(rel)
-	dumpDir := filepath.ToSlash(config.DefaultDumpDir)
-	if rel == dumpDir || strings.HasPrefix(rel, dumpDir+"/") {
-		return true
-	}
-	ext := strings.ToLower(filepath.Ext(rel))
-	binExts := map[string]bool{
-		".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".ico": true,
-		".zip": true, ".tar": true, ".gz": true, ".pdf": true, ".woff": true,
-		".woff2": true, ".exe": true, ".so": true, ".dylib": true, ".dll": true,
-	}
-	if binExts[ext] {
-		return true
-	}
-	for _, g := range idx.Cfg.Index.SkipGlobs {
-		if matched, _ := filepath.Match(g, rel); matched {
-			return true
-		}
-	}
-	return false
+var binaryExts = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".ico": true,
+	".zip": true, ".tar": true, ".gz": true, ".bz2": true, ".xz": true, ".7z": true,
+	".pdf": true, ".woff": true, ".woff2": true, ".exe": true, ".so": true,
+	".dylib": true, ".dll": true, ".wasm": true, ".class": true, ".jar": true,
 }
 
 func (idx *Indexer) indexFile(ctx context.Context, rel, abs string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
 		return err
 	}
 	if chunk.IsBinary(data) {
+		_, ok, err := idx.Store.GetFile(rel)
+		if err != nil {
+			return err
+		}
+		if ok {
+			return idx.Store.DeleteFile(rel)
+		}
 		return nil
 	}
 	content := string(data)
@@ -123,13 +133,8 @@ func (idx *Indexer) indexFile(ctx context.Context, rel, abs string) error {
 		return nil
 	}
 
-	if err := idx.Store.DeleteChunksForPath(rel); err != nil {
-		return err
-	}
-
 	chunks := chunk.SplitFile(rel, content, idx.Cfg.Index.ADRPaths)
-	commentChunks := chunk.ExtractCommentChunks(rel, content)
-	chunks = append(chunks, commentChunks...)
+	chunks = append(chunks, chunk.ExtractCommentChunks(rel, content)...)
 
 	blame, _ := gitindex.BlameFile(idx.RepoRoot, rel)
 	for i := range chunks {
@@ -144,35 +149,43 @@ func (idx *Indexer) indexFile(ctx context.Context, rel, abs string) error {
 			}
 			chunks[i].Metadata = meta
 		}
-		if err := idx.storeChunk(ctx, chunks[i]); err != nil {
-			return err
-		}
 	}
 
-	return idx.Store.UpsertFile(store.FileRecord{
+	stored, err := idx.embedChunks(ctx, chunks)
+	if err != nil {
+		return err
+	}
+	return idx.Store.ReplaceFileChunks(store.FileRecord{
 		Path:        rel,
 		ContentHash: hash,
 		IndexedAt:   time.Now().UTC(),
-	})
+	}, stored)
 }
 
-func (idx *Indexer) storeChunk(ctx context.Context, c chunk.Chunk) error {
-	emb, err := idx.Embedder.Embed(ctx, c.Content)
-	if err != nil {
-		return fmt.Errorf("embed %s: %w", c.Path, err)
+func (idx *Indexer) embedChunks(ctx context.Context, chunks []chunk.Chunk) ([]store.Chunk, error) {
+	out := make([]store.Chunk, 0, len(chunks))
+	now := time.Now().UTC()
+	for _, c := range chunks {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		emb, err := idx.Embedder.Embed(ctx, c.Content)
+		if err != nil {
+			return nil, fmt.Errorf("embed %s: %w", c.Path, err)
+		}
+		out = append(out, store.Chunk{
+			Path:        c.Path,
+			ChunkType:   store.ChunkType(c.Type),
+			StartLine:   c.StartLine,
+			EndLine:     c.EndLine,
+			Content:     c.Content,
+			ContentHash: c.ContentHash,
+			Embedding:   emb,
+			Metadata:    c.Metadata,
+			CreatedAt:   now,
+		})
 	}
-	_, err = idx.Store.InsertChunk(store.Chunk{
-		Path:        c.Path,
-		ChunkType:   store.ChunkType(c.Type),
-		StartLine:   c.StartLine,
-		EndLine:     c.EndLine,
-		Content:     c.Content,
-		ContentHash: c.ContentHash,
-		Embedding:   emb,
-		Metadata:    c.Metadata,
-		CreatedAt:   time.Now().UTC(),
-	})
-	return err
+	return out, nil
 }
 
 func (idx *Indexer) indexGit(ctx context.Context) error {
@@ -181,24 +194,26 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 		return err
 	}
 	for _, c := range commits {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if _, ok, err := idx.Store.GetCommit(c.Hash); err != nil {
 			return err
 		} else if ok {
 			continue
 		}
-		for _, ch := range gitindex.CommitChunks(c) {
-			if err := idx.storeChunk(ctx, ch); err != nil {
-				return err
-			}
+		stored, err := idx.embedChunks(ctx, gitindex.CommitChunks(c))
+		if err != nil {
+			return err
 		}
-		if err := idx.Store.UpsertCommit(store.CommitRecord{
+		if err := idx.Store.ReplaceCommit(store.CommitRecord{
 			Hash:       c.Hash,
 			Subject:    c.Subject,
 			Body:       c.Body,
 			Author:     c.Author,
 			AuthoredAt: c.AuthoredAt,
 			IndexedAt:  time.Now().UTC(),
-		}); err != nil {
+		}, stored); err != nil {
 			return err
 		}
 	}
@@ -211,7 +226,7 @@ func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error
 		return err
 	}
 	for _, p := range paths {
-		if scopePath != "" && !strings.HasPrefix(p, scopePath) {
+		if !pathInScope(p, scopePath) {
 			continue
 		}
 		if _, ok := seen[p]; !ok {
@@ -221,6 +236,15 @@ func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error
 		}
 	}
 	return nil
+}
+
+func pathInScope(path, scope string) bool {
+	scope = filepath.ToSlash(strings.Trim(scope, "/"))
+	if scope == "" || scope == "." {
+		return true
+	}
+	path = filepath.ToSlash(path)
+	return path == scope || strings.HasPrefix(path, scope+"/")
 }
 
 func fileHash(content string) string {

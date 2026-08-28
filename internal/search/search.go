@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/store"
@@ -17,10 +18,9 @@ type Result struct {
 }
 
 type Options struct {
-	TopK   int
-	Type   store.ChunkType
-	Scope  string
-	AsJSON bool
+	TopK  int
+	Type  store.ChunkType
+	Scope string
 }
 
 func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {
@@ -65,14 +65,10 @@ func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query
 func FormatResults(results []Result) string {
 	var b strings.Builder
 	for i, r := range results {
-		snippet := r.Chunk.Content
-		if len(snippet) > 200 {
-			snippet = snippet[:200] + "..."
-		}
-		snippet = strings.ReplaceAll(snippet, "\n", " ")
-		fmt.Fprintf(&b, "%d. [%.3f] %s (%s) %s:%d-%d\n   %s\n",
+		snippet := strings.ReplaceAll(truncateBytes(r.Chunk.Content, 200), "\n", " ")
+		fmt.Fprintf(&b, "%d. [%.3f] %s %s:%d-%d\n   %s\n",
 			i+1, r.Score, r.Chunk.ChunkType, r.Chunk.Path,
-			r.Chunk.Path, r.Chunk.StartLine, r.Chunk.EndLine, snippet)
+			r.Chunk.StartLine, r.Chunk.EndLine, snippet)
 	}
 	if len(results) == 0 {
 		b.WriteString("No results.\n")
@@ -112,4 +108,18 @@ func MatchScope(scope, path string) bool {
 		}
 	}
 	return false
+}
+
+func truncateBytes(s string, n int) string {
+	if n <= 0 || s == "" {
+		return ""
+	}
+	if len(s) <= n {
+		return s
+	}
+	i := n
+	for i > 0 && !utf8.RuneStart(s[i]) {
+		i--
+	}
+	return s[:i] + "..."
 }

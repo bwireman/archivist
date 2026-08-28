@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -19,13 +18,14 @@ import (
 
 var (
 	repoPath string
-	jsonOut  bool
 )
 
 func NewRoot() *cobra.Command {
 	root := &cobra.Command{
-		Use:   "archivist",
-		Short: "Local code indexer",
+		Use:           "archivist",
+		Short:         "Local code indexer",
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 	root.PersistentFlags().StringVar(&repoPath, "path", ".", "repository root path")
 	root.AddCommand(newInitCmd())
@@ -80,7 +80,9 @@ func newInitCmd() *cobra.Command {
 				return err
 			}
 			gitignore := filepath.Join(root, ".gitignore")
-			appendGitignore(gitignore, ".archivist/\n")
+			if err := appendGitignore(gitignore, ".archivist/\n"); err != nil {
+				return err
+			}
 			fmt.Println("Created .archivist.json and .archivist/")
 			fmt.Println("Embeddings use Ollama:")
 			fmt.Printf("  ollama pull %s\n", cfg.Ollama.EmbedModel)
@@ -89,25 +91,26 @@ func newInitCmd() *cobra.Command {
 	}
 }
 
-func appendGitignore(path, line string) {
+func appendGitignore(path, line string) error {
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
-		return
+		return err
 	}
 	trimmed := strings.TrimSpace(line)
 	if err == nil {
 		for _, l := range strings.Split(string(data), "\n") {
 			if strings.TrimSpace(l) == trimmed {
-				return
+				return nil
 			}
 		}
 	}
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
-		return
+		return err
 	}
 	defer f.Close()
-	_, _ = f.WriteString(line)
+	_, err = f.WriteString(line)
+	return err
 }
 
 func newIndexCmd() *cobra.Command {
@@ -152,6 +155,7 @@ func newIndexCmd() *cobra.Command {
 func newSearchCmd() *cobra.Command {
 	var topK int
 	var chunkType string
+	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Semantic search over the index",
@@ -169,7 +173,7 @@ func newSearchCmd() *cobra.Command {
 
 			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
 			query := strings.Join(args, " ")
-			opts := search.Options{TopK: topK, AsJSON: jsonOut}
+			opts := search.Options{TopK: topK}
 			if chunkType != "" {
 				opts.Type = store.ChunkType(chunkType)
 			}
@@ -177,7 +181,7 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if jsonOut {
+			if asJSON {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(results)
@@ -188,7 +192,7 @@ func newSearchCmd() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&topK, "top", 10, "number of results")
 	cmd.Flags().StringVar(&chunkType, "type", "", "filter by chunk type: code|doc|commit|adr|comment")
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }
 
@@ -277,6 +281,7 @@ Examples:
 }
 
 func newStatusCmd() *cobra.Command {
+	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show index and embedder status",
@@ -291,7 +296,7 @@ func newStatusCmd() *cobra.Command {
 			}
 			defer st.Close()
 
-			health := embed.CheckHealth(context.Background(), cfg)
+			health := embed.CheckHealth(cmd.Context(), cfg)
 
 			chunks, _ := st.ChunkCount()
 			files, _ := st.FileCount()
@@ -314,7 +319,7 @@ func newStatusCmd() *cobra.Command {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
 
-			if jsonOut {
+			if asJSON {
 				enc := json.NewEncoder(os.Stdout)
 				enc.SetIndent("", "  ")
 				return enc.Encode(s)
@@ -333,6 +338,6 @@ func newStatusCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&jsonOut, "json", false, "output JSON")
+	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }

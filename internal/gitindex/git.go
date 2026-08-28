@@ -3,9 +3,9 @@ package gitindex
 import (
 	"fmt"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/bwireman/archivist/internal/chunk"
 )
@@ -38,9 +38,11 @@ func ListCommits(repoRoot string, limit int) ([]Commit, error) {
 	if limit <= 0 {
 		limit = 500
 	}
+	// Record starts with RS (\x1e). Fields are US (\x1f) separated. GS (\x1d)
+	// ends the header so a multiline body is not mixed with --name-only files.
 	cmd := exec.Command("git", "-C", repoRoot, "log",
 		fmt.Sprintf("-%d", limit),
-		`--pretty=format:%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1e`,
+		"--pretty=format:%x1e%H%x1f%an%x1f%aI%x1f%s%x1f%b%x1d",
 		"--name-only",
 	)
 	out, err := cmd.Output()
@@ -51,16 +53,19 @@ func ListCommits(repoRoot string, limit int) ([]Commit, error) {
 }
 
 func parseGitLog(raw string) []Commit {
-	records := strings.Split(strings.TrimSpace(raw), "\x1e")
+	records := strings.Split(raw, "\x1e")
 	var commits []Commit
 	for _, rec := range records {
 		rec = strings.TrimSpace(rec)
 		if rec == "" {
 			continue
 		}
-		parts := strings.SplitN(rec, "\n", 2)
-		header := parts[0]
-		fields := strings.Split(header, "\x1f")
+		header, filesPart, ok := strings.Cut(rec, "\x1d")
+		if !ok {
+			header = rec
+			filesPart = ""
+		}
+		fields := strings.SplitN(header, "\x1f", 5)
 		if len(fields) < 4 {
 			continue
 		}
@@ -74,12 +79,10 @@ func parseGitLog(raw string) []Commit {
 		if len(fields) > 4 {
 			c.Body = strings.TrimSpace(fields[4])
 		}
-		if len(parts) == 2 {
-			for _, line := range strings.Split(parts[1], "\n") {
-				line = strings.TrimSpace(line)
-				if line != "" {
-					c.Files = append(c.Files, line)
-				}
+		for _, line := range strings.Split(filesPart, "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				c.Files = append(c.Files, line)
 			}
 		}
 		commits = append(commits, c)
@@ -129,23 +132,33 @@ func parseBlame(raw string) map[int]BlameInfo {
 			result[lineNum] = cur
 			continue
 		}
+		if sha, ok := parseBlameSHA(line); ok {
+			if cur.Commit != sha {
+				cur = BlameInfo{Commit: sha}
+			}
+			continue
+		}
 		if strings.HasPrefix(line, "author ") {
 			cur.Author = strings.TrimPrefix(line, "author ")
-		}
-		if strings.HasPrefix(line, " ") {
-			fields := strings.Fields(line)
-			if len(fields) >= 1 {
-				cur.Commit = fields[0]
-			}
 		}
 	}
 	return result
 }
 
-func RelPath(repoRoot, absPath string) (string, error) {
-	rel, err := filepath.Rel(repoRoot, absPath)
-	if err != nil {
-		return "", err
+func parseBlameSHA(line string) (string, bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 3 {
+		return "", false
 	}
-	return filepath.ToSlash(rel), nil
+	sha := fields[0]
+	n := len(sha)
+	if n != 40 && n != 64 {
+		return "", false
+	}
+	for _, r := range sha {
+		if !unicode.Is(unicode.ASCII_Hex_Digit, r) {
+			return "", false
+		}
+	}
+	return sha, true
 }

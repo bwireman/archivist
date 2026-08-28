@@ -65,6 +65,79 @@ func TestStoreRoundTrip(t *testing.T) {
 	}
 }
 
+func TestReplaceFileChunksIsAtomicReplace(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	now := time.Now().UTC()
+	if err := st.ReplaceFileChunks(store.FileRecord{
+		Path: "foo.go", ContentHash: "old", IndexedAt: now,
+	}, []store.Chunk{{
+		Path: "foo.go", ChunkType: store.ChunkTypeCode,
+		Content: "old", ContentHash: "old", CreatedAt: now,
+		Embedding: []float32{1, 0},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := st.ReplaceFileChunks(store.FileRecord{
+		Path: "foo.go", ContentHash: "new", IndexedAt: now,
+	}, []store.Chunk{{
+		Path: "foo.go", ChunkType: store.ChunkTypeCode,
+		Content: "new", ContentHash: "new", CreatedAt: now,
+		Embedding: []float32{0, 1},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+
+	chunks, err := st.AllChunks()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chunks) != 1 || chunks[0].Content != "new" {
+		t.Fatalf("expected replaced chunk, got %#v", chunks)
+	}
+	rec, ok, err := st.GetFile("foo.go")
+	if err != nil || !ok {
+		t.Fatalf("file: ok=%v err=%v", ok, err)
+	}
+	if rec.ContentHash != "new" {
+		t.Fatalf("hash: %q", rec.ContentHash)
+	}
+}
+
+func TestReplaceCommit(t *testing.T) {
+	dir := t.TempDir()
+	st, err := store.Open(filepath.Join(dir, "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	now := time.Now().UTC()
+	if err := st.ReplaceCommit(store.CommitRecord{
+		Hash: "abc", Subject: "s", Author: "a", AuthoredAt: now, IndexedAt: now,
+	}, []store.Chunk{{
+		Path: "abc", ChunkType: store.ChunkTypeCommit,
+		Content: "commit abc", ContentHash: "abc", CreatedAt: now,
+		Embedding: []float32{1, 0},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := st.GetCommit("abc")
+	if err != nil || !ok || got.Subject != "s" {
+		t.Fatalf("commit: ok=%v err=%v %#v", ok, err, got)
+	}
+	chunks, err := st.ChunksByType(store.ChunkTypeCommit)
+	if err != nil || len(chunks) != 1 {
+		t.Fatalf("chunks: %v %v", chunks, err)
+	}
+}
+
 func TestCosineSimilarity(t *testing.T) {
 	a := []float32{1, 0, 0}
 	b := []float32{1, 0, 0}

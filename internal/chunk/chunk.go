@@ -46,39 +46,74 @@ func NewChunk(path string, chunkType Type, start, end int, content string, meta 
 
 func ClassifyFile(path string, adrPatterns []string) Type {
 	ext := strings.ToLower(filepath.Ext(path))
-	if matchesAnyPattern(path, adrPatterns) {
+	if MatchAnyPattern(path, adrPatterns) {
 		return TypeADR
 	}
 	switch ext {
-	case ".md", ".mdx", ".rst", ".txt":
+	case ".md", ".mdx", ".rst", ".txt", ".mdc":
 		return TypeDoc
 	default:
 		return TypeCode
 	}
 }
 
-func matchesAnyPattern(path string, patterns []string) bool {
+// MatchAnyPattern reports whether path matches any glob. * does not cross
+// slashes; ** matches across directories. Patterns like *.pb.go also match
+// against the base name so they apply in subdirectories.
+func MatchAnyPattern(path string, patterns []string) bool {
+	path = filepath.ToSlash(path)
 	for _, p := range patterns {
+		p = filepath.ToSlash(strings.TrimSpace(p))
+		if p == "" {
+			continue
+		}
 		if matched, _ := filepath.Match(p, path); matched {
 			return true
 		}
 		if matched, _ := filepath.Match(p, filepath.Base(path)); matched {
 			return true
 		}
-		// simple ** support
-		if strings.Contains(p, "**") {
-			parts := strings.Split(p, "**")
-			if len(parts) == 2 {
-				prefix := strings.TrimSuffix(parts[0], "/")
-				suffix := strings.TrimPrefix(parts[1], "/")
-				if prefix != "" && !strings.HasPrefix(path, prefix) {
-					continue
-				}
-				if suffix != "" && !strings.Contains(path, suffix) {
-					continue
-				}
-				return true
-			}
+		if strings.Contains(p, "**") && matchDoubleStar(path, p) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchDoubleStar(path, pattern string) bool {
+	parts := strings.SplitN(pattern, "**", 2)
+	if len(parts) != 2 {
+		return false
+	}
+	prefix := strings.TrimSuffix(parts[0], "/")
+	suffix := strings.TrimPrefix(parts[1], "/")
+	rest := path
+	if prefix != "" {
+		if path == prefix {
+			rest = ""
+		} else if strings.HasPrefix(path, prefix+"/") {
+			rest = path[len(prefix)+1:]
+		} else {
+			return false
+		}
+	}
+	if suffix == "" {
+		return true
+	}
+	if matched, _ := filepath.Match(suffix, rest); matched {
+		return true
+	}
+	return matchBaseGlob(suffix, path)
+}
+
+func matchBaseGlob(pattern, path string) bool {
+	if matched, _ := filepath.Match(pattern, filepath.Base(path)); matched {
+		return true
+	}
+	// suffix may itself contain slashes, e.g. "foo/*.md"
+	if strings.Contains(pattern, "/") {
+		if matched, _ := filepath.Match(pattern, path); matched {
+			return true
 		}
 	}
 	return false

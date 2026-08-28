@@ -2,6 +2,7 @@ package search_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -56,6 +57,22 @@ func TestSearchRanking(t *testing.T) {
 	}
 	if results[0].Chunk.Path != "auth.go" {
 		t.Fatalf("expected auth.go, got %s", results[0].Chunk.Path)
+	}
+}
+
+func TestFormatResults(t *testing.T) {
+	out := search.FormatResults([]search.Result{{
+		Chunk: store.Chunk{
+			Path: "foo.go", ChunkType: store.ChunkTypeCode,
+			StartLine: 1, EndLine: 4, Content: "func Foo() {}",
+		},
+		Score: 0.91,
+	}})
+	if strings.Count(out, "foo.go") != 1 {
+		t.Fatalf("path should appear once:\n%s", out)
+	}
+	if !strings.Contains(out, "code foo.go:1-4") {
+		t.Fatalf("unexpected format:\n%s", out)
 	}
 }
 

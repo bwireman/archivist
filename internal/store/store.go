@@ -11,6 +11,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+type execer interface {
+	Exec(query string, args ...any) (sql.Result, error)
+}
+
 type ChunkType string
 
 const (
@@ -57,7 +61,7 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create store dir: %w", err)
 	}
-	db, err := sql.Open("sqlite", path)
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -178,6 +182,62 @@ func (s *Store) DeleteFile(path string) error {
 }
 
 func (s *Store) InsertChunk(chunk Chunk) (int64, error) {
+	return insertChunk(s.db, chunk)
+}
+
+// ReplaceFileChunks deletes existing chunks for rec.Path, inserts chunks, and
+// upserts the file record in one transaction so a failed reindex cannot leave
+// a file marked current with missing or partial chunks.
+func (s *Store) ReplaceFileChunks(rec FileRecord, chunks []Chunk) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`DELETE FROM chunks WHERE path = ?`, rec.Path); err != nil {
+		return err
+	}
+	for _, c := range chunks {
+		if _, err := insertChunk(tx, c); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`
+INSERT INTO files (path, content_hash, indexed_at) VALUES (?, ?, ?)
+ON CONFLICT(path) DO UPDATE SET
+    content_hash = excluded.content_hash,
+    indexed_at = excluded.indexed_at
+`, rec.Path, rec.ContentHash, rec.IndexedAt.UTC().Format(time.RFC3339)); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+// ReplaceCommit deletes chunks stored under rec.Hash, inserts chunks, and
+// upserts the commit in one transaction.
+func (s *Store) ReplaceCommit(rec CommitRecord, chunks []Chunk) error {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	if _, err := tx.Exec(`DELETE FROM chunks WHERE path = ?`, rec.Hash); err != nil {
+		return err
+	}
+	for _, c := range chunks {
+		if _, err := insertChunk(tx, c); err != nil {
+			return err
+		}
+	}
+	if err := upsertCommit(tx, rec); err != nil {
+		return err
+	}
+	return tx.Commit()
+}
+
+func insertChunk(ex execer, chunk Chunk) (int64, error) {
 	var metaJSON []byte
 	var err error
 	if chunk.Metadata != nil {
@@ -190,7 +250,7 @@ func (s *Store) InsertChunk(chunk Chunk) (int64, error) {
 	if err != nil {
 		return 0, err
 	}
-	res, err := s.db.Exec(`
+	res, err := ex.Exec(`
 INSERT INTO chunks (path, chunk_type, start_line, end_line, content, content_hash, embedding, metadata, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `, chunk.Path, string(chunk.ChunkType), chunk.StartLine, chunk.EndLine,
@@ -203,48 +263,22 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 }
 
 func (s *Store) AllChunks() ([]Chunk, error) {
-	rows, err := s.db.Query(`
-SELECT id, path, chunk_type, start_line, end_line, content, content_hash, embedding, metadata, created_at
-FROM chunks
-`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var chunks []Chunk
-	for rows.Next() {
-		var c Chunk
-		var chunkType string
-		var embBlob []byte
-		var metaJSON sql.NullString
-		var createdAt string
-		if err := rows.Scan(&c.ID, &c.Path, &chunkType, &c.StartLine, &c.EndLine,
-			&c.Content, &c.ContentHash, &embBlob, &metaJSON, &createdAt); err != nil {
-			return nil, err
-		}
-		c.ChunkType = ChunkType(chunkType)
-		c.Embedding, err = decodeEmbedding(embBlob)
-		if err != nil {
-			return nil, err
-		}
-		if metaJSON.Valid && metaJSON.String != "" {
-			_ = json.Unmarshal([]byte(metaJSON.String), &c.Metadata)
-		}
-		c.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
-		if err != nil {
-			return nil, err
-		}
-		chunks = append(chunks, c)
-	}
-	return chunks, rows.Err()
+	return s.queryChunks("")
 }
 
 func (s *Store) ChunksByType(t ChunkType) ([]Chunk, error) {
-	rows, err := s.db.Query(`
+	return s.queryChunks(`WHERE chunk_type = ?`, string(t))
+}
+
+func (s *Store) queryChunks(where string, args ...any) ([]Chunk, error) {
+	q := `
 SELECT id, path, chunk_type, start_line, end_line, content, content_hash, embedding, metadata, created_at
-FROM chunks WHERE chunk_type = ?
-`, string(t))
+FROM chunks
+`
+	if where != "" {
+		q += " " + where
+	}
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +301,9 @@ FROM chunks WHERE chunk_type = ?
 			return nil, err
 		}
 		if metaJSON.Valid && metaJSON.String != "" {
-			_ = json.Unmarshal([]byte(metaJSON.String), &c.Metadata)
+			if err := json.Unmarshal([]byte(metaJSON.String), &c.Metadata); err != nil {
+				return nil, err
+			}
 		}
 		c.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
 		if err != nil {
@@ -279,7 +315,11 @@ FROM chunks WHERE chunk_type = ?
 }
 
 func (s *Store) UpsertCommit(rec CommitRecord) error {
-	_, err := s.db.Exec(`
+	return upsertCommit(s.db, rec)
+}
+
+func upsertCommit(ex execer, rec CommitRecord) error {
+	_, err := ex.Exec(`
 INSERT INTO commits (hash, subject, body, author, authored_at, indexed_at)
 VALUES (?, ?, ?, ?, ?, ?)
 ON CONFLICT(hash) DO UPDATE SET

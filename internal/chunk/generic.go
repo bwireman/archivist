@@ -1,9 +1,8 @@
 package chunk
 
 import (
-	"bufio"
-	"bytes"
 	"strings"
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -25,13 +24,13 @@ func SplitGeneric(path, content string, chunkType Type, maxSize, overlap int) []
 		return nil
 	}
 
-	if chunkType == TypeDoc {
-		return splitMarkdown(path, content, maxSize, overlap)
+	if chunkType == TypeDoc || chunkType == TypeADR {
+		return splitMarkdown(path, content, chunkType, maxSize)
 	}
 	return splitBySize(path, content, chunkType, maxSize, overlap)
 }
 
-func splitMarkdown(path, content string, maxSize, overlap int) []Chunk {
+func splitMarkdown(path, content string, chunkType Type, maxSize int) []Chunk {
 	lines := strings.Split(content, "\n")
 	var chunks []Chunk
 	var buf strings.Builder
@@ -43,7 +42,7 @@ func splitMarkdown(path, content string, maxSize, overlap int) []Chunk {
 		if text == "" {
 			return
 		}
-		chunks = append(chunks, NewChunk(path, TypeDoc, startLine, endLine, text, nil))
+		chunks = append(chunks, NewChunk(path, chunkType, startLine, endLine, text, nil))
 		buf.Reset()
 	}
 
@@ -109,8 +108,11 @@ func tailBytes(s string, n int) string {
 	if len(s) <= n {
 		return s
 	}
-	// walk back to a line boundary if possible
-	sub := s[len(s)-n:]
+	start := len(s) - n
+	for start < len(s) && !utf8.RuneStart(s[start]) {
+		start++
+	}
+	sub := s[start:]
 	if idx := strings.Index(sub, "\n"); idx >= 0 {
 		return sub[idx+1:]
 	}
@@ -120,22 +122,51 @@ func tailBytes(s string, n int) string {
 // ExtractCommentChunks finds TODO/FIXME/NOTE comments in source files.
 func ExtractCommentChunks(path, content string) []Chunk {
 	var chunks []Chunk
-	scanner := bufio.NewScanner(bytes.NewReader([]byte(content)))
-	lineNum := 0
-	for scanner.Scan() {
-		lineNum++
-		line := scanner.Text()
+	for i, line := range strings.Split(content, "\n") {
 		trimmed := strings.TrimSpace(line)
-		upper := strings.ToUpper(trimmed)
-		if strings.Contains(upper, "TODO") || strings.Contains(upper, "FIXME") || strings.Contains(upper, "NOTE") {
-			if isLikelyComment(trimmed) {
-				chunks = append(chunks, NewChunk(path, TypeComment, lineNum, lineNum, trimmed, map[string]string{
-					"kind": "inline_comment",
-				}))
-			}
+		if !isLikelyComment(trimmed) || !hasCommentTag(trimmed) {
+			continue
 		}
+		lineNum := i + 1
+		chunks = append(chunks, NewChunk(path, TypeComment, lineNum, lineNum, trimmed, map[string]string{
+			"kind": "inline_comment",
+		}))
 	}
 	return chunks
+}
+
+func hasCommentTag(line string) bool {
+	upper := strings.ToUpper(line)
+	for _, tag := range []string{"TODO", "FIXME", "NOTE"} {
+		idx := 0
+		for {
+			i := strings.Index(upper[idx:], tag)
+			if i < 0 {
+				break
+			}
+			i += idx
+			beforeOK := true
+			if i > 0 {
+				r, _ := utf8.DecodeLastRuneInString(upper[:i])
+				beforeOK = !isTagChar(r)
+			}
+			after := i + len(tag)
+			afterOK := true
+			if after < len(upper) {
+				r, _ := utf8.DecodeRuneInString(upper[after:])
+				afterOK = !isTagChar(r)
+			}
+			if beforeOK && afterOK {
+				return true
+			}
+			idx = i + 1
+		}
+	}
+	return false
+}
+
+func isTagChar(r rune) bool {
+	return unicode.IsLetter(r) || unicode.IsDigit(r)
 }
 
 func isLikelyComment(line string) bool {

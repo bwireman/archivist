@@ -84,9 +84,10 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
 		return nil, err
 	}
-	if len(out.Embedding) > 0 {
-		c.dimensions = len(out.Embedding)
+	if len(out.Embedding) == 0 {
+		return nil, fmt.Errorf("embed returned an empty vector")
 	}
+	c.dimensions = len(out.Embedding)
 	return out.Embedding, nil
 }
 
