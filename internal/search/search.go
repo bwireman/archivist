@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -18,6 +19,7 @@ type Result struct {
 type Options struct {
 	TopK   int
 	Type   store.ChunkType
+	Scope  string
 	AsJSON bool
 }
 
@@ -42,6 +44,9 @@ func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query
 
 	var results []Result
 	for _, c := range chunks {
+		if !MatchScope(opts.Scope, c.Path) {
+			continue
+		}
 		if len(c.Embedding) == 0 {
 			continue
 		}
@@ -73,4 +78,38 @@ func FormatResults(results []Result) string {
 		b.WriteString("No results.\n")
 	}
 	return b.String()
+}
+
+// MatchScope reports whether path is inside scope. Scope may be a directory
+// prefix (internal, internal/) or a glob (internal/**, *.go).
+func MatchScope(scope, path string) bool {
+	scope = filepath.ToSlash(strings.TrimSpace(scope))
+	path = filepath.ToSlash(path)
+	if scope == "" || scope == "." || scope == "./" {
+		return true
+	}
+	scope = strings.TrimPrefix(scope, "./")
+	path = strings.TrimPrefix(path, "./")
+	if scope == path {
+		return true
+	}
+	prefix := strings.TrimSuffix(scope, "/")
+	prefix = strings.TrimSuffix(prefix, "/**")
+	prefix = strings.TrimSuffix(prefix, "/*")
+	if prefix != "" && (path == prefix || strings.HasPrefix(path, prefix+"/")) {
+		return true
+	}
+	if matched, _ := filepath.Match(scope, path); matched {
+		return true
+	}
+	if matched, _ := filepath.Match(scope, filepath.Base(path)); matched {
+		return true
+	}
+	if strings.Contains(scope, "**") {
+		glob := strings.ReplaceAll(scope, "**", "*")
+		if matched, _ := filepath.Match(glob, path); matched {
+			return true
+		}
+	}
+	return false
 }

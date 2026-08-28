@@ -58,3 +58,60 @@ func TestSearchRanking(t *testing.T) {
 		t.Fatalf("expected auth.go, got %s", results[0].Chunk.Path)
 	}
 }
+
+func TestSearchScope(t *testing.T) {
+	st, err := store.Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	fake := &embed.FakeEmbedder{Dim: 8}
+	ctx := context.Background()
+	emb, err := fake.Embed(ctx, "authentication middleware")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for _, path := range []string{"internal/auth.go", "cmd/auth.go"} {
+		if _, err := st.InsertChunk(store.Chunk{
+			Path: path, ChunkType: store.ChunkTypeCode,
+			Content: "authentication middleware", ContentHash: path,
+			Embedding: emb, CreatedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	results, err := search.Search(ctx, st, fake, "authentication", search.Options{
+		TopK:  5,
+		Scope: "internal",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Chunk.Path != "internal/auth.go" {
+		t.Fatalf("scoped search: %#v", results)
+	}
+}
+
+func TestMatchScope(t *testing.T) {
+	cases := []struct {
+		scope string
+		path  string
+		want  bool
+	}{
+		{"", "internal/foo.go", true},
+		{"internal", "internal/foo.go", true},
+		{"internal/", "internal/foo.go", true},
+		{"internal/**", "internal/store/foo.go", true},
+		{"*.go", "foo.go", true},
+		{"cmd", "internal/foo.go", false},
+		{"internal", "internalize/foo.go", false},
+	}
+	for _, tc := range cases {
+		if got := search.MatchScope(tc.scope, tc.path); got != tc.want {
+			t.Fatalf("MatchScope(%q, %q)=%v, want %v", tc.scope, tc.path, got, tc.want)
+		}
+	}
+}

@@ -13,35 +13,25 @@ import (
 )
 
 type OllamaClient struct {
-	baseURL       string
-	embedModel    string
-	generateModel string
-	embedHTTP     *http.Client
-	generateHTTP  *http.Client
-	dimensions    int
+	baseURL    string
+	embedModel string
+	httpClient *http.Client
+	dimensions int
 }
 
-func NewOllamaClient(baseURL, embedModel, generateModel string) *OllamaClient {
-	return NewOllamaClientWithTimeouts(baseURL, embedModel, generateModel, config.DefaultEmbedTimeout, config.DefaultGenerateTimeout)
+func NewOllamaClient(baseURL, embedModel string) *OllamaClient {
+	return NewOllamaClientWithTimeout(baseURL, embedModel, config.DefaultEmbedTimeout)
 }
 
 func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {
-	return NewOllamaClientWithTimeouts(
-		cfg.BaseURL,
-		cfg.EmbedModel,
-		cfg.GenerateModel,
-		cfg.EmbedTimeoutDuration(),
-		cfg.GenerateTimeoutDuration(),
-	)
+	return NewOllamaClientWithTimeout(cfg.BaseURL, cfg.EmbedModel, cfg.EmbedTimeoutDuration())
 }
 
-func NewOllamaClientWithTimeouts(baseURL, embedModel, generateModel string, embedTimeout, generateTimeout time.Duration) *OllamaClient {
+func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {
 	return &OllamaClient{
-		baseURL:       baseURL,
-		embedModel:    embedModel,
-		generateModel: generateModel,
-		embedHTTP:     &http.Client{Timeout: embedTimeout},
-		generateHTTP:  &http.Client{Timeout: generateTimeout},
+		baseURL:    baseURL,
+		embedModel: embedModel,
+		httpClient: &http.Client{Timeout: timeout},
 	}
 }
 
@@ -50,7 +40,7 @@ func (c *OllamaClient) Healthy(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	resp, err := c.embedHTTP.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return fmt.Errorf("ollama unreachable: %w", err)
 	}
@@ -81,7 +71,7 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.embedHTTP.Do(req)
+	resp, err := c.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -102,46 +92,6 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 
 func (c *OllamaClient) Dimensions() int {
 	return c.dimensions
-}
-
-type generateRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	Stream bool   `json:"stream"`
-}
-
-type generateResponse struct {
-	Response string `json:"response"`
-}
-
-func (c *OllamaClient) Generate(ctx context.Context, prompt string) (string, error) {
-	body, err := json.Marshal(generateRequest{
-		Model:  c.generateModel,
-		Prompt: prompt,
-		Stream: false,
-	})
-	if err != nil {
-		return "", err
-	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.baseURL+"/api/generate", bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.generateHTTP.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("generate failed: %s", string(b))
-	}
-	var out generateResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return "", err
-	}
-	return out.Response, nil
 }
 
 // FakeEmbedder is used in tests.
@@ -174,18 +124,5 @@ func (f *FakeEmbedder) Dimensions() int {
 	}
 	return f.Dim
 }
-
-type FakeGenerator struct {
-	Response string
-}
-
-func (f *FakeGenerator) Generate(ctx context.Context, prompt string) (string, error) {
-	if f.Response != "" {
-		return f.Response, nil
-	}
-	return "# Generated Doc\n\nContent based on prompt length: " + fmt.Sprint(len(prompt)), nil
-}
-
-func (f *FakeGenerator) Healthy(ctx context.Context) error { return nil }
 
 func (f *FakeEmbedder) Healthy(ctx context.Context) error { return nil }

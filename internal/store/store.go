@@ -278,44 +278,6 @@ FROM chunks WHERE chunk_type = ?
 	return chunks, rows.Err()
 }
 
-func (s *Store) ChunksChangedSince(since time.Time) ([]Chunk, error) {
-	rows, err := s.db.Query(`
-SELECT id, path, chunk_type, start_line, end_line, content, content_hash, embedding, metadata, created_at
-FROM chunks WHERE created_at > ?
-`, since.UTC().Format(time.RFC3339))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var chunks []Chunk
-	for rows.Next() {
-		var c Chunk
-		var chunkType string
-		var embBlob []byte
-		var metaJSON sql.NullString
-		var createdAt string
-		if err := rows.Scan(&c.ID, &c.Path, &chunkType, &c.StartLine, &c.EndLine,
-			&c.Content, &c.ContentHash, &embBlob, &metaJSON, &createdAt); err != nil {
-			return nil, err
-		}
-		c.ChunkType = ChunkType(chunkType)
-		c.Embedding, err = decodeEmbedding(embBlob)
-		if err != nil {
-			return nil, err
-		}
-		if metaJSON.Valid && metaJSON.String != "" {
-			_ = json.Unmarshal([]byte(metaJSON.String), &c.Metadata)
-		}
-		c.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
-		if err != nil {
-			return nil, err
-		}
-		chunks = append(chunks, c)
-	}
-	return chunks, rows.Err()
-}
-
 func (s *Store) UpsertCommit(rec CommitRecord) error {
 	_, err := s.db.Exec(`
 INSERT INTO commits (hash, subject, body, author, authored_at, indexed_at)
@@ -366,19 +328,6 @@ func (s *Store) LastIndexedAt() (time.Time, bool, error) {
 
 func (s *Store) SetLastIndexedAt(t time.Time) error {
 	return s.SetMeta("last_indexed_at", t.UTC().Format(time.RFC3339))
-}
-
-func (s *Store) DocsSyncAt() (time.Time, bool, error) {
-	val, ok, err := s.GetMeta("docs_sync_at")
-	if err != nil || !ok {
-		return time.Time{}, ok, err
-	}
-	t, err := time.Parse(time.RFC3339, val)
-	return t, true, err
-}
-
-func (s *Store) SetDocsSyncAt(t time.Time) error {
-	return s.SetMeta("docs_sync_at", t.UTC().Format(time.RFC3339))
 }
 
 func (s *Store) ChunkCount() (int, error) {

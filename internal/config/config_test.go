@@ -12,28 +12,10 @@ import (
 
 func fullConfig() *config.Config {
 	return &config.Config{
-		Provider: "cursor",
 		Ollama: config.OllamaConfig{
-			BaseURL:         "http://ollama.example:11434",
-			EmbedModel:      "mxbai-embed-large",
-			GenerateModel:   "qwen2.5:7b",
-			EmbedTimeout:    "5m",
-			GenerateTimeout: "45m",
-		},
-		Cursor: config.CursorConfig{
-			APIKey:          "cursor_test_key",
-			BaseURL:         "https://api.cursor.example",
-			Model:           "composer-2.5",
-			GenerateTimeout: "45m",
-			PollInterval:    "3s",
-		},
-		Docs: config.DocsConfig{
-			Root: "documentation",
-			Pages: map[string]string{
-				"cmd/**":      "documentation/cli.md",
-				"internal/**": "documentation/internals.md",
-				"pkg/**":      "documentation/packages.md",
-			},
+			BaseURL:      "http://ollama.example:11434",
+			EmbedModel:   "mxbai-embed-large",
+			EmbedTimeout: "5m",
 		},
 		Index: config.IndexConfig{
 			SkipDirs: []string{
@@ -56,41 +38,17 @@ func fullConfig() *config.Config {
 func TestDefaultConfig(t *testing.T) {
 	cfg := config.Default()
 
-	if cfg.Provider != config.DefaultProvider {
-		t.Fatalf("provider: got %q", cfg.Provider)
-	}
 	if cfg.Ollama.BaseURL != "http://localhost:11434" {
 		t.Fatalf("ollama.base_url: got %q", cfg.Ollama.BaseURL)
 	}
 	if cfg.Ollama.EmbedModel != "nomic-embed-text" {
 		t.Fatalf("ollama.embed_model: got %q", cfg.Ollama.EmbedModel)
 	}
-	if cfg.Ollama.GenerateModel != "llama3.1" {
-		t.Fatalf("ollama.generate_model: got %q", cfg.Ollama.GenerateModel)
-	}
 	if cfg.Ollama.EmbedTimeout != config.DefaultEmbedTimeoutStr {
 		t.Fatalf("ollama.embed_timeout: got %q", cfg.Ollama.EmbedTimeout)
 	}
-	if cfg.Ollama.GenerateTimeout != config.DefaultGenerateTimeoutStr {
-		t.Fatalf("ollama.generate_timeout: got %q", cfg.Ollama.GenerateTimeout)
-	}
-	if cfg.Ollama.GenerateTimeoutDuration() != config.DefaultGenerateTimeout {
-		t.Fatalf("generate timeout duration: got %s", cfg.Ollama.GenerateTimeoutDuration())
-	}
-	if cfg.Cursor.BaseURL != config.DefaultCursorBaseURL {
-		t.Fatalf("cursor.base_url: got %q", cfg.Cursor.BaseURL)
-	}
-	if cfg.Cursor.Model != config.DefaultCursorModel {
-		t.Fatalf("cursor.model: got %q", cfg.Cursor.Model)
-	}
-	if cfg.Docs.Root != "docs" {
-		t.Fatalf("docs.root: got %q", cfg.Docs.Root)
-	}
-	if cfg.Docs.Pages == nil {
-		t.Fatal("docs.pages: expected non-nil map")
-	}
-	if len(cfg.Docs.Pages) != 0 {
-		t.Fatalf("docs.pages: expected empty map, got %v", cfg.Docs.Pages)
+	if cfg.Ollama.EmbedTimeoutDuration() != config.DefaultEmbedTimeout {
+		t.Fatalf("embed timeout duration: got %s", cfg.Ollama.EmbedTimeoutDuration())
 	}
 	if !reflect.DeepEqual(cfg.Index.SkipDirs, []string{".git", "vendor", "node_modules", ".archivist"}) {
 		t.Fatalf("index.skip_dirs: got %v", cfg.Index.SkipDirs)
@@ -170,19 +128,9 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	for _, key := range []string{"provider", "ollama", "cursor", "docs", "index", "store"} {
+	for _, key := range []string{"ollama", "index", "store"} {
 		if _, ok := keys[key]; !ok {
 			t.Fatalf("saved config missing top-level key %q", key)
-		}
-	}
-
-	var cursor map[string]json.RawMessage
-	if err := json.Unmarshal(keys["cursor"], &cursor); err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []string{"base_url", "model", "generate_timeout", "poll_interval"} {
-		if _, ok := cursor[key]; !ok {
-			t.Fatalf("saved config missing cursor.%s", key)
 		}
 	}
 
@@ -190,19 +138,9 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 	if err := json.Unmarshal(keys["ollama"], &ollama); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"base_url", "embed_model", "generate_model", "embed_timeout", "generate_timeout"} {
+	for _, key := range []string{"base_url", "embed_model", "embed_timeout"} {
 		if _, ok := ollama[key]; !ok {
 			t.Fatalf("saved config missing ollama.%s", key)
-		}
-	}
-
-	var docs map[string]json.RawMessage
-	if err := json.Unmarshal(keys["docs"], &docs); err != nil {
-		t.Fatal(err)
-	}
-	for _, key := range []string{"root", "pages"} {
-		if _, ok := docs[key]; !ok {
-			t.Fatalf("saved config missing docs.%s", key)
 		}
 	}
 
@@ -274,12 +212,7 @@ func TestLoadEmptyStorePathFallsBackToDefault(t *testing.T) {
 	raw := []byte(`{
   "ollama": {
     "base_url": "http://localhost:11434",
-    "embed_model": "nomic-embed-text",
-    "generate_model": "llama3.1"
-  },
-  "docs": {
-    "root": "docs",
-    "pages": {}
+    "embed_model": "nomic-embed-text"
   },
   "index": {
     "skip_dirs": [".git"],

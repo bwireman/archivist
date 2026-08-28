@@ -1,26 +1,8 @@
 {
-  "provider": "cursor",
   "ollama": {
     "base_url": "http://ollama.example:11434",
     "embed_model": "mxbai-embed-large",
-    "generate_model": "qwen2.5:7b",
-    "embed_timeout": "5m",
-    "generate_timeout": "45m"
-  },
-  "cursor": {
-    "api_key": "cursor_test_key",
-    "base_url": "https://api.cursor.example",
-    "model": "composer-2.5",
-    "generate_timeout": "45m",
-    "poll_interval": "3s"
-  },
-  "docs": {
-    "root": "documentation",
-    "pages": {
-      "cmd/**": "documentation/cli.md",
-      "internal/**": "documentation/internals.md",
-      "pkg/**": "documentation/packages.md"
-    }
+    "embed_timeout": "5m"
   },
   "index": {
     "skip_dirs": [
