@@ -1,0 +1,22 @@
+---
+description: Consult Archivist, then docs, before doing work
+alwaysApply: true
+---
+
+# Consult before working
+
+Before implementing, researching, or changing architecture, look things up in this order. Do not guess APIs, defaults, or past decisions.
+
+1. **Archivist** (needs Ollama). Search, then dump if you need full chunks:
+
+```bash
+./archivist search "how indexing skips dump files"
+./archivist dump "how indexing skips dump files"
+./archivist search --type adr "sqlite"
+```
+
+2. **Docs** next, using what the index pointed at:
+   - `docs/decisions/` — source ADRs (authoritative)
+   - `docs/dump/` — generated context, start with `docs/dump/decisions.md`
+
+If Ollama is down, skip step 1 and read `docs/` directly. If both are empty or silent, read the code. Skip this lookup for typos, formatting, and one-line obvious fixes.
