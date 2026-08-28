@@ -16,7 +16,7 @@ import (
 )
 
 type languageSpec struct {
-	lang     *sitter.Language
+	lang      *sitter.Language
 	nodeTypes []string
 }
 
