@@ -131,11 +131,11 @@ func RunInit(ctx context.Context, seed *config.Config) (*config.Config, error) {
 				Value(&formVals.HonorGitignore),
 			huh.NewInput().
 				Title("Repo ADR globs").
-				Description("index.adr.repo — this repository, e.g. docs/decisions/**").
+				Description("index.adr.repo — docs/decisions/**").
 				Value(&formVals.ADRPaths),
 			huh.NewInput().
 				Title("Global ADR globs").
-				Description("index.adr.global — product-wide, e.g. docs/global-decisions/**").
+				Description("index.adr.global — docs/global-decisions/**").
 				Value(&formVals.GlobalADRPaths),
 		).Title("Index").Description("What to walk, and which paths are ADRs"),
 		huh.NewGroup(

@@ -83,12 +83,10 @@ func Default() *Config {
 			HonorGitignore: true,
 			ADR: ADRConfig{
 				Repo: []string{
-					"docs/decisions/**",
-					"**/adr/**",
-					"**/ADR*.md",
+					filepath.ToSlash(DefaultDecisionsDir) + "/**",
 				},
 				Global: []string{
-					"docs/global-decisions/**",
+					filepath.ToSlash(DefaultGlobalDecisionsDir) + "/**",
 				},
 			},
 		},

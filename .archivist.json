@@ -15,9 +15,7 @@
     "honor_gitignore": true,
     "adr": {
       "repo": [
-        "docs/decisions/**",
-        "**/adr/**",
-        "**/ADR*.md"
+        "docs/decisions/**"
       ],
       "global": [
         "docs/global-decisions/**"

@@ -9,11 +9,11 @@ When you choose between real alternatives (storage, APIs, defaults, rejected app
 
 ## Where
 
-- **Repo** (this project only): `docs/decisions/NNN-slug.md`
-- **Global** (the Archivist product, or any repo that should share it): `docs/global-decisions/NNN-slug.md`
-- **User-global** (every repo on this machine): `~/.archivist/decisions/NNN-slug.md`
+- **Repo** (this checkout only: embed pin, local paths, anything that must not follow the binary): `docs/decisions/NNN-slug.md`
+- **Global** (how Archivist works in every repo): `docs/global-decisions/NNN-slug.md`
+- **User-global** (your machine, every repo): `~/.archivist/decisions/NNN-slug.md`
 
-`NNN` is the next number **in that directory**. `slug` is a lowercase hyphenated title. Do not nest global ADRs under `docs/decisions/`.
+`NNN` is the next number **in that directory**. `slug` is a lowercase hyphenated title. Do not put product ADRs in `docs/decisions/`, and do not put this checkout's pins in `docs/global-decisions/`.
 
 ```markdown
 # Use SQLite for the local index
@@ -33,7 +33,7 @@ What we chose, in one or two sentences.
 - What we are accepting
 ```
 
-`Scope` is `repo` or `global` (for humans). Classification comes from the path: `docs/decisions/` is repo, `docs/global-decisions/` and `~/.archivist/decisions/` are global. Global ADRs are stored in `~/.archivist/global.db`, not the repo index.
+`Scope` is `repo` or `global` (for humans). Classification comes from the path. Repo ADRs go in `.archivist/index.db`. Global ADRs go in `~/.archivist/global.db`.
 
 Status is `proposed`, `accepted`, `deprecated`, or `superseded`. Only state facts from this repo; do not invent APIs.
 

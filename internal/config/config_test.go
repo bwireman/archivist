@@ -26,8 +26,6 @@ func fullConfig() *config.Config {
 			ADR: config.ADRConfig{
 				Repo: []string{
 					"docs/decisions/**",
-					"**/adr/**",
-					"**/ADR*.md",
 					"architecture/decisions/**",
 				},
 				Global: []string{
@@ -67,8 +65,11 @@ func TestDefaultConfig(t *testing.T) {
 	if !cfg.Index.HonorGitignore {
 		t.Fatal("index.honor_gitignore should default true")
 	}
-	if !reflect.DeepEqual(cfg.Index.ADR, config.Default().Index.ADR) {
-		t.Fatalf("index.adr: got %#v", cfg.Index.ADR)
+	if !reflect.DeepEqual(cfg.Index.ADR.Repo, []string{filepath.ToSlash(config.DefaultDecisionsDir) + "/**"}) {
+		t.Fatalf("index.adr.repo: got %v", cfg.Index.ADR.Repo)
+	}
+	if !reflect.DeepEqual(cfg.Index.ADR.Global, []string{filepath.ToSlash(config.DefaultGlobalDecisionsDir) + "/**"}) {
+		t.Fatalf("index.adr.global: got %v", cfg.Index.ADR.Global)
 	}
 	if cfg.Store.Path != filepath.Join(config.DefaultDataDir, config.DefaultIndexDB) {
 		t.Fatalf("store.path: got %q", cfg.Store.Path)

@@ -7,24 +7,27 @@ alwaysApply: true
 
 Before implementing, researching, or changing architecture, look things up in this order. Do not guess APIs, defaults, or past decisions.
 
-1. **Archivist** (needs Ollama). Search, then dump if you need full chunks:
+Default search and dump use **this checkout's index** (code, docs, and repo ADRs). Do not pass `--adr-scope global` unless the question is about the Archivist product.
+
+1. **Archivist** (needs Ollama):
 
 ```bash
+# this checkout
 ./archivist search "how indexing skips dump files"
 ./archivist dump "how indexing skips dump files"
-./archivist search --type adr --adr-scope repo "sqlite"
-./archivist search --type adr --adr-scope global "index TUI"
+./archivist search --type adr --adr-scope repo "embed model"
 ./archivist dump --type adr --adr-scope repo
+
+# product-wide (only when the work is the tool, not this checkout's pins)
+./archivist search --type adr --adr-scope global "index TUI"
 ./archivist dump --type adr --adr-scope global
 ```
 
-`--scope` is a path prefix or glob. `--adr-scope` is `repo` or `global`.
-`--adr-scope global` reads `~/.archivist/global.db` (shared across checkouts).
-Default search and dump stay in the repo index so product ADRs do not mix into project context.
+`--scope` is a path prefix or glob. `--adr-scope repo` is this checkout's ADRs in `.archivist/index.db`. `--adr-scope global` is `~/.archivist/global.db`.
 
 2. **Docs** next, using what the index pointed at:
-   - `docs/decisions/` — source ADRs for this repository
-   - `docs/global-decisions/` — source ADRs for the Archivist product
-   - `docs/dump/` — generated context; start with `docs/dump/decisions.md` and `docs/dump/global-decisions.md`
+   - This checkout: `docs/decisions/`, then `docs/dump/decisions.md`
+   - Product: `docs/global-decisions/`, then `docs/dump/global-decisions.md` (only for tool-wide questions)
+   - Topic dumps under `docs/dump/` are from the repo index unless the filename is the global ADR export
 
 If Ollama is down, skip step 1 and read `docs/` directly. If both are empty or silent, read the code. Skip this lookup for typos, formatting, and one-line obvious fixes.

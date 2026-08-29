@@ -5,7 +5,7 @@ Retrieved chunks from a local code index. Use only facts present here.
 - Query: (all matching chunks)
 - ADR scope: global
 - Type: adr
-- Chunks: 28
+- Chunks: 32
 
 ## `docs/global-decisions/001-bubbletea-index-tui.md` (adr/global, lines 1-6)
 
@@ -270,5 +270,42 @@ Keep two SQLite files. The repo index (`.archivist/index.db`) holds this checkou
 - `archivist init` writes `honor_gitignore: true` and the setup TUI can turn it off.
 - Omitting the key in an existing `.archivist.json` still means true.
 - Gitignored files that were already in the index are pruned on the next index.
+```
+
+
+## `docs/global-decisions/008-default-adr-globs.md` (adr/global, lines 1-6)
+
+```md
+# Default ADR globs are the product directories
+
+- Status: accepted
+- Date: 2026-08-28
+- Scope: global
+```
+
+
+## `docs/global-decisions/008-default-adr-globs.md` (adr/global, lines 7-9)
+
+```md
+## Context
+Default `index.adr.repo` also matched `**/adr/**` and `**/ADR*.md` so other layouts would classify as ADRs. This product only uses `docs/decisions/` and `docs/global-decisions/`, which is what the Cursor rules and `archivist init` already create. Extra globs made the config look unrelated to those directories.
+```
+
+
+## `docs/global-decisions/008-default-adr-globs.md` (adr/global, lines 10-12)
+
+```md
+## Decision
+Default `index.adr.repo` is `docs/decisions/**`. Default `index.adr.global` is `docs/global-decisions/**`. Other layouts stay possible as an explicit override. Empty lists still disable that kind; omitting `adr` still keeps these defaults.
+```
+
+
+## `docs/global-decisions/008-default-adr-globs.md` (adr/global, lines 13-17)
+
+```md
+## Consequences
+- `.archivist.json` `index.adr` matches the directories agents write to.
+- Files like `docs/ADR-001.md` are ordinary docs unless the repo adds a glob.
+- `~/.archivist/decisions/` is still implicit, not a glob.
 ```
 

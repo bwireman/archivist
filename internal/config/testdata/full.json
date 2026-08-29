@@ -21,8 +21,6 @@
     "adr": {
       "repo": [
         "docs/decisions/**",
-        "**/adr/**",
-        "**/ADR*.md",
         "architecture/decisions/**"
       ],
       "global": [
