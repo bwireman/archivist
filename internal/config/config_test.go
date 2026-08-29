@@ -21,7 +21,8 @@ func fullConfig() *config.Config {
 			SkipDirs: []string{
 				".git", "vendor", "node_modules", ".archivist", "dist", "build",
 			},
-			SkipGlobs: []string{"*.min.js", "*.pb.go"},
+			SkipGlobs:      []string{"*.min.js", "*.pb.go"},
+			HonorGitignore: true,
 			ADR: config.ADRConfig{
 				Repo: []string{
 					"docs/decisions/**",
@@ -62,6 +63,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if len(cfg.Index.SkipGlobs) != 0 {
 		t.Fatalf("index.skip_globs: expected empty slice, got %v", cfg.Index.SkipGlobs)
+	}
+	if !cfg.Index.HonorGitignore {
+		t.Fatal("index.honor_gitignore should default true")
 	}
 	if !reflect.DeepEqual(cfg.Index.ADR, config.Default().Index.ADR) {
 		t.Fatalf("index.adr: got %#v", cfg.Index.ADR)
@@ -155,7 +159,7 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 	if err := json.Unmarshal(keys["index"], &index); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"skip_dirs", "skip_globs", "adr"} {
+	for _, key := range []string{"skip_dirs", "skip_globs", "honor_gitignore", "adr"} {
 		if _, ok := index[key]; !ok {
 			t.Fatalf("saved config missing index.%s", key)
 		}
@@ -218,6 +222,31 @@ func TestLoadOmitsADRUsesDefault(t *testing.T) {
 	}
 	if !reflect.DeepEqual(loaded.Index.ADR, config.Default().Index.ADR) {
 		t.Fatalf("omitted index.adr: got %#v", loaded.Index.ADR)
+	}
+	if !loaded.Index.HonorGitignore {
+		t.Fatal("omitted honor_gitignore should default true")
+	}
+}
+
+func TestLoadHonorGitignoreFalse(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(`{
+  "index": {
+    "skip_dirs": [".git"],
+    "skip_globs": [],
+    "honor_gitignore": false
+  },
+  "store": { "path": ".archivist/index.db" }
+}`)
+	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Index.HonorGitignore {
+		t.Fatal("expected honor_gitignore false")
 	}
 }
 

@@ -50,9 +50,10 @@ func parseTimeout(raw string, fallback time.Duration) time.Duration {
 }
 
 type IndexConfig struct {
-	SkipDirs  []string  `json:"skip_dirs"`
-	SkipGlobs []string  `json:"skip_globs"`
-	ADR       ADRConfig `json:"adr"`
+	SkipDirs       []string  `json:"skip_dirs"`
+	SkipGlobs      []string  `json:"skip_globs"`
+	HonorGitignore bool      `json:"honor_gitignore"`
+	ADR            ADRConfig `json:"adr"`
 }
 
 // ADRConfig is the globs that classify markdown as ADRs.
@@ -78,7 +79,8 @@ func Default() *Config {
 			SkipDirs: []string{
 				".git", "vendor", "node_modules", ".archivist",
 			},
-			SkipGlobs: []string{},
+			SkipGlobs:      []string{},
+			HonorGitignore: true,
 			ADR: ADRConfig{
 				Repo: []string{
 					"docs/decisions/**",
@@ -130,6 +132,7 @@ func (c *IndexConfig) UnmarshalJSON(data []byte) error {
 	var w struct {
 		SkipDirs       []string   `json:"skip_dirs"`
 		SkipGlobs      []string   `json:"skip_globs"`
+		HonorGitignore *bool      `json:"honor_gitignore"`
 		ADR            *ADRConfig `json:"adr"`
 		ADRPaths       []string   `json:"adr_paths"`
 		GlobalADRPaths []string   `json:"global_adr_paths"`
@@ -139,6 +142,11 @@ func (c *IndexConfig) UnmarshalJSON(data []byte) error {
 	}
 	c.SkipDirs = w.SkipDirs
 	c.SkipGlobs = w.SkipGlobs
+	if w.HonorGitignore != nil {
+		c.HonorGitignore = *w.HonorGitignore
+	} else {
+		c.HonorGitignore = true
+	}
 	c.ADR = ADRConfig{}
 	if w.ADR != nil {
 		c.ADR = *w.ADR

@@ -30,6 +30,7 @@ type Indexer struct {
 	UserGlobalDir string
 
 	progress Progress
+	ignore   *gitindex.Ignore
 }
 
 func (idx *Indexer) report() {
@@ -46,6 +47,10 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 
 	idx.progress = Progress{Phase: PhaseScan}
 	idx.report()
+
+	if err := idx.loadIgnore(); err != nil {
+		return err
+	}
 
 	n, err := idx.countFiles(root)
 	if err != nil {
@@ -146,7 +151,7 @@ func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error
 			return err
 		}
 		rel = filepath.ToSlash(rel)
-		if idx.shouldSkipFile(rel) {
+		if idx.shouldSkipRepoFile(rel) {
 			return nil
 		}
 		return fn(rel, path)
@@ -164,7 +169,11 @@ func (idx *Indexer) shouldSkipDir(path string) bool {
 	if err != nil {
 		return false
 	}
-	return isDumpPath(rel)
+	rel = filepath.ToSlash(rel)
+	if isDumpPath(rel) {
+		return true
+	}
+	return idx.gitignored(rel, true)
 }
 
 func (idx *Indexer) shouldSkipFile(rel string) bool {
@@ -177,6 +186,30 @@ func (idx *Indexer) shouldSkipFile(rel string) bool {
 		return true
 	}
 	return chunk.MatchAnyPattern(rel, idx.Cfg.Index.SkipGlobs)
+}
+
+func (idx *Indexer) shouldSkipRepoFile(rel string) bool {
+	if idx.shouldSkipFile(rel) {
+		return true
+	}
+	return idx.gitignored(rel, false)
+}
+
+func (idx *Indexer) gitignored(rel string, isDir bool) bool {
+	return idx.ignore != nil && idx.ignore.Match(rel, isDir)
+}
+
+func (idx *Indexer) loadIgnore() error {
+	idx.ignore = nil
+	if idx.Cfg == nil || !idx.Cfg.Index.HonorGitignore {
+		return nil
+	}
+	ig, err := gitindex.LoadGitignore(idx.RepoRoot)
+	if err != nil {
+		return err
+	}
+	idx.ignore = ig
+	return nil
 }
 
 func isDumpPath(rel string) bool {

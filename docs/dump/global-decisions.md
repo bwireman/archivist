@@ -5,7 +5,7 @@ Retrieved chunks from a local code index. Use only facts present here.
 - Query: (all matching chunks)
 - ADR scope: global
 - Type: adr
-- Chunks: 24
+- Chunks: 28
 
 ## `docs/global-decisions/001-bubbletea-index-tui.md` (adr/global, lines 1-6)
 
@@ -233,5 +233,42 @@ Keep two SQLite files. The repo index (`.archivist/index.db`) holds this checkou
 - Global queries use the current embed model; vectors written with a different model will not rank well until reindexed.
 - Untagged in-repo global chunks (no `origin_root`) are left in place until overwritten.
 - Scoped `--scope` index does not prune in-repo globals outside that prefix.
+```
+
+
+## `docs/global-decisions/007-honor-gitignore.md` (adr/global, lines 1-6)
+
+```md
+# Honor .gitignore when indexing
+
+- Status: accepted
+- Date: 2026-08-28
+- Scope: global
+```
+
+
+## `docs/global-decisions/007-honor-gitignore.md` (adr/global, lines 7-9)
+
+```md
+## Context
+`skip_dirs` and `skip_globs` were a second, incomplete copy of what most repos already list in `.gitignore`. Build artifacts, local binaries, and editor dirs were easy to index by accident.
+```
+
+
+## `docs/global-decisions/007-honor-gitignore.md` (adr/global, lines 10-12)
+
+```md
+## Decision
+`index.honor_gitignore` defaults to true. When set, the indexer skips files and directories that match the repo `.gitignore` (root and nested), including directory patterns so ignored trees are not walked. `skip_dirs` and `skip_globs` still apply. User-global ADRs under `~/.archivist/decisions/` are not filtered by a checkout's gitignore. Set the flag false to index gitignored paths.
+```
+
+
+## `docs/global-decisions/007-honor-gitignore.md` (adr/global, lines 13-17)
+
+```md
+## Consequences
+- `archivist init` writes `honor_gitignore: true` and the setup TUI can turn it off.
+- Omitting the key in an existing `.archivist.json` still means true.
+- Gitignored files that were already in the index are pruned on the next index.
 ```
 

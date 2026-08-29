@@ -36,6 +36,9 @@ func TestConfigFromFormRoundTrip(t *testing.T) {
 	if got.Store.Path != want.Store.Path {
 		t.Fatalf("store: %s", got.Store.Path)
 	}
+	if got.Index.HonorGitignore != want.Index.HonorGitignore {
+		t.Fatalf("honor_gitignore: %v", got.Index.HonorGitignore)
+	}
 	if strings.Join(got.Index.ADR.Global, ",") != strings.Join(want.Index.ADR.Global, ",") {
 		t.Fatalf("global adr: %v", got.Index.ADR.Global)
 	}

@@ -17,6 +17,7 @@
       "*.min.js",
       "*.pb.go"
     ],
+    "honor_gitignore": true,
     "adr": {
       "repo": [
         "docs/decisions/**",

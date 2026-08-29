@@ -476,3 +476,56 @@ func TestIndexDropsFileThatBecameBinary(t *testing.T) {
 		}
 	}
 }
+
+func TestIndexHonorGitignore(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, ".gitignore", "ignored.md\nsecret/\n")
+	writeFile(t, root, "keep.go", "package keep\n\nfunc Keep() {}\n")
+	writeFile(t, root, "ignored.md", "# secret\n")
+	writeFile(t, root, "secret/x.go", "package secret\n")
+
+	idx, st := newIndexer(t, root, &embed.FakeEmbedder{Dim: 8})
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := st.AllFilePaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, p := range paths {
+		got[p] = true
+	}
+	if !got["keep.go"] {
+		t.Fatal("expected keep.go")
+	}
+	if got["ignored.md"] {
+		t.Fatal(".gitignore ignored.md should be skipped")
+	}
+	if got["secret/x.go"] {
+		t.Fatal(".gitignore secret/ should be skipped")
+	}
+}
+
+func TestIndexHonorGitignoreDisabled(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, ".gitignore", "ignored.md\n")
+	writeFile(t, root, "ignored.md", "# still index me\n")
+
+	idx, st := newIndexer(t, root, &embed.FakeEmbedder{Dim: 8})
+	idx.Cfg.Index.HonorGitignore = false
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	paths, err := st.AllFilePaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, p := range paths {
+		got[p] = true
+	}
+	if !got["ignored.md"] {
+		t.Fatal("honor_gitignore false should still index ignored.md")
+	}
+}

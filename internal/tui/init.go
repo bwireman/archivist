@@ -22,6 +22,7 @@ type InitForm struct {
 	GlobalADRPaths string
 	StorePath      string
 	GlobalPath     string
+	HonorGitignore bool
 }
 
 // FormFromConfig flattens cfg into form fields.
@@ -39,6 +40,7 @@ func FormFromConfig(cfg *config.Config) InitForm {
 		GlobalADRPaths: JoinList(cfg.Index.ADR.Global),
 		StorePath:      cfg.Store.Path,
 		GlobalPath:     cfg.Store.GlobalPath,
+		HonorGitignore: cfg.Index.HonorGitignore,
 	}
 }
 
@@ -52,6 +54,7 @@ func ConfigFromForm(form InitForm) (*config.Config, error) {
 	cfg.Index.SkipGlobs = SplitList(form.SkipGlobs)
 	cfg.Index.ADR.Repo = SplitList(form.ADRPaths)
 	cfg.Index.ADR.Global = SplitList(form.GlobalADRPaths)
+	cfg.Index.HonorGitignore = form.HonorGitignore
 	cfg.Store.Path = strings.TrimSpace(form.StorePath)
 	cfg.Store.GlobalPath = strings.TrimSpace(form.GlobalPath)
 
@@ -122,6 +125,10 @@ func RunInit(ctx context.Context, seed *config.Config) (*config.Config, error) {
 				Title("Skip globs").
 				Description("Comma-separated, e.g. *.pb.go").
 				Value(&formVals.SkipGlobs),
+			huh.NewConfirm().
+				Title("Honor .gitignore").
+				Description("Skip files and directories listed in .gitignore").
+				Value(&formVals.HonorGitignore),
 			huh.NewInput().
 				Title("Repo ADR globs").
 				Description("index.adr.repo — this repository, e.g. docs/decisions/**").

@@ -12,6 +12,7 @@
       ".archivist"
     ],
     "skip_globs": [],
+    "honor_gitignore": true,
     "adr": {
       "repo": [
         "docs/decisions/**",
@@ -24,6 +25,7 @@
     }
   },
   "store": {
-    "path": ".archivist/index.db"
+    "path": ".archivist/index.db",
+    "global_path": "global.db"
   }
 }
