@@ -5,7 +5,7 @@ Retrieved chunks from a local code index. Use only facts present here.
 - Query: (all matching chunks)
 - ADR scope: global
 - Type: adr
-- Chunks: 32
+- Chunks: 36
 
 ## `docs/global-decisions/001-bubbletea-index-tui.md` (adr/global, lines 1-6)
 
@@ -307,5 +307,43 @@ Default `index.adr.repo` is `docs/decisions/**`. Default `index.adr.global` is `
 - `.archivist.json` `index.adr` matches the directories agents write to.
 - Files like `docs/ADR-001.md` are ordinary docs unless the repo adds a glob.
 - `~/.archivist/decisions/` is still implicit, not a glob.
+```
+
+
+## `docs/global-decisions/009-qwen3-embed-default.md` (adr/global, lines 1-6)
+
+```md
+# Default embed model is qwen3-embedding:0.6b
+
+- Status: accepted
+- Date: 2026-08-28
+- Scope: global
+```
+
+
+## `docs/global-decisions/009-qwen3-embed-default.md` (adr/global, lines 7-9)
+
+```md
+## Context
+`archivist init` wrote `nomic-embed-text` via `config.Default()`. This checkout already indexes with `qwen3-embedding:0.6b` because that model is installed locally. New repos should get the same default so they can index without a per-repo pin.
+```
+
+
+## `docs/global-decisions/009-qwen3-embed-default.md` (adr/global, lines 10-12)
+
+```md
+## Decision
+`config.Default()` and `archivist init --plain` use `qwen3-embedding:0.6b`. The init TUI still suggests `nomic-embed-text` and `mxbai-embed-large` as alternatives. A repo may override `ollama.embed_model` in `.archivist.json`.
+```
+
+
+## `docs/global-decisions/009-qwen3-embed-default.md` (adr/global, lines 13-18)
+
+```md
+## Consequences
+- `ollama pull qwen3-embedding:0.6b` is the documented setup step.
+- Existing configs that set `nomic-embed-text` keep that model.
+- Changing the embed model later requires a full reindex; existing vectors are not comparable across models.
+- The repo-only pin in `docs/decisions/001-use-qwen3-embedding.md` is superseded.
 ```
 

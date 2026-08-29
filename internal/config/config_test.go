@@ -47,7 +47,7 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Ollama.BaseURL != "http://localhost:11434" {
 		t.Fatalf("ollama.base_url: got %q", cfg.Ollama.BaseURL)
 	}
-	if cfg.Ollama.EmbedModel != "nomic-embed-text" {
+	if cfg.Ollama.EmbedModel != config.DefaultEmbedModel {
 		t.Fatalf("ollama.embed_model: got %q", cfg.Ollama.EmbedModel)
 	}
 	if cfg.Ollama.EmbedTimeout != config.DefaultEmbedTimeoutStr {

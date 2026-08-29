@@ -12,7 +12,7 @@ Retrieved chunks from a local code index. Use only facts present here.
 ```md
 # Use qwen3-embedding:0.6b for this repository
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-08-28
 - Scope: repo
 ```
@@ -22,19 +22,21 @@ Retrieved chunks from a local code index. Use only facts present here.
 
 ```md
 ## Context
-`archivist init` writes `nomic-embed-text` as the default Ollama embed model. This repository needed a model that is actually installed locally so `make index` can run.
+`archivist init` wrote `nomic-embed-text` as the default Ollama embed model. This repository needed a model that is actually installed locally so `make index` can run.
 ```
 
 
-## `docs/decisions/001-use-qwen3-embedding.md` (adr/repo, lines 10-12)
+## `docs/decisions/001-use-qwen3-embedding.md` (adr/repo, lines 10-14)
 
 ```md
 ## Decision
 Pin `.archivist.json` to `qwen3-embedding:0.6b` on `http://localhost:11434`. Leave the tool default in `config.Default()` as `nomic-embed-text`.
+
+Superseded by `docs/global-decisions/009-qwen3-embed-default.md`: the tool default is now `qwen3-embedding:0.6b`, so this checkout no longer needs a special pin.
 ```
 
 
-## `docs/decisions/001-use-qwen3-embedding.md` (adr/repo, lines 13-17)
+## `docs/decisions/001-use-qwen3-embedding.md` (adr/repo, lines 15-19)
 
 ```md
 ## Consequences

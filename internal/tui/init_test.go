@@ -67,7 +67,7 @@ func TestConfigFromFormRejectsBadTimeout(t *testing.T) {
 func TestConfigFromFormCustom(t *testing.T) {
 	got, err := ConfigFromForm(InitForm{
 		BaseURL:        "http://ollama.example:11434",
-		EmbedModel:     "qwen3-embedding:0.6b",
+		EmbedModel:     "nomic-embed-text",
 		EmbedTimeout:   "5m",
 		SkipDirs:       ".git, vendor",
 		SkipGlobs:      "*.pb.go",
@@ -78,7 +78,7 @@ func TestConfigFromFormCustom(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got.Ollama.EmbedModel != "qwen3-embedding:0.6b" {
+	if got.Ollama.EmbedModel != "nomic-embed-text" {
 		t.Fatalf("model: %s", got.Ollama.EmbedModel)
 	}
 	if got.Store.Path != ".archivist/custom.db" {
@@ -98,7 +98,7 @@ func TestConfigFromFormCustom(t *testing.T) {
 func TestFormatInitSummary(t *testing.T) {
 	cfg := config.Default()
 	created := FormatInitSummary(cfg, false)
-	if !strings.Contains(created, "Created .archivist.json") || !strings.Contains(created, "ollama pull nomic-embed-text") {
+	if !strings.Contains(created, "Created .archivist.json") || !strings.Contains(created, "ollama pull qwen3-embedding:0.6b") {
 		t.Fatalf("created:\n%s", created)
 	}
 	updated := FormatInitSummary(cfg, true)

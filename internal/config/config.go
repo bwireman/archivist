@@ -13,6 +13,7 @@ const (
 	DefaultConfigName         = ".archivist.json"
 	DefaultDataDir            = ".archivist"
 	DefaultIndexDB            = "index.db"
+	DefaultEmbedModel         = "qwen3-embedding:0.6b"
 	DefaultEmbedTimeout       = 2 * time.Minute
 	DefaultEmbedTimeoutStr    = "2m"
 	DefaultDecisionsDir       = "docs/decisions"
@@ -72,7 +73,7 @@ func Default() *Config {
 	return &Config{
 		Ollama: OllamaConfig{
 			BaseURL:      "http://localhost:11434",
-			EmbedModel:   "nomic-embed-text",
+			EmbedModel:   DefaultEmbedModel,
 			EmbedTimeout: DefaultEmbedTimeoutStr,
 		},
 		Index: IndexConfig{

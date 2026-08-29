@@ -107,7 +107,7 @@ func RunInit(ctx context.Context, seed *config.Config) (*config.Config, error) {
 			huh.NewInput().
 				Title("Embed model").
 				Description("Must be pulled in Ollama").
-				Suggestions([]string{"nomic-embed-text", "qwen3-embedding:0.6b", "mxbai-embed-large"}).
+				Suggestions([]string{"qwen3-embedding:0.6b", "nomic-embed-text", "mxbai-embed-large"}).
 				Value(&formVals.EmbedModel).
 				Validate(required("embed model")),
 			huh.NewInput().
