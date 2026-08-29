@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-28
+- Scope: global
 
 ## Context
 `archivist index` printed one line when it finished. Embedding is per-chunk and can take a while, so a live view of the current file and counts is useful. `make index` and piped runs still need a log-friendly summary.

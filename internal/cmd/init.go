@@ -75,5 +75,11 @@ func applyInit(root string, cfg *config.Config) error {
 	if err := os.MkdirAll(filepath.Dir(config.StorePath(root, cfg)), 0o755); err != nil {
 		return err
 	}
+	if err := os.MkdirAll(filepath.Join(root, config.DefaultDecisionsDir), 0o755); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(root, config.DefaultGlobalDecisionsDir), 0o755); err != nil {
+		return err
+	}
 	return appendGitignore(filepath.Join(root, ".gitignore"), ".archivist/\n")
 }

@@ -1,11 +1,14 @@
 package store_test
 
 import (
+	"errors"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/bwireman/archivist/internal/store"
+	"github.com/bwireman/archivist/internal/version"
 )
 
 func TestStoreRoundTrip(t *testing.T) {
@@ -148,4 +151,179 @@ func TestCosineSimilarity(t *testing.T) {
 	if store.CosineSimilarity(a, c) > 0.01 {
 		t.Fatal("orthogonal vectors should have similarity ~0")
 	}
+}
+
+func TestOpenStampsSchema(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	got, err := st.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != version.Schema {
+		t.Fatalf("schema: got %d want %d", got, version.Schema)
+	}
+	_, ok, err := st.ArchivistVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("archivist_version should be set when indexing, not on open")
+	}
+}
+
+func TestStampIndexedWritesVersion(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := st.StampIndexed(now); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := st.ArchivistVersion()
+	if err != nil || !ok || got != version.Version {
+		t.Fatalf("archivist_version: ok=%v got=%q err=%v", ok, got, err)
+	}
+	indexed, ok, err := st.LastIndexedAt()
+	if err != nil || !ok {
+		t.Fatalf("last_indexed_at: ok=%v err=%v", ok, err)
+	}
+	if !indexed.Equal(now) {
+		t.Fatalf("last_indexed_at: got %s want %s", indexed, now)
+	}
+}
+
+func TestOpenRejectsNewerSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetMeta(store.MetaSchemaVersion, "99"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = store.Open(path)
+	var se *store.SchemaError
+	if !errors.As(err, &se) {
+		t.Fatalf("expected SchemaError, got %v", err)
+	}
+	if se.Have != 99 || se.Want != version.Schema {
+		t.Fatalf("SchemaError: %#v", se)
+	}
+}
+
+func TestOpenMigratesMissingSchema(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetMeta(store.MetaSchemaVersion, "0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	got, err := st.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != version.Schema {
+		t.Fatalf("schema after migrate: got %d want %d", got, version.Schema)
+	}
+}
+
+func TestFirstChunk(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	_, ok, err := st.FirstChunk("missing.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("expected no chunk")
+	}
+
+	if err := st.ReplaceFileChunks(store.FileRecord{
+		Path: "docs/global-decisions/001.md", ContentHash: "h", IndexedAt: time.Now().UTC(),
+	}, []store.Chunk{{
+		Path:      "docs/global-decisions/001.md",
+		ChunkType: store.ChunkTypeADR,
+		Content:   "hello",
+		Metadata:  map[string]string{"origin_root": "/tmp/repo"},
+		CreatedAt: time.Now().UTC(),
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	c, ok, err := st.FirstChunk("docs/global-decisions/001.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("expected chunk")
+	}
+	if c.Metadata["origin_root"] != "/tmp/repo" {
+		t.Fatalf("metadata %v", c.Metadata)
+	}
+
+	all, err := st.ChunksForPath("docs/global-decisions/001.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 1 {
+		t.Fatalf("ChunksForPath: got %d", len(all))
+	}
+}
+
+func TestOpenIfExists(t *testing.T) {
+	dir := t.TempDir()
+	missing := filepath.Join(dir, "missing.db")
+	st, ok, err := store.OpenIfExists(missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok || st != nil {
+		t.Fatal("missing db should not open")
+	}
+	if _, err := os.Stat(missing); !os.IsNotExist(err) {
+		t.Fatal("OpenIfExists must not create the file")
+	}
+
+	path := filepath.Join(dir, "exists.db")
+	created, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := created.Close(); err != nil {
+		t.Fatal(err)
+	}
+	st, ok, err = store.OpenIfExists(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || st == nil {
+		t.Fatal("expected existing db")
+	}
+	_ = st.Close()
 }

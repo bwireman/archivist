@@ -17,14 +17,21 @@
       "*.min.js",
       "*.pb.go"
     ],
-    "adr_paths": [
-      "**/adr/**",
-      "docs/decisions/**",
-      "**/ADR*.md",
-      "architecture/decisions/**"
-    ]
+    "adr": {
+      "repo": [
+        "docs/decisions/**",
+        "**/adr/**",
+        "**/ADR*.md",
+        "architecture/decisions/**"
+      ],
+      "global": [
+        "docs/global-decisions/**",
+        "architecture/global-decisions/**"
+      ]
+    }
   },
   "store": {
-    "path": ".archivist/custom-index.db"
+    "path": ".archivist/custom-index.db",
+    "global_path": "custom-global.db"
   }
 }

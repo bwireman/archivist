@@ -5,7 +5,7 @@ alwaysApply: true
 
 # Index regularly
 
-Keep the Archivist index current. Run `make index` (needs Ollama) when you finish a turn that changed indexed files: Go sources, markdown docs, ADRs under `docs/decisions/`, or anything else the indexer walks.
+Keep the Archivist index current. Run `make index` (needs Ollama) when you finish a turn that changed indexed files: Go sources, markdown docs, ADRs under `docs/decisions/` or `docs/global-decisions/`, or anything else the indexer walks. In-repo global ADRs also update `~/.archivist/global.db`.
 
 ```bash
 make index

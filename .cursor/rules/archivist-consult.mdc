@@ -12,11 +12,19 @@ Before implementing, researching, or changing architecture, look things up in th
 ```bash
 ./archivist search "how indexing skips dump files"
 ./archivist dump "how indexing skips dump files"
-./archivist search --type adr "sqlite"
+./archivist search --type adr --adr-scope repo "sqlite"
+./archivist search --type adr --adr-scope global "index TUI"
+./archivist dump --type adr --adr-scope repo
+./archivist dump --type adr --adr-scope global
 ```
 
+`--scope` is a path prefix or glob. `--adr-scope` is `repo` or `global`.
+`--adr-scope global` reads `~/.archivist/global.db` (shared across checkouts).
+Default search and dump stay in the repo index so product ADRs do not mix into project context.
+
 2. **Docs** next, using what the index pointed at:
-   - `docs/decisions/` — source ADRs (authoritative)
-   - `docs/dump/` — generated context, start with `docs/dump/decisions.md`
+   - `docs/decisions/` — source ADRs for this repository
+   - `docs/global-decisions/` — source ADRs for the Archivist product
+   - `docs/dump/` — generated context; start with `docs/dump/decisions.md` and `docs/dump/global-decisions.md`
 
 If Ollama is down, skip step 1 and read `docs/` directly. If both are empty or silent, read the code. Skip this lookup for typos, formatting, and one-line obvious fixes.

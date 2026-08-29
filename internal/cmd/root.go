@@ -12,6 +12,7 @@ import (
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/search"
 	"github.com/bwireman/archivist/internal/store"
+	"github.com/bwireman/archivist/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -23,16 +24,30 @@ func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "archivist",
 		Short:         "Local code indexer",
+		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetVersionTemplate("{{.Name}} version {{.Version}}\n")
 	root.PersistentFlags().StringVar(&repoPath, "path", ".", "repository root path")
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newIndexCmd())
 	root.AddCommand(newSearchCmd())
 	root.AddCommand(newDumpCmd())
 	root.AddCommand(newStatusCmd())
+	root.AddCommand(newVersionCmd())
 	return root
+}
+
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the version",
+		Args:  cobra.NoArgs,
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
+		},
+	}
 }
 
 func repoRoot() (string, error) {
@@ -57,6 +72,51 @@ func loadEnv() (string, *config.Config, error) {
 
 func openStore(root string, cfg *config.Config) (*store.Store, error) {
 	return store.Open(config.StorePath(root, cfg))
+}
+
+func openGlobalStore(cfg *config.Config) (*store.Store, error) {
+	path, err := resolveGlobalStorePath(cfg)
+	if err != nil {
+		return nil, err
+	}
+	return store.Open(path)
+}
+
+func openGlobalStoreExisting(cfg *config.Config) (*store.Store, error) {
+	path, err := resolveGlobalStorePath(cfg)
+	if err != nil {
+		return nil, err
+	}
+	st, ok, err := store.OpenIfExists(path)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, fmt.Errorf("global index not found at %s (run archivist index)", path)
+	}
+	return st, nil
+}
+
+func resolveGlobalStorePath(cfg *config.Config) (string, error) {
+	path := config.GlobalStorePath(cfg)
+	if path != "" {
+		return path, nil
+	}
+	if cfg != nil {
+		if p := strings.TrimSpace(cfg.Store.GlobalPath); p != "" && !filepath.IsAbs(p) {
+			return "", fmt.Errorf("store.global_path %q escapes ~/.archivist; use an absolute path", p)
+		}
+	}
+	return "", fmt.Errorf("cannot resolve global index path (set store.global_path or $HOME)")
+}
+
+// openStoreForQuery uses the repo index unless --adr-scope global, which
+// reads the machine-wide ADR database.
+func openStoreForQuery(root string, cfg *config.Config, adrScope string) (*store.Store, error) {
+	if adrScope == "global" {
+		return openGlobalStoreExisting(cfg)
+	}
+	return openStore(root, cfg)
 }
 
 func appendGitignore(path, line string) error {
@@ -84,6 +144,7 @@ func appendGitignore(path, line string) error {
 func newSearchCmd() *cobra.Command {
 	var topK int
 	var chunkType string
+	var adrScope string
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -94,7 +155,11 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			st, err := openStore(root, cfg)
+			parsed, err := parseADRScope(adrScope)
+			if err != nil {
+				return err
+			}
+			st, err := openStoreForQuery(root, cfg, parsed)
 			if err != nil {
 				return err
 			}
@@ -102,7 +167,7 @@ func newSearchCmd() *cobra.Command {
 
 			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
 			query := strings.Join(args, " ")
-			opts := search.Options{TopK: topK}
+			opts := search.Options{TopK: topK, ADRScope: parsed}
 			if chunkType != "" {
 				opts.Type = store.ChunkType(chunkType)
 			}
@@ -121,6 +186,7 @@ func newSearchCmd() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&topK, "top", 10, "number of results")
 	cmd.Flags().StringVar(&chunkType, "type", "", "filter by chunk type: code|doc|commit|adr|comment")
+	cmd.Flags().StringVar(&adrScope, "adr-scope", "", "repo index (default/repo) or machine-wide global.db (global)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }
@@ -129,6 +195,7 @@ func newDumpCmd() *cobra.Command {
 	var (
 		output    string
 		scope     string
+		adrScope  string
 		chunkType string
 		topK      int
 	)
@@ -138,7 +205,9 @@ func newDumpCmd() *cobra.Command {
 		Long: `Write retrieved index chunks as markdown you can paste into an LLM.
 
 With a query, dump the closest matching chunks. Without a query, dump all
-indexed chunks (optionally limited by --scope and --type).
+indexed chunks (optionally limited by --scope, --type, and --adr-scope).
+Default search and dump use the repo index only. --adr-scope global reads
+the machine-wide ADR database (~/.archivist/global.db).
 
 Output:
   (default)     stdout, so you can pipe the dump into another command
@@ -151,13 +220,19 @@ Examples:
   archivist dump "auth middleware" -o context.md
   archivist dump --scope internal -o dumps/
   archivist dump --type adr
+  archivist dump --type adr --adr-scope repo
+  archivist dump --type adr --adr-scope global
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err
 			}
-			st, err := openStore(root, cfg)
+			parsed, err := parseADRScope(adrScope)
+			if err != nil {
+				return err
+			}
+			st, err := openStoreForQuery(root, cfg, parsed)
 			if err != nil {
 				return err
 			}
@@ -165,10 +240,11 @@ Examples:
 
 			query := strings.TrimSpace(strings.Join(args, " "))
 			opts := dump.Options{
-				Query:  query,
-				Scope:  scope,
-				TopK:   topK,
-				Output: output,
+				Query:    query,
+				Scope:    scope,
+				ADRScope: parsed,
+				TopK:     topK,
+				Output:   output,
 			}
 			if chunkType != "" {
 				opts.Type = store.ChunkType(chunkType)
@@ -204,9 +280,20 @@ Examples:
 	}
 	cmd.Flags().StringVarP(&output, "output", "o", "", "write to a file, a directory (trailing /), or stdout (default)")
 	cmd.Flags().StringVar(&scope, "scope", "", "limit to a path prefix or glob")
+	cmd.Flags().StringVar(&adrScope, "adr-scope", "", "repo index (default/repo) or machine-wide global.db (global)")
 	cmd.Flags().StringVar(&chunkType, "type", "", "filter by chunk type: code|doc|commit|adr|comment")
 	cmd.Flags().IntVar(&topK, "top", 0, "max chunks (default 20 with a query, all without)")
 	return cmd
+}
+
+func parseADRScope(s string) (string, error) {
+	s = strings.TrimSpace(strings.ToLower(s))
+	switch s {
+	case "", "repo", "global":
+		return s, nil
+	default:
+		return "", fmt.Errorf("--adr-scope must be repo or global")
+	}
 }
 
 func newStatusCmd() *cobra.Command {
@@ -230,19 +317,70 @@ func newStatusCmd() *cobra.Command {
 			chunks, _ := st.ChunkCount()
 			files, _ := st.FileCount()
 			lastIdx, hasIdx, _ := st.LastIndexedAt()
+			schema, _ := st.SchemaVersion()
+			indexedBy, _, _ := st.ArchivistVersion()
+
+			var (
+				globalPath      string
+				globalChunks    int
+				globalFiles     int
+				globalLast      string
+				hasGlobalIdx    bool
+				globalSchema    int
+				globalIndexedBy string
+			)
+			gpath, gpathErr := resolveGlobalStorePath(cfg)
+			if gpathErr != nil {
+				return gpathErr
+			}
+			if gst, ok, gerr := store.OpenIfExists(gpath); gerr != nil {
+				return gerr
+			} else if ok {
+				defer gst.Close()
+				globalPath = gpath
+				globalChunks, _ = gst.ChunkCount()
+				globalFiles, _ = gst.FileCount()
+				globalSchema, _ = gst.SchemaVersion()
+				globalIndexedBy, _, _ = gst.ArchivistVersion()
+				glast, ghas, _ := gst.LastIndexedAt()
+				hasGlobalIdx = ghas
+				if ghas {
+					globalLast = glast.Format("2006-01-02 15:04:05 UTC")
+				}
+			}
 
 			type status struct {
-				EmbedderOK    bool   `json:"embedder_ok"`
-				EmbedderError string `json:"embedder_error,omitempty"`
-				ChunkCount    int    `json:"chunk_count"`
-				FileCount     int    `json:"file_count"`
-				LastIndexedAt string `json:"last_indexed_at,omitempty"`
+				Version           string `json:"version"`
+				Schema            int    `json:"schema"`
+				IndexSchema       int    `json:"index_schema"`
+				IndexedBy         string `json:"indexed_by,omitempty"`
+				EmbedderOK        bool   `json:"embedder_ok"`
+				EmbedderError     string `json:"embedder_error,omitempty"`
+				ChunkCount        int    `json:"chunk_count"`
+				FileCount         int    `json:"file_count"`
+				LastIndexedAt     string `json:"last_indexed_at,omitempty"`
+				GlobalPath        string `json:"global_path,omitempty"`
+				GlobalSchema      int    `json:"global_schema,omitempty"`
+				GlobalIndexedBy   string `json:"global_indexed_by,omitempty"`
+				GlobalChunkCount  int    `json:"global_chunk_count"`
+				GlobalFileCount   int    `json:"global_file_count"`
+				GlobalLastIndexed string `json:"global_last_indexed_at,omitempty"`
 			}
 			s := status{
-				EmbedderOK:    health.EmbedderOK,
-				EmbedderError: health.EmbedderError,
-				ChunkCount:    chunks,
-				FileCount:     files,
+				Version:           version.Version,
+				Schema:            version.Schema,
+				IndexSchema:       schema,
+				IndexedBy:         indexedBy,
+				EmbedderOK:        health.EmbedderOK,
+				EmbedderError:     health.EmbedderError,
+				ChunkCount:        chunks,
+				FileCount:         files,
+				GlobalPath:        globalPath,
+				GlobalSchema:      globalSchema,
+				GlobalIndexedBy:   globalIndexedBy,
+				GlobalChunkCount:  globalChunks,
+				GlobalFileCount:   globalFiles,
+				GlobalLastIndexed: globalLast,
 			}
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
@@ -254,6 +392,14 @@ func newStatusCmd() *cobra.Command {
 				return enc.Encode(s)
 			}
 
+			fmt.Printf("Version: %s\n", version.String())
+			if s.IndexSchema != 0 {
+				fmt.Printf("Index schema: %d", s.IndexSchema)
+				if s.IndexedBy != "" {
+					fmt.Printf(" (written by %s)", s.IndexedBy)
+				}
+				fmt.Println()
+			}
 			fmt.Printf("Embeddings (Ollama): ")
 			if s.EmbedderOK {
 				fmt.Println("ok")
@@ -263,6 +409,12 @@ func newStatusCmd() *cobra.Command {
 			fmt.Printf("Chunks: %d (%d files)\n", s.ChunkCount, s.FileCount)
 			if hasIdx {
 				fmt.Printf("Last indexed: %s\n", s.LastIndexedAt)
+			}
+			if s.GlobalPath != "" {
+				fmt.Printf("Global ADRs: %d chunks (%d files) at %s\n", s.GlobalChunkCount, s.GlobalFileCount, s.GlobalPath)
+				if hasGlobalIdx {
+					fmt.Printf("Global last indexed: %s\n", s.GlobalLastIndexed)
+				}
 			}
 			return nil
 		},

@@ -30,6 +30,12 @@ func newIndexCmd() *cobra.Command {
 			}
 			defer st.Close()
 
+			gst, err := openGlobalStore(cfg)
+			if err != nil {
+				return err
+			}
+			defer gst.Close()
+
 			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
 			if err := client.Healthy(cmd.Context()); err != nil {
 				return fmt.Errorf("%w (run: ollama serve)", err)
@@ -39,6 +45,7 @@ func newIndexCmd() *cobra.Command {
 				RepoRoot: root,
 				Cfg:      cfg,
 				Store:    st,
+				Global:   gst,
 				Embedder: client,
 			}
 
@@ -64,6 +71,9 @@ func newIndexCmd() *cobra.Command {
 			}
 			count, _ := st.ChunkCount()
 			fmt.Println(tui.FormatSummary(progress, count))
+			if gc, err := gst.ChunkCount(); err == nil {
+				fmt.Printf("Global ADRs: %d chunks\n", gc)
+			}
 			return nil
 		},
 	}

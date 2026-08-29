@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-28
+- Scope: repo
 
 ## Context
 `archivist init` writes `nomic-embed-text` as the default Ollama embed model. This repository needed a model that is actually installed locally so `make index` can run.

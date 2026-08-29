@@ -12,11 +12,16 @@
       ".archivist"
     ],
     "skip_globs": [],
-    "adr_paths": [
-      "**/adr/**",
-      "docs/decisions/**",
-      "**/ADR*.md"
-    ]
+    "adr": {
+      "repo": [
+        "docs/decisions/**",
+        "**/adr/**",
+        "**/ADR*.md"
+      ],
+      "global": [
+        "docs/global-decisions/**"
+      ]
+    }
   },
   "store": {
     "path": ".archivist/index.db"

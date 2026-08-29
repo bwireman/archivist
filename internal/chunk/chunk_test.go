@@ -40,7 +40,7 @@ func World() string {
 	return "world"
 }
 `
-	chunks := chunk.SplitFile("sample.go", content, nil)
+	chunks := chunk.SplitFile("sample.go", content, nil, nil)
 	if len(chunks) == 0 {
 		t.Fatal("expected tree-sitter chunks for Go file")
 	}
@@ -75,6 +75,70 @@ func TestClassifyADRDoesNotMatchSiblingPrefix(t *testing.T) {
 func TestClassifyADRGlob(t *testing.T) {
 	if chunk.ClassifyFile("docs/ADR-001.md", []string{"**/ADR*.md"}) != chunk.TypeADR {
 		t.Fatal("expected nested ADR*.md to match")
+	}
+}
+
+func TestClassifyGlobalWins(t *testing.T) {
+	typ, scope := chunk.Classify(
+		"docs/global-decisions/001.md",
+		[]string{"docs/decisions/**", "docs/global-decisions/**"},
+		[]string{"docs/global-decisions/**"},
+	)
+	if typ != chunk.TypeADR || scope != chunk.ScopeGlobal {
+		t.Fatalf("got %s %s", typ, scope)
+	}
+}
+
+func TestClassifyRepoADR(t *testing.T) {
+	typ, scope := chunk.Classify(
+		"docs/decisions/001.md",
+		[]string{"docs/decisions/**"},
+		[]string{"docs/global-decisions/**"},
+	)
+	if typ != chunk.TypeADR || scope != chunk.ScopeRepo {
+		t.Fatalf("got %s %s", typ, scope)
+	}
+}
+
+func TestSplitFileStampsADRScope(t *testing.T) {
+	content := "# Decision\n\nUse SQLite.\n"
+	chunks := chunk.SplitFile(
+		"docs/decisions/001.md",
+		content,
+		[]string{"docs/decisions/**"},
+		[]string{"docs/global-decisions/**"},
+	)
+	if len(chunks) == 0 {
+		t.Fatal("expected chunks")
+	}
+	for _, c := range chunks {
+		if c.Type != chunk.TypeADR {
+			t.Fatalf("type %s", c.Type)
+		}
+		if c.Metadata[chunk.MetaADRScope] != chunk.ScopeRepo {
+			t.Fatalf("scope %v", c.Metadata)
+		}
+	}
+
+	global := chunk.SplitFile(
+		"docs/global-decisions/001.md",
+		content,
+		[]string{"docs/decisions/**"},
+		[]string{"docs/global-decisions/**"},
+	)
+	if global[0].Metadata[chunk.MetaADRScope] != chunk.ScopeGlobal {
+		t.Fatalf("global scope %v", global[0].Metadata)
+	}
+}
+
+func TestStampOrigin(t *testing.T) {
+	chunks := []chunk.Chunk{{Type: chunk.TypeADR, Metadata: map[string]string{chunk.MetaADRScope: chunk.ScopeGlobal}}}
+	chunk.StampOrigin(chunks, chunk.OriginRepo, "/tmp/repo")
+	if chunks[0].Metadata[chunk.MetaOrigin] != chunk.OriginRepo {
+		t.Fatalf("origin %v", chunks[0].Metadata)
+	}
+	if chunks[0].Metadata[chunk.MetaOriginRoot] != "/tmp/repo" {
+		t.Fatalf("origin_root %v", chunks[0].Metadata)
 	}
 }
 

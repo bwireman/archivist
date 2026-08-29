@@ -15,6 +15,15 @@ const (
 	TypeCommit  Type = "commit"
 	TypeADR     Type = "adr"
 	TypeComment Type = "comment"
+
+	ScopeRepo    = "repo"
+	ScopeGlobal  = "global"
+	MetaADRScope = "adr_scope"
+
+	OriginUser     = "user"
+	OriginRepo     = "repo"
+	MetaOrigin     = "origin"
+	MetaOriginRoot = "origin_root"
 )
 
 type Chunk struct {
@@ -45,15 +54,62 @@ func NewChunk(path string, chunkType Type, start, end int, content string, meta 
 }
 
 func ClassifyFile(path string, adrPatterns []string) Type {
+	typ, _ := Classify(path, adrPatterns, nil)
+	return typ
+}
+
+// Classify returns the chunk type and, for ADRs, ScopeRepo or ScopeGlobal.
+// Global patterns win when both match.
+func Classify(path string, repoADR, globalADR []string) (Type, string) {
 	ext := strings.ToLower(filepath.Ext(path))
-	if MatchAnyPattern(path, adrPatterns) {
-		return TypeADR
+	if MatchAnyPattern(path, globalADR) {
+		return TypeADR, ScopeGlobal
+	}
+	if MatchAnyPattern(path, repoADR) {
+		return TypeADR, ScopeRepo
 	}
 	switch ext {
 	case ".md", ".mdx", ".rst", ".txt", ".mdc":
-		return TypeDoc
+		return TypeDoc, ""
 	default:
-		return TypeCode
+		return TypeCode, ""
+	}
+}
+
+// StampADRScope sets adr_scope on ADR chunks.
+func StampADRScope(chunks []Chunk, scope string) {
+	if scope == "" {
+		return
+	}
+	for i := range chunks {
+		if chunks[i].Type != TypeADR {
+			continue
+		}
+		meta := chunks[i].Metadata
+		if meta == nil {
+			meta = map[string]string{}
+		}
+		meta[MetaADRScope] = scope
+		chunks[i].Metadata = meta
+	}
+}
+
+// StampOrigin records which checkout (or the user dir) wrote these chunks
+// into the shared global index, so prune can leave other repos' files alone.
+func StampOrigin(chunks []Chunk, origin, originRoot string) {
+	if origin == "" {
+		return
+	}
+	for i := range chunks {
+		meta := chunks[i].Metadata
+		if meta == nil {
+			meta = map[string]string{}
+		}
+		meta[MetaOrigin] = origin
+		if originRoot != "" {
+			meta[MetaOriginRoot] = originRoot
+		}
+		chunks[i].Metadata = meta
 	}
 }
 

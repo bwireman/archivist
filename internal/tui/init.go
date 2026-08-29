@@ -13,13 +13,15 @@ import (
 
 // InitForm is the editable string view of a Config used by the init TUI.
 type InitForm struct {
-	BaseURL      string
-	EmbedModel   string
-	EmbedTimeout string
-	SkipDirs     string
-	SkipGlobs    string
-	ADRPaths     string
-	StorePath    string
+	BaseURL        string
+	EmbedModel     string
+	EmbedTimeout   string
+	SkipDirs       string
+	SkipGlobs      string
+	ADRPaths       string
+	GlobalADRPaths string
+	StorePath      string
+	GlobalPath     string
 }
 
 // FormFromConfig flattens cfg into form fields.
@@ -28,13 +30,15 @@ func FormFromConfig(cfg *config.Config) InitForm {
 		cfg = config.Default()
 	}
 	return InitForm{
-		BaseURL:      cfg.Ollama.BaseURL,
-		EmbedModel:   cfg.Ollama.EmbedModel,
-		EmbedTimeout: cfg.Ollama.EmbedTimeout,
-		SkipDirs:     JoinList(cfg.Index.SkipDirs),
-		SkipGlobs:    JoinList(cfg.Index.SkipGlobs),
-		ADRPaths:     JoinList(cfg.Index.ADRPaths),
-		StorePath:    cfg.Store.Path,
+		BaseURL:        cfg.Ollama.BaseURL,
+		EmbedModel:     cfg.Ollama.EmbedModel,
+		EmbedTimeout:   cfg.Ollama.EmbedTimeout,
+		SkipDirs:       JoinList(cfg.Index.SkipDirs),
+		SkipGlobs:      JoinList(cfg.Index.SkipGlobs),
+		ADRPaths:       JoinList(cfg.Index.ADR.Repo),
+		GlobalADRPaths: JoinList(cfg.Index.ADR.Global),
+		StorePath:      cfg.Store.Path,
+		GlobalPath:     cfg.Store.GlobalPath,
 	}
 }
 
@@ -46,8 +50,10 @@ func ConfigFromForm(form InitForm) (*config.Config, error) {
 	cfg.Ollama.EmbedTimeout = strings.TrimSpace(form.EmbedTimeout)
 	cfg.Index.SkipDirs = SplitList(form.SkipDirs)
 	cfg.Index.SkipGlobs = SplitList(form.SkipGlobs)
-	cfg.Index.ADRPaths = SplitList(form.ADRPaths)
+	cfg.Index.ADR.Repo = SplitList(form.ADRPaths)
+	cfg.Index.ADR.Global = SplitList(form.GlobalADRPaths)
 	cfg.Store.Path = strings.TrimSpace(form.StorePath)
+	cfg.Store.GlobalPath = strings.TrimSpace(form.GlobalPath)
 
 	if cfg.Ollama.BaseURL == "" {
 		return nil, fmt.Errorf("ollama base URL is required")
@@ -117,10 +123,14 @@ func RunInit(ctx context.Context, seed *config.Config) (*config.Config, error) {
 				Description("Comma-separated, e.g. *.pb.go").
 				Value(&formVals.SkipGlobs),
 			huh.NewInput().
-				Title("ADR paths").
-				Description("Comma-separated globs").
+				Title("Repo ADR globs").
+				Description("index.adr.repo — this repository, e.g. docs/decisions/**").
 				Value(&formVals.ADRPaths),
-		).Title("Index").Description("What to walk and how to classify ADRs"),
+			huh.NewInput().
+				Title("Global ADR globs").
+				Description("index.adr.global — product-wide, e.g. docs/global-decisions/**").
+				Value(&formVals.GlobalADRPaths),
+		).Title("Index").Description("What to walk, and which paths are ADRs"),
 		huh.NewGroup(
 			huh.NewInput().
 				Title("Store path").

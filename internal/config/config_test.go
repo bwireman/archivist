@@ -22,15 +22,22 @@ func fullConfig() *config.Config {
 				".git", "vendor", "node_modules", ".archivist", "dist", "build",
 			},
 			SkipGlobs: []string{"*.min.js", "*.pb.go"},
-			ADRPaths: []string{
-				"**/adr/**",
-				"docs/decisions/**",
-				"**/ADR*.md",
-				"architecture/decisions/**",
+			ADR: config.ADRConfig{
+				Repo: []string{
+					"docs/decisions/**",
+					"**/adr/**",
+					"**/ADR*.md",
+					"architecture/decisions/**",
+				},
+				Global: []string{
+					"docs/global-decisions/**",
+					"architecture/global-decisions/**",
+				},
 			},
 		},
 		Store: config.StoreConfig{
-			Path: ".archivist/custom-index.db",
+			Path:       ".archivist/custom-index.db",
+			GlobalPath: "custom-global.db",
 		},
 	}
 }
@@ -56,8 +63,8 @@ func TestDefaultConfig(t *testing.T) {
 	if len(cfg.Index.SkipGlobs) != 0 {
 		t.Fatalf("index.skip_globs: expected empty slice, got %v", cfg.Index.SkipGlobs)
 	}
-	if !reflect.DeepEqual(cfg.Index.ADRPaths, []string{"**/adr/**", "docs/decisions/**", "**/ADR*.md"}) {
-		t.Fatalf("index.adr_paths: got %v", cfg.Index.ADRPaths)
+	if !reflect.DeepEqual(cfg.Index.ADR, config.Default().Index.ADR) {
+		t.Fatalf("index.adr: got %#v", cfg.Index.ADR)
 	}
 	if cfg.Store.Path != filepath.Join(config.DefaultDataDir, config.DefaultIndexDB) {
 		t.Fatalf("store.path: got %q", cfg.Store.Path)
@@ -148,7 +155,7 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 	if err := json.Unmarshal(keys["index"], &index); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"skip_dirs", "skip_globs", "adr_paths"} {
+	for _, key := range []string{"skip_dirs", "skip_globs", "adr"} {
 		if _, ok := index[key]; !ok {
 			t.Fatalf("saved config missing index.%s", key)
 		}
@@ -160,6 +167,9 @@ func TestSaveLoadRoundTripAllKeys(t *testing.T) {
 	}
 	if _, ok := store["path"]; !ok {
 		t.Fatal("saved config missing store.path")
+	}
+	if _, ok := store["global_path"]; !ok {
+		t.Fatal("saved config missing store.global_path")
 	}
 }
 
@@ -181,6 +191,106 @@ func TestLoadInvalidJSON(t *testing.T) {
 	}
 	if _, err := config.Load(dir); err == nil {
 		t.Fatal("expected error for invalid JSON")
+	}
+}
+
+func TestLoadOmitsADRUsesDefault(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(`{
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "embed_model": "nomic-embed-text"
+  },
+  "index": {
+    "skip_dirs": [".git"],
+    "skip_globs": []
+  },
+  "store": {
+    "path": ".archivist/index.db"
+  }
+}`)
+	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded.Index.ADR, config.Default().Index.ADR) {
+		t.Fatalf("omitted index.adr: got %#v", loaded.Index.ADR)
+	}
+}
+
+func TestLoadLegacyADRPaths(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(`{
+  "index": {
+    "skip_dirs": [".git"],
+    "skip_globs": [],
+    "adr_paths": ["docs/decisions/**"],
+    "global_adr_paths": ["docs/global-decisions/**"]
+  },
+  "store": { "path": ".archivist/index.db" }
+}`)
+	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(loaded.Index.ADR.Repo, []string{"docs/decisions/**"}) {
+		t.Fatalf("legacy adr_paths: %v", loaded.Index.ADR.Repo)
+	}
+	if !reflect.DeepEqual(loaded.Index.ADR.Global, []string{"docs/global-decisions/**"}) {
+		t.Fatalf("legacy global_adr_paths: %v", loaded.Index.ADR.Global)
+	}
+}
+
+func TestVirtualUserADRPath(t *testing.T) {
+	if got := config.VirtualUserADRPath("001-foo.md"); got != "user/001-foo.md" {
+		t.Fatalf("got %q", got)
+	}
+	if got := config.VirtualUserADRPath("/nested/a.md"); got != "user/nested/a.md" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestIsUserGlobalPath(t *testing.T) {
+	if !config.IsUserGlobalPath("user/001.md") {
+		t.Fatal("expected user/001.md")
+	}
+	if config.IsUserGlobalPath("docs/global-decisions/001.md") {
+		t.Fatal("in-repo global ADR is not a user path")
+	}
+}
+
+func TestGlobalStorePath(t *testing.T) {
+	cfg := config.Default()
+	cfg.Store.GlobalPath = "/var/lib/archivist/global.db"
+	if got := config.GlobalStorePath(cfg); got != "/var/lib/archivist/global.db" {
+		t.Fatalf("absolute: got %q", got)
+	}
+
+	cfg.Store.GlobalPath = "custom-global.db"
+	home := config.ArchivistHome()
+	if home == "" {
+		t.Skip("no home dir")
+	}
+	want := filepath.Join(home, "custom-global.db")
+	if got := config.GlobalStorePath(cfg); got != want {
+		t.Fatalf("relative: got %q want %q", got, want)
+	}
+
+	cfg.Store.GlobalPath = ""
+	want = filepath.Join(home, config.DefaultGlobalDB)
+	if got := config.GlobalStorePath(cfg); got != want {
+		t.Fatalf("default: got %q want %q", got, want)
+	}
+
+	cfg.Store.GlobalPath = "../outside.db"
+	if got := config.GlobalStorePath(cfg); got != "" {
+		t.Fatalf("relative path escaping ~/.archivist should be empty, got %q", got)
 	}
 }
 

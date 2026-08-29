@@ -2,6 +2,7 @@
 
 - Status: accepted
 - Date: 2026-08-28
+- Scope: global
 
 ## Context
 `archivist init` wrote `config.Default()` with no prompts. The embed model is a real choice (`nomic-embed-text` vs a locally installed model). The index command already uses a Charm TUI on a TTY.

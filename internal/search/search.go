@@ -18,9 +18,10 @@ type Result struct {
 }
 
 type Options struct {
-	TopK  int
-	Type  store.ChunkType
-	Scope string
+	TopK     int
+	Type     store.ChunkType
+	Scope    string
+	ADRScope string
 }
 
 func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {
@@ -47,6 +48,9 @@ func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query
 		if !MatchScope(opts.Scope, c.Path) {
 			continue
 		}
+		if !MatchADRScope(opts.ADRScope, c) {
+			continue
+		}
 		if len(c.Embedding) == 0 {
 			continue
 		}
@@ -67,7 +71,7 @@ func FormatResults(results []Result) string {
 	for i, r := range results {
 		snippet := strings.ReplaceAll(truncateBytes(r.Chunk.Content, 200), "\n", " ")
 		fmt.Fprintf(&b, "%d. [%.3f] %s %s:%d-%d\n   %s\n",
-			i+1, r.Score, r.Chunk.ChunkType, r.Chunk.Path,
+			i+1, r.Score, FormatChunkType(r.Chunk), r.Chunk.Path,
 			r.Chunk.StartLine, r.Chunk.EndLine, snippet)
 	}
 	if len(results) == 0 {
@@ -108,6 +112,42 @@ func MatchScope(scope, path string) bool {
 		}
 	}
 	return false
+}
+
+// MatchADRScope reports whether chunk matches an ADR scope filter.
+// Empty want matches everything. A non-empty want matches only ADR chunks
+// whose adr_scope is that value. ADRs with no metadata are treated as repo.
+func MatchADRScope(want string, c store.Chunk) bool {
+	want = strings.TrimSpace(strings.ToLower(want))
+	if want == "" {
+		return true
+	}
+	if c.ChunkType != store.ChunkTypeADR {
+		return false
+	}
+	return ChunkADRScope(c) == want
+}
+
+// ChunkADRScope returns repo or global for ADR chunks. Legacy ADRs with no
+// adr_scope metadata are treated as repo.
+func ChunkADRScope(c store.Chunk) string {
+	if c.ChunkType != store.ChunkTypeADR {
+		return ""
+	}
+	if c.Metadata != nil {
+		if s := strings.TrimSpace(strings.ToLower(c.Metadata["adr_scope"])); s != "" {
+			return s
+		}
+	}
+	return "repo"
+}
+
+// FormatChunkType is the dump/search label, e.g. code or adr/global.
+func FormatChunkType(c store.Chunk) string {
+	if c.ChunkType != store.ChunkTypeADR {
+		return string(c.ChunkType)
+	}
+	return "adr/" + ChunkADRScope(c)
 }
 
 func truncateBytes(s string, n int) string {

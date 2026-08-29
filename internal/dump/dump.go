@@ -17,11 +17,12 @@ import (
 const DefaultTopK = 20
 
 type Options struct {
-	Query  string
-	Scope  string
-	Type   store.ChunkType
-	TopK   int
-	Output string
+	Query    string
+	Scope    string
+	ADRScope string
+	Type     store.ChunkType
+	TopK     int
+	Output   string
 }
 
 type Item struct {
@@ -30,10 +31,11 @@ type Item struct {
 }
 
 type Result struct {
-	Query string
-	Scope string
-	Type  store.ChunkType
-	Items []Item
+	Query    string
+	Scope    string
+	ADRScope string
+	Type     store.ChunkType
+	Items    []Item
 }
 
 type WriteResult struct {
@@ -44,9 +46,10 @@ type WriteResult struct {
 func Collect(ctx context.Context, st *store.Store, embedder embed.Embedder, opts Options) (*Result, error) {
 	query := strings.TrimSpace(opts.Query)
 	out := &Result{
-		Query: query,
-		Scope: strings.TrimSpace(opts.Scope),
-		Type:  opts.Type,
+		Query:    query,
+		Scope:    strings.TrimSpace(opts.Scope),
+		ADRScope: strings.TrimSpace(opts.ADRScope),
+		Type:     opts.Type,
 	}
 
 	if query != "" {
@@ -58,9 +61,10 @@ func Collect(ctx context.Context, st *store.Store, embedder embed.Embedder, opts
 			topK = DefaultTopK
 		}
 		results, err := search.Search(ctx, st, embedder, query, search.Options{
-			TopK:  topK,
-			Type:  opts.Type,
-			Scope: out.Scope,
+			TopK:     topK,
+			Type:     opts.Type,
+			Scope:    out.Scope,
+			ADRScope: out.ADRScope,
 		})
 		if err != nil {
 			return nil, err
@@ -86,6 +90,9 @@ func Collect(ctx context.Context, st *store.Store, embedder embed.Embedder, opts
 
 	for _, c := range chunks {
 		if !search.MatchScope(out.Scope, c.Path) {
+			continue
+		}
+		if !search.MatchADRScope(out.ADRScope, c) {
 			continue
 		}
 		out.Items = append(out.Items, Item{Chunk: c})
@@ -118,6 +125,9 @@ func Format(r *Result) string {
 	if r.Scope != "" {
 		fmt.Fprintf(&b, "- Scope: %s\n", r.Scope)
 	}
+	if r.ADRScope != "" {
+		fmt.Fprintf(&b, "- ADR scope: %s\n", r.ADRScope)
+	}
 	if r.Type != "" {
 		fmt.Fprintf(&b, "- Type: %s\n", r.Type)
 	}
@@ -138,10 +148,11 @@ func formatItems(items []Item) string {
 		}
 		c := item.Chunk
 		loc := location(c)
+		label := search.FormatChunkType(c)
 		if item.Score > 0 {
-			fmt.Fprintf(&b, "## `%s` (%s, %s, score %.3f)\n\n", c.Path, c.ChunkType, loc, item.Score)
+			fmt.Fprintf(&b, "## `%s` (%s, %s, score %.3f)\n\n", c.Path, label, loc, item.Score)
 		} else {
-			fmt.Fprintf(&b, "## `%s` (%s, %s)\n\n", c.Path, c.ChunkType, loc)
+			fmt.Fprintf(&b, "## `%s` (%s, %s)\n\n", c.Path, label, loc)
 		}
 		if c.Metadata != nil {
 			if author := c.Metadata["blame_author"]; author != "" {
@@ -199,6 +210,9 @@ func Write(r *Result, output string, stdout io.Writer) (*WriteResult, error) {
 	}
 	if r.Scope != "" {
 		fmt.Fprintf(&index, "- Scope: %s\n", r.Scope)
+	}
+	if r.ADRScope != "" {
+		fmt.Fprintf(&index, "- ADR scope: %s\n", r.ADRScope)
 	}
 	fmt.Fprintf(&index, "- Files: %d\n- Chunks: %d\n\n", len(groups), len(r.Items))
 

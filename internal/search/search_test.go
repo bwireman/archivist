@@ -132,3 +132,83 @@ func TestMatchScope(t *testing.T) {
 		}
 	}
 }
+
+func TestMatchADRScope(t *testing.T) {
+	repo := store.Chunk{ChunkType: store.ChunkTypeADR, Metadata: map[string]string{"adr_scope": "repo"}}
+	global := store.Chunk{ChunkType: store.ChunkTypeADR, Metadata: map[string]string{"adr_scope": "global"}}
+	legacy := store.Chunk{ChunkType: store.ChunkTypeADR}
+	code := store.Chunk{ChunkType: store.ChunkTypeCode}
+
+	if !search.MatchADRScope("", repo) || !search.MatchADRScope("", code) {
+		t.Fatal("empty filter should match everything")
+	}
+	if !search.MatchADRScope("repo", repo) || !search.MatchADRScope("repo", legacy) {
+		t.Fatal("repo filter should match repo and legacy ADRs")
+	}
+	if search.MatchADRScope("repo", global) || search.MatchADRScope("repo", code) {
+		t.Fatal("repo filter should exclude global ADRs and non-ADRs")
+	}
+	if !search.MatchADRScope("global", global) {
+		t.Fatal("global filter should match global ADRs")
+	}
+	if search.MatchADRScope("global", repo) || search.MatchADRScope("global", legacy) {
+		t.Fatal("global filter should exclude repo ADRs")
+	}
+}
+
+func TestSearchADRScope(t *testing.T) {
+	st, err := store.Open(t.TempDir() + "/test.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	fake := &embed.FakeEmbedder{Dim: 8}
+	ctx := context.Background()
+	emb, err := fake.Embed(ctx, "use sqlite")
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	for _, c := range []store.Chunk{
+		{
+			Path: "docs/decisions/001.md", ChunkType: store.ChunkTypeADR,
+			Content: "use sqlite", ContentHash: "r", Embedding: emb, CreatedAt: now,
+			Metadata: map[string]string{"adr_scope": "repo"},
+		},
+		{
+			Path: "docs/global-decisions/001.md", ChunkType: store.ChunkTypeADR,
+			Content: "use sqlite", ContentHash: "g", Embedding: emb, CreatedAt: now,
+			Metadata: map[string]string{"adr_scope": "global"},
+		},
+	} {
+		if _, err := st.InsertChunk(c); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	results, err := search.Search(ctx, st, fake, "sqlite", search.Options{
+		TopK:     5,
+		Type:     store.ChunkTypeADR,
+		ADRScope: "global",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Chunk.Path != "docs/global-decisions/001.md" {
+		t.Fatalf("adr-scope search: %#v", results)
+	}
+}
+
+func TestFormatChunkType(t *testing.T) {
+	if got := search.FormatChunkType(store.Chunk{ChunkType: store.ChunkTypeCode}); got != "code" {
+		t.Fatalf("code: %s", got)
+	}
+	got := search.FormatChunkType(store.Chunk{
+		ChunkType: store.ChunkTypeADR,
+		Metadata:  map[string]string{"adr_scope": "global"},
+	})
+	if got != "adr/global" {
+		t.Fatalf("global adr: %s", got)
+	}
+}

@@ -49,6 +49,33 @@ func TestFormatDump(t *testing.T) {
 	}
 }
 
+func TestFormatADRScope(t *testing.T) {
+	r := &dump.Result{
+		ADRScope: "global",
+		Type:     store.ChunkTypeADR,
+		Items: []dump.Item{{
+			Chunk: store.Chunk{
+				Path:      "docs/global-decisions/001.md",
+				ChunkType: store.ChunkTypeADR,
+				StartLine: 1,
+				EndLine:   4,
+				Content:   "# Use Bubble Tea\n",
+				Metadata:  map[string]string{"adr_scope": "global"},
+			},
+		}},
+	}
+	out := dump.Format(r)
+	for _, want := range []string{
+		"ADR scope: global",
+		"`docs/global-decisions/001.md`",
+		"(adr/global, lines 1-4)",
+	} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("expected %q in dump:\n%s", want, out)
+		}
+	}
+}
+
 func TestFormatUsesLongerFence(t *testing.T) {
 	r := &dump.Result{
 		Items: []dump.Item{{
@@ -120,6 +147,36 @@ func TestCollectAllAndQuery(t *testing.T) {
 
 	if _, err := dump.Collect(ctx, st, nil, dump.Options{Query: "authentication"}); err == nil {
 		t.Fatal("expected error when dumping a query without an embedder")
+	}
+}
+
+func TestCollectADRScope(t *testing.T) {
+	st := openStore(t)
+	now := time.Now().UTC()
+	insert := func(path, scope string) {
+		t.Helper()
+		if _, err := st.InsertChunk(store.Chunk{
+			Path: path, ChunkType: store.ChunkTypeADR,
+			StartLine: 1, EndLine: 2,
+			Content: "decision", ContentHash: path,
+			CreatedAt: now,
+			Metadata:  map[string]string{"adr_scope": scope},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	insert("docs/decisions/001.md", "repo")
+	insert("docs/global-decisions/001.md", "global")
+
+	got, err := dump.Collect(context.Background(), st, nil, dump.Options{
+		Type:     store.ChunkTypeADR,
+		ADRScope: "repo",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Items) != 1 || got.Items[0].Chunk.Path != "docs/decisions/001.md" {
+		t.Fatalf("repo dump: %#v", got.Items)
 	}
 }
 

@@ -6,10 +6,29 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
+
+	"github.com/bwireman/archivist/internal/version"
 
 	_ "modernc.org/sqlite"
 )
+
+const (
+	MetaLastIndexedAt    = "last_indexed_at"
+	MetaSchemaVersion    = "schema_version"
+	MetaArchivistVersion = "archivist_version"
+)
+
+// SchemaError is returned when the index was written by a newer CLI.
+type SchemaError struct {
+	Have int
+	Want int
+}
+
+func (e *SchemaError) Error() string {
+	return fmt.Sprintf("index schema %d is newer than this archivist (schema %d); upgrade the CLI", e.Have, e.Want)
+}
 
 type execer interface {
 	Exec(query string, args ...any) (sql.Result, error)
@@ -68,9 +87,28 @@ func Open(path string) (*Store, error) {
 	s := &Store{db: db}
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
-		return nil, err
+		return nil, fmt.Errorf("migrate store: %w", err)
 	}
 	return s, nil
+}
+
+// OpenIfExists opens path when the file is already there. Missing is (nil, false, nil).
+func OpenIfExists(path string) (*Store, bool, error) {
+	if path == "" {
+		return nil, false, fmt.Errorf("empty store path")
+	}
+	_, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, false, nil
+		}
+		return nil, false, err
+	}
+	st, err := Open(path)
+	if err != nil {
+		return nil, false, err
+	}
+	return st, true, nil
 }
 
 func (s *Store) Close() error {
@@ -116,8 +154,67 @@ CREATE TABLE IF NOT EXISTS meta (
     value TEXT NOT NULL
 );
 `
-	_, err := s.db.Exec(schema)
-	return err
+	if _, err := s.db.Exec(schema); err != nil {
+		return err
+	}
+	return s.ensureSchema(version.Schema)
+}
+
+func (s *Store) ensureSchema(want int) error {
+	raw, ok, err := s.GetMeta(MetaSchemaVersion)
+	if err != nil {
+		return err
+	}
+	have := 0
+	if ok {
+		have, err = strconv.Atoi(raw)
+		if err != nil {
+			return fmt.Errorf("meta %s %q: %w", MetaSchemaVersion, raw, err)
+		}
+	}
+	if have > want {
+		return &SchemaError{Have: have, Want: want}
+	}
+	if have < want {
+		if err := s.applyMigrations(have, want); err != nil {
+			return err
+		}
+	}
+	if err := s.SetMeta(MetaSchemaVersion, strconv.Itoa(want)); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *Store) applyMigrations(have, want int) error {
+	for v := have + 1; v <= want; v++ {
+		switch v {
+		case 1:
+			// Initial CREATE TABLE schema; nothing else to apply.
+		default:
+			return fmt.Errorf("no migration for schema %d", v)
+		}
+	}
+	return nil
+}
+
+func (s *Store) SchemaVersion() (int, error) {
+	raw, ok, err := s.GetMeta(MetaSchemaVersion)
+	if err != nil {
+		return 0, err
+	}
+	if !ok {
+		return 0, nil
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("meta %s %q: %w", MetaSchemaVersion, raw, err)
+	}
+	return n, nil
+}
+
+func (s *Store) ArchivistVersion() (string, bool, error) {
+	return s.GetMeta(MetaArchivistVersion)
 }
 
 func (s *Store) GetMeta(key string) (string, bool, error) {
@@ -270,6 +367,24 @@ func (s *Store) ChunksByType(t ChunkType) ([]Chunk, error) {
 	return s.queryChunks(`WHERE chunk_type = ?`, string(t))
 }
 
+// FirstChunk returns one chunk for path, if any. Used to read origin metadata
+// without loading every chunk for that file.
+func (s *Store) FirstChunk(path string) (Chunk, bool, error) {
+	chunks, err := s.queryChunks(`WHERE path = ? LIMIT 1`, path)
+	if err != nil {
+		return Chunk{}, false, err
+	}
+	if len(chunks) == 0 {
+		return Chunk{}, false, nil
+	}
+	return chunks[0], true, nil
+}
+
+// ChunksForPath returns every chunk stored under path.
+func (s *Store) ChunksForPath(path string) ([]Chunk, error) {
+	return s.queryChunks(`WHERE path = ?`, path)
+}
+
 func (s *Store) queryChunks(where string, args ...any) ([]Chunk, error) {
 	q := `
 SELECT id, path, chunk_type, start_line, end_line, content, content_hash, embedding, metadata, created_at
@@ -358,7 +473,7 @@ SELECT hash, subject, body, author, authored_at, indexed_at FROM commits WHERE h
 }
 
 func (s *Store) LastIndexedAt() (time.Time, bool, error) {
-	val, ok, err := s.GetMeta("last_indexed_at")
+	val, ok, err := s.GetMeta(MetaLastIndexedAt)
 	if err != nil || !ok {
 		return time.Time{}, ok, err
 	}
@@ -367,7 +482,14 @@ func (s *Store) LastIndexedAt() (time.Time, bool, error) {
 }
 
 func (s *Store) SetLastIndexedAt(t time.Time) error {
-	return s.SetMeta("last_indexed_at", t.UTC().Format(time.RFC3339))
+	return s.SetMeta(MetaLastIndexedAt, t.UTC().Format(time.RFC3339))
+}
+
+func (s *Store) StampIndexed(t time.Time) error {
+	if err := s.SetLastIndexedAt(t); err != nil {
+		return err
+	}
+	return s.SetMeta(MetaArchivistVersion, version.Version)
 }
 
 func (s *Store) ChunkCount() (int, error) {

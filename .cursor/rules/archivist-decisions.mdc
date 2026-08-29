@@ -7,17 +7,20 @@ alwaysApply: true
 
 When you choose between real alternatives (storage, APIs, defaults, rejected approaches), write an ADR before you finish. Skip this for typos, formatting, and obvious bugfixes.
 
-## File
+## Where
 
-- Path: `docs/decisions/NNN-slug.md`
-- `NNN` is the next number already used in that directory (`001`, `002`, …)
-- `slug` is a lowercase hyphenated title
+- **Repo** (this project only): `docs/decisions/NNN-slug.md`
+- **Global** (the Archivist product, or any repo that should share it): `docs/global-decisions/NNN-slug.md`
+- **User-global** (every repo on this machine): `~/.archivist/decisions/NNN-slug.md`
+
+`NNN` is the next number **in that directory**. `slug` is a lowercase hyphenated title. Do not nest global ADRs under `docs/decisions/`.
 
 ```markdown
 # Use SQLite for the local index
 
 - Status: accepted
 - Date: 2026-08-28
+- Scope: repo
 
 ## Context
 Why the question came up.
@@ -29,6 +32,8 @@ What we chose, in one or two sentences.
 - What becomes easier
 - What we are accepting
 ```
+
+`Scope` is `repo` or `global` (for humans). Classification comes from the path: `docs/decisions/` is repo, `docs/global-decisions/` and `~/.archivist/decisions/` are global. Global ADRs are stored in `~/.archivist/global.db`, not the repo index.
 
 Status is `proposed`, `accepted`, `deprecated`, or `superseded`. Only state facts from this repo; do not invent APIs.
 

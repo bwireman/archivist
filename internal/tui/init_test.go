@@ -36,6 +36,21 @@ func TestConfigFromFormRoundTrip(t *testing.T) {
 	if got.Store.Path != want.Store.Path {
 		t.Fatalf("store: %s", got.Store.Path)
 	}
+	if strings.Join(got.Index.ADR.Global, ",") != strings.Join(want.Index.ADR.Global, ",") {
+		t.Fatalf("global adr: %v", got.Index.ADR.Global)
+	}
+}
+
+func TestConfigFromFormPreservesGlobalPath(t *testing.T) {
+	cfg := config.Default()
+	cfg.Store.GlobalPath = "custom-global.db"
+	got, err := ConfigFromForm(FormFromConfig(cfg))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Store.GlobalPath != "custom-global.db" {
+		t.Fatalf("global_path: %s", got.Store.GlobalPath)
+	}
 }
 
 func TestConfigFromFormRejectsBadTimeout(t *testing.T) {
@@ -48,13 +63,14 @@ func TestConfigFromFormRejectsBadTimeout(t *testing.T) {
 
 func TestConfigFromFormCustom(t *testing.T) {
 	got, err := ConfigFromForm(InitForm{
-		BaseURL:      "http://ollama.example:11434",
-		EmbedModel:   "qwen3-embedding:0.6b",
-		EmbedTimeout: "5m",
-		SkipDirs:     ".git, vendor",
-		SkipGlobs:    "*.pb.go",
-		ADRPaths:     "docs/decisions/**",
-		StorePath:    ".archivist/custom.db",
+		BaseURL:        "http://ollama.example:11434",
+		EmbedModel:     "qwen3-embedding:0.6b",
+		EmbedTimeout:   "5m",
+		SkipDirs:       ".git, vendor",
+		SkipGlobs:      "*.pb.go",
+		ADRPaths:       "docs/decisions/**",
+		GlobalADRPaths: "docs/global-decisions/**",
+		StorePath:      ".archivist/custom.db",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -67,6 +83,12 @@ func TestConfigFromFormCustom(t *testing.T) {
 	}
 	if strings.Join(got.Index.SkipGlobs, ",") != "*.pb.go" {
 		t.Fatalf("globs: %v", got.Index.SkipGlobs)
+	}
+	if strings.Join(got.Index.ADR.Global, ",") != "docs/global-decisions/**" {
+		t.Fatalf("global adr: %v", got.Index.ADR.Global)
+	}
+	if strings.Join(got.Index.ADR.Repo, ",") != "docs/decisions/**" {
+		t.Fatalf("repo adr: %v", got.Index.ADR.Repo)
 	}
 }
 
