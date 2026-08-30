@@ -3,6 +3,7 @@ package chunk
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"path/filepath"
 	"strings"
 )
@@ -39,6 +40,26 @@ type Chunk struct {
 func HashContent(content string) string {
 	h := sha256.Sum256([]byte(content))
 	return hex.EncodeToString(h[:])
+}
+
+// annotateContent prefixes a chunk body with path and kind so embeddings
+// and CLI output carry file identity, not only the excerpt.
+func annotateContent(path string, chunkType Type, body string, fields ...string) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "File: %s\n", path)
+	if chunkType != "" {
+		fmt.Fprintf(&b, "Kind: %s\n", chunkType)
+	}
+	for i := 0; i+1 < len(fields); i += 2 {
+		if fields[i+1] == "" {
+			continue
+		}
+		fmt.Fprintf(&b, "%s: %s\n", fields[i], fields[i+1])
+	}
+	b.WriteByte('\n')
+	b.WriteString(strings.TrimRight(body, "\n"))
+	b.WriteByte('\n')
+	return b.String()
 }
 
 func NewChunk(path string, chunkType Type, start, end int, content string, meta map[string]string) Chunk {

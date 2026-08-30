@@ -12,6 +12,11 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
+const (
+	DefaultTopK         = 20
+	DefaultSnippetBytes = 4000
+)
+
 type Result struct {
 	Chunk store.Chunk
 	Score float64
@@ -26,7 +31,7 @@ type Options struct {
 
 func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {
 	if opts.TopK <= 0 {
-		opts.TopK = 10
+		opts.TopK = DefaultTopK
 	}
 	qEmb, err := embedder.Embed(ctx, query)
 	if err != nil {
@@ -69,10 +74,19 @@ func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query
 func FormatResults(results []Result) string {
 	var b strings.Builder
 	for i, r := range results {
-		snippet := strings.ReplaceAll(truncateBytes(r.Chunk.Content, 200), "\n", " ")
-		fmt.Fprintf(&b, "%d. [%.3f] %s %s:%d-%d\n   %s\n",
+		if i > 0 {
+			b.WriteByte('\n')
+		}
+		fmt.Fprintf(&b, "%d. [%.3f] %s %s:%d-%d\n",
 			i+1, r.Score, FormatChunkType(r.Chunk), r.Chunk.Path,
-			r.Chunk.StartLine, r.Chunk.EndLine, snippet)
+			r.Chunk.StartLine, r.Chunk.EndLine)
+		body := strings.TrimRight(truncateBytes(r.Chunk.Content, DefaultSnippetBytes), "\n")
+		if body == "" {
+			continue
+		}
+		for _, line := range strings.Split(body, "\n") {
+			fmt.Fprintf(&b, "   %s\n", line)
+		}
 	}
 	if len(results) == 0 {
 		b.WriteString("No results.\n")

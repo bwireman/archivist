@@ -74,6 +74,26 @@ func TestFormatResults(t *testing.T) {
 	if !strings.Contains(out, "code foo.go:1-4") {
 		t.Fatalf("unexpected format:\n%s", out)
 	}
+	if !strings.Contains(out, "   func Foo() {}") {
+		t.Fatalf("expected indented snippet:\n%s", out)
+	}
+}
+
+func TestFormatResultsKeepsNewlines(t *testing.T) {
+	out := search.FormatResults([]search.Result{{
+		Chunk: store.Chunk{
+			Path: "foo.go", ChunkType: store.ChunkTypeCode,
+			StartLine: 1, EndLine: 4,
+			Content: "package foo\n\nfunc Foo() {}",
+		},
+		Score: 0.91,
+	}})
+	if !strings.Contains(out, "   package foo\n") {
+		t.Fatalf("expected multi-line snippet:\n%s", out)
+	}
+	if strings.Contains(out, "package foo  func Foo") {
+		t.Fatalf("should not flatten newlines:\n%s", out)
+	}
 }
 
 func TestSearchScope(t *testing.T) {

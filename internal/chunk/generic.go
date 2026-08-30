@@ -1,14 +1,16 @@
 package chunk
 
 import (
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
 )
 
 const (
-	defaultMaxChunkSize = 2000
-	defaultOverlap      = 200
+	defaultMaxChunkSize = 4000
+	defaultOverlap      = 400
+	commentContextLines = 16
 )
 
 // SplitGeneric splits content into overlapping chunks by size, respecting
@@ -27,7 +29,7 @@ func SplitGeneric(path, content string, chunkType Type, maxSize, overlap int) []
 	if chunkType == TypeDoc || chunkType == TypeADR {
 		return splitMarkdown(path, content, chunkType, maxSize)
 	}
-	return splitBySize(path, content, chunkType, maxSize, overlap)
+	return splitBySize(path, content, chunkType, maxSize, overlap, true, nil)
 }
 
 func splitMarkdown(path, content string, chunkType Type, maxSize int) []Chunk {
@@ -42,17 +44,16 @@ func splitMarkdown(path, content string, chunkType Type, maxSize int) []Chunk {
 		if text == "" {
 			return
 		}
-		chunks = append(chunks, NewChunk(path, chunkType, startLine, endLine, text, nil))
+		chunks = append(chunks, NewChunk(path, chunkType, startLine, endLine, annotateContent(path, chunkType, text), nil))
 		buf.Reset()
 	}
 
 	for _, line := range lines {
 		isHeading := strings.HasPrefix(strings.TrimSpace(line), "#")
-		if isHeading && buf.Len() > 0 {
-			flush(curLine - 1)
-			startLine = curLine
-		}
-		if buf.Len()+len(line)+1 > maxSize && buf.Len() > 0 {
+		wouldExceed := buf.Len()+len(line)+1 > maxSize && buf.Len() > 0
+		// Split at a heading only once the current chunk is already substantial.
+		atHeading := isHeading && buf.Len() > maxSize/2
+		if wouldExceed || atHeading {
 			flush(curLine - 1)
 			startLine = curLine
 		}
@@ -64,10 +65,11 @@ func splitMarkdown(path, content string, chunkType Type, maxSize int) []Chunk {
 	return chunks
 }
 
-func splitBySize(path, content string, chunkType Type, maxSize, overlap int) []Chunk {
+func splitBySize(path, content string, chunkType Type, maxSize, overlap int, wrap bool, meta map[string]string) []Chunk {
 	lines := strings.Split(content, "\n")
 	var chunks []Chunk
 	var buf strings.Builder
+	var lastRaw string
 	startLine := 1
 	curLine := 1
 
@@ -76,16 +78,19 @@ func splitBySize(path, content string, chunkType Type, maxSize, overlap int) []C
 		if text == "" {
 			return
 		}
-		chunks = append(chunks, NewChunk(path, chunkType, startLine, endLine, text, nil))
+		lastRaw = text
+		body := text
+		if wrap {
+			body = annotateContent(path, chunkType, text)
+		}
+		chunks = append(chunks, NewChunk(path, chunkType, startLine, endLine, body, copyMeta(meta)))
 		buf.Reset()
 	}
 
 	for _, line := range lines {
 		if buf.Len()+len(line)+1 > maxSize && buf.Len() > 0 {
 			flush(curLine - 1)
-			// overlap: keep trailing lines up to overlap chars
-			prev := chunks[len(chunks)-1].Content
-			overlapText := tailBytes(prev, overlap)
+			overlapText := tailBytes(lastRaw, overlap)
 			buf.Reset()
 			buf.WriteString(overlapText)
 			if overlapText != "" {
@@ -99,6 +104,17 @@ func splitBySize(path, content string, chunkType Type, maxSize, overlap int) []C
 	}
 	flush(curLine - 1)
 	return chunks
+}
+
+func copyMeta(meta map[string]string) map[string]string {
+	if meta == nil {
+		return nil
+	}
+	out := make(map[string]string, len(meta))
+	for k, v := range meta {
+		out[k] = v
+	}
+	return out
 }
 
 func tailBytes(s string, n int) string {
@@ -121,15 +137,26 @@ func tailBytes(s string, n int) string {
 
 // ExtractCommentChunks finds TODO/FIXME/NOTE comments in source files.
 func ExtractCommentChunks(path, content string) []Chunk {
+	lines := strings.Split(content, "\n")
 	var chunks []Chunk
-	for i, line := range strings.Split(content, "\n") {
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if !isLikelyComment(trimmed) || !hasCommentTag(trimmed) {
 			continue
 		}
-		lineNum := i + 1
-		chunks = append(chunks, NewChunk(path, TypeComment, lineNum, lineNum, trimmed, map[string]string{
-			"kind": "inline_comment",
+		start := i - commentContextLines
+		if start < 0 {
+			start = 0
+		}
+		end := i + commentContextLines
+		if end >= len(lines) {
+			end = len(lines) - 1
+		}
+		window := strings.Join(lines[start:end+1], "\n")
+		body := annotateContent(path, TypeComment, window)
+		chunks = append(chunks, NewChunk(path, TypeComment, start+1, end+1, body, map[string]string{
+			"kind":         "inline_comment",
+			"comment_line": strconv.Itoa(i + 1),
 		}))
 	}
 	return chunks

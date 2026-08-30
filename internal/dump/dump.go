@@ -14,7 +14,7 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
-const DefaultTopK = 20
+const DefaultTopK = 40
 
 type Options struct {
 	Query    string
@@ -162,6 +162,15 @@ func formatItems(items []Item) string {
 				} else {
 					fmt.Fprintf(&b, "Blame: %s\n\n", author)
 				}
+			}
+			var extras []string
+			for _, k := range []string{"node_type", "parent", "kind", "comment_line"} {
+				if v := c.Metadata[k]; v != "" {
+					extras = append(extras, fmt.Sprintf("%s: %s", k, v))
+				}
+			}
+			if len(extras) > 0 {
+				fmt.Fprintf(&b, "%s\n\n", strings.Join(extras, " · "))
 			}
 		}
 		lang := fenceLang(c.Path, c.ChunkType)

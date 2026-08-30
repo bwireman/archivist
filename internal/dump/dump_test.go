@@ -49,6 +49,25 @@ func TestFormatDump(t *testing.T) {
 	}
 }
 
+func TestFormatNodeMetadata(t *testing.T) {
+	r := &dump.Result{
+		Items: []dump.Item{{
+			Chunk: store.Chunk{
+				Path:      "internal/auth.go",
+				ChunkType: store.ChunkTypeCode,
+				StartLine: 10,
+				EndLine:   20,
+				Content:   "func Check() {}",
+				Metadata:  map[string]string{"node_type": "function_declaration", "parent": "Auth"},
+			},
+		}},
+	}
+	out := dump.Format(r)
+	if !strings.Contains(out, "node_type: function_declaration") || !strings.Contains(out, "parent: Auth") {
+		t.Fatalf("expected node metadata:\n%s", out)
+	}
+}
+
 func TestFormatADRScope(t *testing.T) {
 	r := &dump.Result{
 		ADRScope: "global",

@@ -327,3 +327,68 @@ func TestOpenIfExists(t *testing.T) {
 	}
 	_ = st.Close()
 }
+
+func TestSchema2DropsFileChunksKeepsCommits(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if err := st.ReplaceFileChunks(store.FileRecord{
+		Path: "foo.go", ContentHash: "h", IndexedAt: now,
+	}, []store.Chunk{{
+		Path: "foo.go", ChunkType: store.ChunkTypeCode,
+		Content: "old", ContentHash: "c", CreatedAt: now,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceCommit(store.CommitRecord{
+		Hash: "abc123", Subject: "init", Author: "ada", AuthoredAt: now, IndexedAt: now,
+	}, []store.Chunk{{
+		Path: "abc123", ChunkType: store.ChunkTypeCommit,
+		Content: "commit", ContentHash: "g", CreatedAt: now,
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetMeta(store.MetaSchemaVersion, "1"); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	got, err := st.SchemaVersion()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != version.Schema {
+		t.Fatalf("schema: got %d want %d", got, version.Schema)
+	}
+	files, err := st.AllFilePaths()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(files) != 0 {
+		t.Fatalf("expected files dropped, got %v", files)
+	}
+	code, err := st.ChunksByType(store.ChunkTypeCode)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(code) != 0 {
+		t.Fatalf("expected code chunks dropped, got %d", len(code))
+	}
+	commits, err := st.ChunksByType(store.ChunkTypeCommit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 1 {
+		t.Fatalf("expected commit chunk kept, got %d", len(commits))
+	}
+}

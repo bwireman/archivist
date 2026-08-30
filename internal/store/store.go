@@ -191,6 +191,16 @@ func (s *Store) applyMigrations(have, want int) error {
 		switch v {
 		case 1:
 			// Initial CREATE TABLE schema; nothing else to apply.
+		case 2:
+			// Richer chunk bodies. File content hashes no longer imply the
+			// stored chunks match the current splitter, so drop file rows and
+			// non-commit chunks. The next index rebuilds them.
+			if _, err := s.db.Exec(`DELETE FROM chunks WHERE chunk_type != 'commit'`); err != nil {
+				return err
+			}
+			if _, err := s.db.Exec(`DELETE FROM files`); err != nil {
+				return err
+			}
 		default:
 			return fmt.Errorf("no migration for schema %d", v)
 		}

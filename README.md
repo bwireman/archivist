@@ -173,7 +173,7 @@ What we chose, in one or two sentences.
 | `archivist status` | no (reports embedder health) | Chunk counts, last index time, Ollama reachability |
 | `archivist version` | no | CLI version and schema |
 
-`--type` is `code`, `doc`, `commit`, `adr`, or `comment`.
+`--type` is `code`, `doc`, `commit`, `adr`, or `comment`. `search` defaults to 20 hits and prints a multi-line excerpt of each chunk. Query `dump` defaults to 40 chunks and writes the full stored text.
 
 ## This checkout
 

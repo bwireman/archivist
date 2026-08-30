@@ -10,11 +10,29 @@ import (
 func TestSplitGenericMarkdown(t *testing.T) {
 	content := "# Title\n\nParagraph one.\n\n## Section\n\nParagraph two."
 	chunks := chunk.SplitGeneric("docs/readme.md", content, chunk.TypeDoc, 500, 0)
-	if len(chunks) < 2 {
-		t.Fatalf("expected multiple chunks, got %d", len(chunks))
+	if len(chunks) != 1 {
+		t.Fatalf("small markdown should stay one chunk, got %d", len(chunks))
 	}
 	if chunks[0].Type != chunk.TypeDoc {
 		t.Fatalf("expected doc type, got %s", chunks[0].Type)
+	}
+	if !strings.Contains(chunks[0].Content, "File: docs/readme.md") {
+		t.Fatalf("expected file annotation:\n%s", chunks[0].Content)
+	}
+	if !strings.Contains(chunks[0].Content, "Paragraph two.") {
+		t.Fatalf("expected packed sections:\n%s", chunks[0].Content)
+	}
+}
+
+func TestSplitGenericMarkdownSplitsWhenLarge(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("# Title\n\n")
+	b.WriteString(strings.Repeat("alpha ", 40))
+	b.WriteString("\n\n## Section\n\n")
+	b.WriteString(strings.Repeat("bravo ", 40))
+	chunks := chunk.SplitGeneric("docs/readme.md", b.String(), chunk.TypeDoc, 200, 0)
+	if len(chunks) < 2 {
+		t.Fatalf("large markdown should split, got %d", len(chunks))
 	}
 }
 
@@ -26,6 +44,12 @@ func TestExtractCommentChunks(t *testing.T) {
 	}
 	if !strings.Contains(chunks[0].Content, "TODO") {
 		t.Fatalf("expected TODO in content: %s", chunks[0].Content)
+	}
+	if !strings.Contains(chunks[0].Content, "func main()") {
+		t.Fatalf("expected surrounding code in comment chunk: %s", chunks[0].Content)
+	}
+	if !strings.Contains(chunks[0].Content, "File: main.go") {
+		t.Fatalf("expected file annotation: %s", chunks[0].Content)
 	}
 }
 
@@ -48,10 +72,50 @@ func World() string {
 	for _, c := range chunks {
 		if strings.Contains(c.Content, "Hello") {
 			foundHello = true
+			if !strings.Contains(c.Content, "File: sample.go") {
+				t.Fatalf("expected file annotation:\n%s", c.Content)
+			}
+			if !strings.Contains(c.Content, "package sample") {
+				t.Fatalf("expected file preamble:\n%s", c.Content)
+			}
 		}
 	}
 	if !foundHello {
 		t.Fatal("expected Hello function chunk")
+	}
+}
+
+func TestSplitGoMethodIncludesParentAndDoc(t *testing.T) {
+	content := `package sample
+
+type Greeter struct{}
+
+// Hello greets.
+func (g *Greeter) Hello() string {
+	return "hi"
+}
+`
+	chunks := chunk.SplitFile("sample.go", content, nil, nil)
+	var hello chunk.Chunk
+	found := false
+	for _, c := range chunks {
+		if strings.Contains(c.Content, "func (g *Greeter) Hello()") {
+			hello = c
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected Hello method chunk, got %#v", chunks)
+	}
+	if hello.Metadata["parent"] != "Greeter" {
+		t.Fatalf("parent metadata: %v", hello.Metadata)
+	}
+	if !strings.Contains(hello.Content, "Parent: Greeter") {
+		t.Fatalf("expected parent in content:\n%s", hello.Content)
+	}
+	if !strings.Contains(hello.Content, "Hello greets.") {
+		t.Fatalf("expected leading doc comment:\n%s", hello.Content)
 	}
 }
 
@@ -148,16 +212,20 @@ func TestClassifyMDCAsDoc(t *testing.T) {
 	}
 }
 
-func TestSplitADRUsesMarkdownHeadings(t *testing.T) {
+func TestSplitADRStaysTogether(t *testing.T) {
 	content := "# Decision\n\nUse SQLite.\n\n## Consequences\n\nSimple ops.\n"
-	chunks := chunk.SplitGeneric("docs/decisions/001.md", content, chunk.TypeADR, 500, 0)
-	if len(chunks) < 2 {
-		t.Fatalf("expected heading split for ADR, got %d", len(chunks))
+	chunks := chunk.SplitGeneric("docs/decisions/001.md", content, chunk.TypeADR, 0, 0)
+	if len(chunks) != 1 {
+		t.Fatalf("small ADR should be one chunk, got %d", len(chunks))
 	}
-	for _, c := range chunks {
-		if c.Type != chunk.TypeADR {
-			t.Fatalf("expected adr chunks, got %s", c.Type)
-		}
+	if chunks[0].Type != chunk.TypeADR {
+		t.Fatalf("expected adr chunks, got %s", chunks[0].Type)
+	}
+	if !strings.Contains(chunks[0].Content, "Use SQLite.") || !strings.Contains(chunks[0].Content, "Simple ops.") {
+		t.Fatalf("expected packed ADR:\n%s", chunks[0].Content)
+	}
+	if !strings.Contains(chunks[0].Content, "File: docs/decisions/001.md") {
+		t.Fatalf("expected file annotation:\n%s", chunks[0].Content)
 	}
 }
 

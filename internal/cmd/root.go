@@ -184,7 +184,7 @@ func newSearchCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().IntVar(&topK, "top", 10, "number of results")
+	cmd.Flags().IntVar(&topK, "top", search.DefaultTopK, "number of results")
 	cmd.Flags().StringVar(&chunkType, "type", "", "filter by chunk type: code|doc|commit|adr|comment")
 	cmd.Flags().StringVar(&adrScope, "adr-scope", "", "repo index (default/repo) or machine-wide global.db (global)")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
@@ -282,7 +282,7 @@ Examples:
 	cmd.Flags().StringVar(&scope, "scope", "", "limit to a path prefix or glob")
 	cmd.Flags().StringVar(&adrScope, "adr-scope", "", "repo index (default/repo) or machine-wide global.db (global)")
 	cmd.Flags().StringVar(&chunkType, "type", "", "filter by chunk type: code|doc|commit|adr|comment")
-	cmd.Flags().IntVar(&topK, "top", 0, "max chunks (default 20 with a query, all without)")
+	cmd.Flags().IntVar(&topK, "top", 0, "max chunks (default 40 with a query, all without)")
 	return cmd
 }
 
