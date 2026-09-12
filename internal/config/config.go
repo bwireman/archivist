@@ -19,7 +19,6 @@ const (
 	DefaultDecisionsDir       = "docs/decisions"
 	DefaultGlobalDecisionsDir = "docs/global-decisions"
 	DefaultArchiveDir         = "docs/archive"
-	DefaultDumpDir            = "docs/archive" // legacy alias
 	DefaultGlobalDB           = "archive.db"
 	UserGlobalPrefix          = "user"
 )

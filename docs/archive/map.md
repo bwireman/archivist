@@ -4,160 +4,6 @@
 
 - `main` (function_declaration) line 10
 
-## docs/dump/dump.md
-
-- `func NewRoot() *cobra.Command {` (line) line 267
-- `func newDumpCmd() *cobra.Command {` (line) line 276
-- `func CheckHealth(ctx context.Context, cfg *config.Config) HealthStatus {` (line) line 392
-- `func codeFence(content string) string {` (line) line 458
-
-## docs/dump/embeddings.md
-
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 156
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 160
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 164
-- `func (f *FakeEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {` (line) line 166
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 215
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 219
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 223
-- `func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error) {` (line) line 225
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 295
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 299
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 303
-- `func (f *FakeEmbedder) Dimensions() int {` (line) line 305
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 342
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 346
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 350
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 386
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 390
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 394
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 396
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 430
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 434
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 438
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 440
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 478
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 482
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 486
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 525
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 529
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 533
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 535
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 569
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 573
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 577
-- `func (c *OllamaClient) Healthy(ctx context.Context) error {` (line) line 579
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 626
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 630
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 634
-- `func (c *OllamaClient) Dimensions() int {` (line) line 636
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 670
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 674
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 678
-- `func NewOllamaClient(baseURL, embedModel string) *OllamaClient {` (line) line 715
-- `func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {` (line) line 719
-- `func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {` (line) line 723
-
-## docs/dump/git.md
-
-- `func TestParseGitLogMultipleCommitsAndFiles(t *testing.T) {` (line) line 23
-- `func TestParseBlameExtractsCommitAndAuthor(t *testing.T) {` (line) line 46
-- `func IsGitRepo(path string) bool {` (line) line 114
-- `func ListCommits(repoRoot string, limit int) ([]Commit, error) {` (line) line 118
-- `func IsGitRepo(path string) bool {` (line) line 175
-- `func parseGitLog(raw string) []Commit {` (line) line 179
-- `func IsGitRepo(path string) bool {` (line) line 253
-- `func parseBlame(raw string) map[int]BlameInfo {` (line) line 257
-- `func IsGitRepo(path string) bool {` (line) line 317
-- `func BlameFile(repoRoot, relPath string) (map[int]BlameInfo, error) {` (line) line 321
-- `func IsGitRepo(path string) bool {` (line) line 369
-- `func parseBlameSHA(line string) (string, bool) {` (line) line 373
-- `func IsGitRepo(path string) bool {` (line) line 427
-- `func TestParseGitLogMultipleCommitsAndFiles(t *testing.T) {` (line) line 453
-- `func TestParseBlameSHA(t *testing.T) {` (line) line 476
-- `func IsGitRepo(path string) bool {` (line) line 522
-- `func CommitChunks(c Commit) []chunk.Chunk {` (line) line 526
-- `func IsGitRepo(path string) bool {` (line) line 580
-- `func TestParseGitLogMultipleCommitsAndFiles(t *testing.T) {` (line) line 610
-- `func TestListCommitsThisRepo(t *testing.T) {` (line) line 633
-- `func IsGitRepo(path string) bool {` (line) line 685
-- `func IsGitRepo(path string) bool {` (line) line 689
-- `func TestParseGitLogMultipleCommitsAndFiles(t *testing.T) {` (line) line 711
-- `func TestParseGitLogMultipleCommitsAndFiles(t *testing.T) {` (line) line 734
-
-## docs/dump/indexing.md
-
-- `func (f *failEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {` (line) line 150
-- `func writeFile(t *testing.T, root, rel, content string) {` (line) line 157
-- `func TestIndexDropsFileThatBecameBinary(t *testing.T) {` (line) line 160
-- `func (idx *Indexer) Index(ctx context.Context, scopePath string) error {` (line) line 221
-- `func isDumpPath(rel string) bool {` (line) line 225
-- `func (idx *Indexer) Index(ctx context.Context, scopePath string) error {` (line) line 267
-- `func (idx *Indexer) shouldSkipFile(rel string) bool {` (line) line 271
-- `func (idx *Indexer) Index(ctx context.Context, scopePath string) error {` (line) line 319
-- `func (idx *Indexer) shouldSkipDir(path string) bool {` (line) line 323
-- `func (f *failEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {` (line) line 367
-- `func writeFile(t *testing.T, root, rel, content string) {` (line) line 374
-- `func TestIndexSkipGlobs(t *testing.T) {` (line) line 377
-- `func (f *failEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {` (line) line 480
-- `func writeFile(t *testing.T, root, rel, content string) {` (line) line 487
-- `func TestIndexFailedEmbedKeepsPreviousChunks(t *testing.T) {` (line) line 490
-- `func (idx *Indexer) Index(ctx context.Context, scopePath string) error {` (line) line 600
-- `func (idx *Indexer) indexGit(ctx context.Context) error {` (line) line 604
-- `func (idx *Indexer) Index(ctx context.Context, scopePath string) error {` (line) line 682
-
-## docs/dump/search.md
-
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 68
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 74
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 258
-- `func MatchScope(scope, path string) bool {` (line) line 264
-- `func TestSearchRanking(t *testing.T) {` (line) line 318
-- `func TestSearchRanking(t *testing.T) {` (line) line 336
-- `func TestSearchRanking(t *testing.T) {` (line) line 407
-- `func TestSearchScope(t *testing.T) {` (line) line 425
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 516
-- `func truncateBytes(s string, n int) string {` (line) line 522
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 570
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 615
-- `func TestSearchRanking(t *testing.T) {` (line) line 649
-- `func TestMatchScope(t *testing.T) {` (line) line 667
-- `func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query string, opts Options) ([]Result, error) {` (line) line 722
-- `func FormatResults(results []Result) string {` (line) line 728
-- `func TestSearchRanking(t *testing.T) {` (line) line 764
-- `func TestFormatResults(t *testing.T) {` (line) line 782
-
-## docs/dump/sqlite.md
-
-- `func (s *Store) queryChunks(where string, args ...any) ([]Chunk, error) {` (line) line 46
-- `func (s *Store) ChunkCount() (int, error) {` (line) line 183
-- `func (s *Store) ReplaceFileChunks(rec FileRecord, chunks []Chunk) error {` (line) line 229
-- `func (s *Store) AllChunks() ([]Chunk, error) {` (line) line 337
-- `func (s *Store) DeleteChunksForPath(path string) error {` (line) line 381
-- `func (s *Store) ChunksByType(t ChunkType) ([]Chunk, error) {` (line) line 470
-- `func (s *Store) AllFilePaths() ([]string, error) {` (line) line 514
-- `func insertChunk(ex execer, chunk Chunk) (int64, error) {` (line) line 571
-- `func (s *Store) DeleteFile(path string) error {` (line) line 636
-- `func (s *Store) migrate() error {` (line) line 684
-- `func (s *Store) FileCount() (int, error) {` (line) line 767
-- `func (s *Store) InsertChunk(chunk Chunk) (int64, error) {` (line) line 813
-- `func (s *Store) GetFile(path string) (*FileRecord, bool, error) {` (line) line 903
-- `func (s *Store) UpsertFile(rec FileRecord) error {` (line) line 961
-- `func (s *Store) Close() error {` (line) line 1011
-- `func (s *Store) ReplaceCommit(rec CommitRecord, chunks []Chunk) error {` (line) line 1055
-
-## docs/dump/tui.md
-
-- `func (m model) Init() tea.Cmd {` (line) line 251
-- `func FormFromConfig(cfg *config.Config) InitForm {` (line) line 308
-- `func FormatInitSummary(cfg *config.Config, existed bool) string {` (line) line 313
-- `func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {` (line) line 359
-- `func (m model) listen() tea.Cmd {` (line) line 429
-- `func FormFromConfig(cfg *config.Config) InitForm {` (line) line 474
-- `func ConfigFromForm(form InitForm) (*config.Config, error) {` (line) line 479
-- `func ratio(done, total int) float64 {` (line) line 544
-- `func plural(n int, one, many string) string {` (line) line 596
-
 ## internal/archive/service.go
 
 - `Service` (type_spec) line 15
@@ -319,27 +165,27 @@
 
 ## internal/config/config.go
 
-- `Config` (type_spec) line 27
-- `PublishConfig` (type_spec) line 34
-- `PublishDestination` (type_spec) line 38
-- `OllamaConfig` (type_spec) line 42
-- `parseTimeout` (function_declaration) line 52
-- `IndexConfig` (type_spec) line 63
-- `ADRConfig` (type_spec) line 72
-- `StoreConfig` (type_spec) line 77
-- `Default` (function_declaration) line 82
-- `Load` (function_declaration) line 110
-- `error` (method_declaration) line 140
-- `Save` (function_declaration) line 172
-- `DataDir` (function_declaration) line 182
-- `StorePath` (function_declaration) line 186
-- `ArchivistHome` (function_declaration) line 194
-- `GlobalStorePath` (function_declaration) line 205
-- `pathUnderDir` (function_declaration) line 227
-- `UserRecordsDir` (function_declaration) line 236
-- `UserDecisionsDir` (function_declaration) line 245
-- `VirtualUserADRPath` (function_declaration) line 250
-- `IsUserGlobalPath` (function_declaration) line 259
+- `Config` (type_spec) line 26
+- `PublishConfig` (type_spec) line 33
+- `PublishDestination` (type_spec) line 37
+- `OllamaConfig` (type_spec) line 41
+- `parseTimeout` (function_declaration) line 51
+- `IndexConfig` (type_spec) line 62
+- `ADRConfig` (type_spec) line 71
+- `StoreConfig` (type_spec) line 76
+- `Default` (function_declaration) line 81
+- `Load` (function_declaration) line 109
+- `error` (method_declaration) line 139
+- `Save` (function_declaration) line 171
+- `DataDir` (function_declaration) line 181
+- `StorePath` (function_declaration) line 185
+- `ArchivistHome` (function_declaration) line 193
+- `GlobalStorePath` (function_declaration) line 204
+- `pathUnderDir` (function_declaration) line 226
+- `UserRecordsDir` (function_declaration) line 235
+- `UserDecisionsDir` (function_declaration) line 244
+- `VirtualUserADRPath` (function_declaration) line 249
+- `IsUserGlobalPath` (function_declaration) line 258
 
 ## internal/config/config_test.go
 
