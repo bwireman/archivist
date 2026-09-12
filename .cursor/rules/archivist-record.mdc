@@ -3,8 +3,8 @@ description: Archivist rule record
 alwaysApply: true
 ---
 
-# Record decisions and rules
+# Record decisions, rules, and features
 
-When you choose between real alternatives, or a must/must-not constraint, write a typed archive record (`decision` or `rule`). Use `archivist remember` or the MCP `remember` tool. Do not leave the choice only in chat.
+When you choose between real alternatives, or a must/must-not constraint, write a typed archive record (`decision` or `rule`). When documenting how a capability works, what it connects to, or how to invoke it, write a `feature` record. Use `archivist remember` or the MCP `remember` tool. Do not leave the choice or the capability description only in chat.
 
 Repo records go under the configured `records.repo` directory; product-wide under `records.global` (default `~/.archivist`); personal under `records.dev` (default `~/.archivist/records/`).

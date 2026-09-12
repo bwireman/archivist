@@ -27,3 +27,21 @@ When adding or changing a code-map extractor (tree-sitter specs, line-based lang
 
 ---
 
+## Do not store session notes as accepted archive records
+
+- Severity: should-not
+- Applies to: docs/decisions/**, docs/global-decisions/**
+
+Ephemeral session observations (MCP down this chat, config currently unset, unverified "gap" catalogs) are not accepted decisions. Record a decision or rule only when choosing between alternatives or encoding a lasting constraint. Prefer `update` or `retire` over adding a parallel accepted note.
+
+---
+
+## Never pass unsanitized text to FTS5 MATCH
+
+- Severity: must
+- Applies to: internal/store/**, internal/retrieve/**
+
+User and agent strings go through `fts5Query` (or equivalent) before `records_fts MATCH`. Punctuation and FTS5 operators in the input must not produce a syntax error. If MATCH still fails with an FTS5 syntax error, return no hits instead of failing the search.
+
+---
+

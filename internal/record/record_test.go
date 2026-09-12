@@ -55,6 +55,33 @@ func TestMatchesPaths(t *testing.T) {
 	}
 }
 
+func TestValidateFeatureType(t *testing.T) {
+	r := &Record{Type: TypeFeature, Scope: ScopeGlobal, Title: "Embed queue", Slug: "embed-queue"}
+	if err := r.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	r.Type = "unknown"
+	if err := r.Validate(); err == nil {
+		t.Fatal("expected invalid type")
+	}
+}
+
+func TestIndexOrderCoversKnownTypes(t *testing.T) {
+	known := []Type{TypeDecision, TypeRule, TypeFeature, TypeGuide, TypeMap, TypePitfall}
+	seen := map[Type]bool{}
+	for _, typ := range IndexOrder {
+		if !ValidType(typ) {
+			t.Fatalf("IndexOrder has invalid type %s", typ)
+		}
+		seen[typ] = true
+	}
+	for _, typ := range known {
+		if !seen[typ] {
+			t.Fatalf("IndexOrder missing %s", typ)
+		}
+	}
+}
+
 func TestInferScopeFromPath(t *testing.T) {
 	if InferScopeFromPath("user/note.md") != ScopeDev {
 		t.Fatal("user")

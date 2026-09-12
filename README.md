@@ -1,6 +1,6 @@
 # Archivist
 
-A local knowledge archive for design decisions, rules, guides, and code structure. Records live as markdown with front matter; SQLite indexes them for hybrid search; MCP is the primary agent surface. A generated `docs/archive/` tree serves humans and tools without MCP.
+A local knowledge archive for design decisions, rules, features, guides, and code structure. Records live as markdown with front matter; SQLite indexes them for hybrid search; MCP is the primary agent surface. A generated `docs/archive/` tree serves humans and tools without MCP.
 
 Archivist depends only on SQLite and Ollama HTTP — no vendor SDKs.
 
@@ -128,11 +128,11 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 | Tool | Purpose |
 | --- | --- |
-| `search` | Hybrid search (`query`, optional `type`, `scope`, `top_k`) |
+| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `top_k`) |
 | `get` | One record by id or slug |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Where code lives (symbols / files) |
-| `remember` | Create a record (`type`, `scope`, `title`, `body`, …) |
+| `remember` | Create a record (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`) |
 | `update` | Amend title, body, or status |
 | `retire` | Mark superseded |
 | `status` | Counts, embed queue, Ollama health |
@@ -159,9 +159,17 @@ tags: [billing]
 ...
 ```
 
-- **type**: `decision`, `rule`, `guide`, `map`, `pitfall`
+- **type**:
+  - `decision` — a choice among alternatives (Context, Decision, Consequences)
+  - `rule` — a must/must-not or should/should-not constraint; set `applies_to` so `archivist check` can match touched files
+  - `feature` — living docs of a capability: how it works, what it connects to, how to invoke it (Purpose, Behavior, Connects to, Entry points)
+  - `guide` — a how-to procedure
+  - `map` — structural notes (`docs/archive/map.md` is the generated code map)
+  - `pitfall` — a confirmed gotcha
 - **scope**: `dev` (`~/.archivist/records/`), `repo` (`docs/decisions/`), `global` (`~/.archivist`, or `records.global` if set)
 - **severity** (rules): `must`, `must-not`, `should`, `should-not`
+
+Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a subsystem behaves. Encode a design choice as a `decision`, a constraint as a `rule`.
 
 ## Commands
 
@@ -170,7 +178,7 @@ tags: [billing]
 | `archivist init` | no | Config, data dirs, decision dirs |
 | `archivist index` | no | Index records + code map |
 | `archivist embed --worker` | yes | Drain embed queue |
-| `archivist search <query>` | optional | Hybrid FTS + vector search |
+| `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs) |
 | `archivist check` | optional | Match rules to a change |
 | `archivist remember` | no | Create a record |
 | `archivist update` / `retire` | no | Amend or supersede |
@@ -230,8 +238,8 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 
 `archivist skills install --target cursor|claude|agents-md|copilot` writes:
 
-- **Rules** (always on): consult the archive, record decisions, refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
-- **Skills** (on demand): `record-decision`, `record-rule`, `refresh-archive`, `publish-archive`. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
+- **Rules** (always on): consult the archive, record decisions/rules/features, refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
+- **Skills** (on demand): `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. `record-feature` is for how a capability works and what it connects to (not a design choice). Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
 

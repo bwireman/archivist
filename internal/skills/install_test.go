@@ -44,6 +44,10 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if _, err := os.Stat(skill); err != nil {
 		t.Fatal(err)
 	}
+	feature := filepath.Join(root, ".cursor", "skills", "record-feature", "SKILL.md")
+	if _, err := os.Stat(feature); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {

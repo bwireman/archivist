@@ -54,7 +54,7 @@ func newRememberCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&recType, "type", "decision", "record type")
+	cmd.Flags().StringVar(&recType, "type", "decision", "record type: decision, rule, feature, guide, map, pitfall")
 	cmd.Flags().StringVar(&scope, "scope", "repo", "scope: dev|repo|global")
 	cmd.Flags().StringVar(&title, "title", "", "record title")
 	cmd.Flags().StringVar(&body, "body", "", "record body markdown")

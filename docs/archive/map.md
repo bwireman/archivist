@@ -422,25 +422,28 @@
 ## internal/record/record.go
 
 - `Type` (type_spec) line 16
-- `Scope` (type_spec) line 26
-- `Status` (type_spec) line 34
-- `Severity` (type_spec) line 43
-- `Record` (type_spec) line 53
-- `ScopePrecedence` (function_declaration) line 74
-- `InferScopeFromPath` (function_declaration) line 88
-- `SlugFromPath` (function_declaration) line 106
-- `NewID` (function_declaration) line 116
-- `ContentHash` (function_declaration) line 123
-- `error` (method_declaration) line 140
-- `string` (method_declaration) line 185
-- `bool` (method_declaration) line 205
-- `bool` (method_declaration) line 218
+- `ValidType` (function_declaration) line 31
+- `Scope` (type_spec) line 40
+- `Status` (type_spec) line 48
+- `Severity` (type_spec) line 57
+- `Record` (type_spec) line 67
+- `ScopePrecedence` (function_declaration) line 88
+- `InferScopeFromPath` (function_declaration) line 102
+- `SlugFromPath` (function_declaration) line 120
+- `NewID` (function_declaration) line 130
+- `ContentHash` (function_declaration) line 137
+- `error` (method_declaration) line 154
+- `string` (method_declaration) line 197
+- `bool` (method_declaration) line 217
+- `bool` (method_declaration) line 230
 
 ## internal/record/record_test.go
 
 - `TestParseAndSerialize` (function_declaration) line 8
 - `TestMatchesPaths` (function_declaration) line 45
-- `TestInferScopeFromPath` (function_declaration) line 58
+- `TestValidateFeatureType` (function_declaration) line 58
+- `TestIndexOrderCoversKnownTypes` (function_declaration) line 69
+- `TestInferScopeFromPath` (function_declaration) line 85
 
 ## internal/retrieve/retrieve.go
 
@@ -468,14 +471,24 @@
 
 - `TestInstallCursor` (function_declaration) line 10
 - `TestInstallCursorEmbeddedTemplates` (function_declaration) line 30
-- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 49
-- `writeTree` (function_declaration) line 67
+- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 53
+- `writeTree` (function_declaration) line 71
 
 ## internal/store/embedding.go
 
 - `encodeEmbedding` (function_declaration) line 9
 - `decodeEmbedding` (function_declaration) line 21
 - `CosineSimilarity` (function_declaration) line 39
+
+## internal/store/fts.go
+
+- `fts5Query` (function_declaration) line 13
+
+## internal/store/fts_test.go
+
+- `TestFTS5Query` (function_declaration) line 10
+- `TestSearchFTSAcceptsPunctuation` (function_declaration) line 35
+- `openFTSStore` (function_declaration) line 81
 
 ## internal/store/store.go
 
@@ -504,14 +517,14 @@
 - `QueueItem` (type_spec) line 681
 - `error` (method_declaration) line 717
 - `FTSResult` (type_spec) line 726
-- `FileRecord` (type_spec) line 760
-- `Symbol` (type_spec) line 767
-- `SymbolEdge` (type_spec) line 777
-- `error` (method_declaration) line 798
-- `boolToInt` (function_declaration) line 838
-- `error` (method_declaration) line 845
-- `CommitRecord` (type_spec) line 929
-- `error` (method_declaration) line 955
+- `FileRecord` (type_spec) line 763
+- `Symbol` (type_spec) line 770
+- `SymbolEdge` (type_spec) line 780
+- `error` (method_declaration) line 801
+- `boolToInt` (function_declaration) line 841
+- `error` (method_declaration) line 848
+- `CommitRecord` (type_spec) line 932
+- `error` (method_declaration) line 958
 
 ## internal/store/store_test.go
 

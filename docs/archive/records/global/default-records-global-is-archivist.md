@@ -9,7 +9,7 @@ tags: [config, records]
 
 ## Context
 
-`records.global` defaulted to in-repo `docs/global-decisions`. Global records were already stored in `~/.archivist/archive.db`, but the markdown lived in every checkout. `records.dev` already defaulted to `~/.archivist/records`. Putting machine-wide docs beside the home store matches that split.
+`records.global` defaulted to in-repo `docs/global-decisions`. Global records were already stored in `~/.archivist/archive.db`, but the markdown lived in every checkout. `records.dev` already defaulted to `~/.archivist/records`.
 
 ## Decision
 

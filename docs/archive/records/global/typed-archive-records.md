@@ -1,0 +1,35 @@
+---
+id: rec_179dbf51d8a090fef8d7
+type: feature
+scope: global
+status: accepted
+title: Typed archive records
+applies_to: [internal/record/**, internal/archive/**]
+tags: [records]
+---
+
+## Purpose
+
+Markdown files with YAML front matter are the source of truth for the archive. SQLite indexes them for search; export mirrors them under `docs/archive/`.
+
+## Behavior
+
+Types: `decision`, `rule`, `feature`, `guide`, `map`, `pitfall`. Scopes: `dev`, `repo`, `global`. Status: `proposed`, `accepted`, `deprecated`, `superseded`. Rules may set `severity` and `applies_to` globs for `archivist check`. Features should set `applies_to` to the packages they document.
+
+`remember` writes a file under the configured records directory and upserts the store (FTS + embed queue). `update` rewrites the file in place. `retire` sets `status=superseded` and optional `superseded_by`. Query overlay prefers repo over global over dev for the same slug.
+
+In this product checkout, `records.global` is `docs/global-decisions` so product records stay in git. Empty `records.global` in other repos is `~/.archivist`.
+
+## Connects to
+
+- Config: `records.repo`, `records.global`, `records.dev`, `records.export`.
+- Indexer walks those directories (and home global/dev) and prunes missing files.
+- Export writes `INDEX.md` by `record.IndexOrder`.
+- Check only enforces `rule` records.
+- On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents when to write each type.
+
+## Entry points
+
+- CLI: `archivist remember`, `update`, `retire`, `check`
+- MCP: `remember`, `update`, `retire`, `get`, `check`
+- Types: `record.Record`, `archive.Service`

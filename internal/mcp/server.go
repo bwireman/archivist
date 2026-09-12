@@ -45,7 +45,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv.AddTool(mcp.NewTool("search",
 		mcp.WithDescription("Search the knowledge archive"),
 		mcp.WithString("query", mcp.Required()),
-		mcp.WithString("type"),
+		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("scope"),
 		mcp.WithNumber("top_k"),
 	), s.toolSearch)
@@ -65,7 +65,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
 		mcp.WithDescription("Create a new archive record"),
-		mcp.WithString("type", mcp.Required()),
+		mcp.WithString("type", mcp.Required(), mcp.Description("decision, rule, feature, guide, map, or pitfall")),
 		mcp.WithString("scope", mcp.Required()),
 		mcp.WithString("title", mcp.Required()),
 		mcp.WithString("body", mcp.Required()),

@@ -6,20 +6,14 @@ status: accepted
 title: Record last search in index meta
 ---
 
-# Record last search in index meta
-
-- Status: accepted
-- Date: 2026-08-30
-- Scope: global
-
 ## Context
-`archivist status` already shows `last_indexed_at` from the `meta` table. There was no record of what was last retrieved, so it was hard to tell whether the index had been queried or with which prompt.
+
+`archivist status` shows `last_indexed_at`. Without a stored last query, it is hard to tell whether the index had been searched.
 
 ## Decision
-After a successful semantic retrieval (`archivist search`, or `archivist dump` with a query), write `last_search` (the trimmed query) and `last_search_at` (RFC3339 UTC) on the store that was queried. `archivist status` prints both for the repo index, and the same pair for the global index when those keys are set. Empty queries are not stored.
+
+After a successful search, write `last_search` (trimmed query) and `last_search_at` (RFC3339 UTC) on the repo store. Empty queries are not stored. No schema bump: these are extra `meta` rows.
 
 ## Consequences
-- Status can show the last retrieval without parsing shell history.
-- `--adr-scope global` stamps `~/.archivist/global.db`; default search stamps the repo DB.
-- A failed embed does not update the keys.
-- No schema bump: these are extra `meta` rows.
+
+Status currently prints last indexed time, not last search; the keys remain on the store. Search stamps even on keyword-only retrieval.

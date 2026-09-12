@@ -729,7 +729,7 @@ type FTSResult struct {
 }
 
 func (s *Store) SearchFTS(query string, limit int) ([]FTSResult, error) {
-	query = strings.TrimSpace(query)
+	query = fts5Query(query)
 	if query == "" {
 		return nil, nil
 	}
@@ -741,6 +741,9 @@ ORDER BY score
 LIMIT ?
 `, query, limit)
 	if err != nil {
+		if strings.Contains(err.Error(), "fts5: syntax error") {
+			return nil, nil
+		}
 		return nil, err
 	}
 	defer rows.Close()

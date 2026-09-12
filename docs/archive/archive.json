@@ -1,22 +1,32 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T21:34:00Z",
+  "exported_at": "2026-09-12T22:58:42Z",
   "records": [
     {
-      "id": "rec_9d4061b8f978a752d7f7",
-      "slug": "archivist-mcp-is-configured-in-cursor-mcp-json-but-was-not-available-in-this-session",
+      "id": "rec_7c4b40de9fa8f90f2ac8",
+      "slug": "add-feature-as-a-record-type-for-living-capability-docs",
       "type": "decision",
-      "scope": "dev",
-      "title": "Archivist MCP is configured in .cursor/mcp.json but was not available in this session",
+      "scope": "global",
+      "title": "Add feature as a record type for living capability docs",
       "status": "accepted",
-      "source_path": "user/archivist-mcp-is-configured-in-cursor-mcp-json-but-was-not-available-in-this-session.md",
+      "source_path": "docs/global-decisions/add-feature-as-a-record-type-for-living-capability-docs.md",
       "tags": [
-        "archivist",
-        "soon",
-        "G-mcp-missing",
-        "gap"
+        "records"
       ],
-      "content_hash": "054e198b7ed398826139174caa14caa592090c99d0bc75c6483b892491347169"
+      "content_hash": "6c56ef793e571e5a969e676b24331e894faa0e9eeaff1db429efaa77e8033cf7"
+    },
+    {
+      "id": "rec_8c31cc5708c0f483ffcc",
+      "slug": "archive-hygiene-current-facts-stubs-for-superseded-delete-non-records",
+      "type": "decision",
+      "scope": "global",
+      "title": "Archive hygiene: current facts, stubs for superseded, delete non-records",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/archive-hygiene-current-facts-stubs-for-superseded-delete-non-records.md",
+      "tags": [
+        "hygiene"
+      ],
+      "content_hash": "425964bb4ba78949a54679e169643ae742ee3deb7218f37f8de2fc5342ba2811"
     },
     {
       "id": "rec_293e0ad9ce7ae2e270dd",
@@ -24,9 +34,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Default ADR globs are the product directories",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/008-default-adr-globs.md",
-      "content_hash": "29dd2d2be7e622c5a6e0edb4603d4090b6e86356a25babf4d99a4f4b77f9ab3c"
+      "content_hash": "3bffc128209074d83b50e230bcfaf58164ccfc247f15a3c36ba9768f77728bcc"
     },
     {
       "id": "rec_330b72a24aff842edf5a",
@@ -36,7 +46,7 @@
       "title": "Default embed model is qwen3-embedding:0.6b",
       "status": "accepted",
       "source_path": "docs/global-decisions/009-qwen3-embed-default.md",
-      "content_hash": "9a72cbe8bed25d3df79d538a8c35bf9e0c6770299b99367c10a210ea727d5699"
+      "content_hash": "1433fe583b9e667d0126eaaf896d4ea29899950d98e9ee7e58e9b4f5e02d562e"
     },
     {
       "id": "rec_e62e2384d8f10e17a473",
@@ -50,7 +60,7 @@
         "config",
         "records"
       ],
-      "content_hash": "5446ea8535c2e3d49d8e94a24728ad16150668a1beef92ec4a50eb929b5c387a"
+      "content_hash": "7e695d4d2913ae445d4c2c1116353db839079ba3736d0579e6c49aaf85530804"
     },
     {
       "id": "rec_plaincli013",
@@ -60,7 +70,7 @@
       "title": "Drop interactive TUIs; CLI is always plain",
       "status": "accepted",
       "source_path": "docs/global-decisions/013-plain-cli.md",
-      "content_hash": "7bb5f8f030714593139e248380514e28ba9ce86cfdc7494ca0069322911d4715"
+      "content_hash": "8dd69b69c584818b3f5abd7e82d452a16fefd0c26aa1be57ed3a5695b2715385"
     },
     {
       "id": "rec_6e94d1190b59d6365335",
@@ -70,7 +80,7 @@
       "title": "Honor .gitignore when indexing",
       "status": "accepted",
       "source_path": "docs/global-decisions/007-honor-gitignore.md",
-      "content_hash": "ec906e1368c1b59e02633cc52a0e9d5daa9c34bda098b8fadea797d7e45680a4"
+      "content_hash": "7896f460e1385cc77eb6e482d2f2030d231f07c47067dcac33753fd7683a969c"
     },
     {
       "id": "rec_43749304c84ae79978c9",
@@ -83,7 +93,7 @@
       "tags": [
         "codemap"
       ],
-      "content_hash": "7ba58684f65eea408c0527f8348f46d6c9df4d2648cdfb23a6e4474e7a981cad"
+      "content_hash": "1e3e7995125b15d59e12e1d0937dd3c23c4d959fcca99fdc167be72e0c1d77ec"
     },
     {
       "id": "rec_daaae5decc593a5921ad",
@@ -97,7 +107,7 @@
         "codemap",
         "gleam"
       ],
-      "content_hash": "7234caf5232ca19f5dc5a84bf34c13fb63995c11fb4ddf2c99d93d1e06dd731d"
+      "content_hash": "923b2a06fd2546629e552e0a95131b6da42119f4149f523dae3a47091b9fe56a"
     },
     {
       "id": "rec_b709c21fa97255bd7629",
@@ -107,7 +117,7 @@
       "title": "Nest ADR globs under index.adr",
       "status": "superseded",
       "source_path": "docs/global-decisions/005-nested-adr-config.md",
-      "content_hash": "c9ae09de0358a761487732215137266be7da5e869d05332471c1a463b391d267"
+      "content_hash": "6c952368f1c13d18a8975624d833756187d6fb4cf8ebb8caed1c5563ded87097"
     },
     {
       "id": "rec_ac188553efd793db61e5",
@@ -117,7 +127,7 @@
       "title": "Pivot to knowledge archive with MCP primary surface",
       "status": "accepted",
       "source_path": "docs/global-decisions/012-knowledge-archive-pivot.md",
-      "content_hash": "65dbb0ef6bfdbc01e0c4c78ec44526511ae87a2a46f6cd11713f562686775bd1"
+      "content_hash": "9a961309a10b7d347366cd0d595db22dcdec38e65f2bc252d78145a85d2abe43"
     },
     {
       "id": "rec_2af87c2692626de3ecd7",
@@ -127,7 +137,7 @@
       "title": "Record last search in index meta",
       "status": "accepted",
       "source_path": "docs/global-decisions/011-last-search-meta.md",
-      "content_hash": "0b0b0ab8a44bf8d22923a411d930e428db2f4533613843995e279ebc82de5aac"
+      "content_hash": "fa0fcdec45ba1c47a4f11c184690939bb18c7658417f0d3a9f13c69fa6aa052b"
     },
     {
       "id": "rec_68b392b5b1d7fd67e7b3",
@@ -137,7 +147,7 @@
       "title": "Record schema and CLI version",
       "status": "accepted",
       "source_path": "docs/global-decisions/004-schema-and-cli-version.md",
-      "content_hash": "327829f2111d78d3bb28993c9cb97106bcd570cf3cc96da610be872af414b3bc"
+      "content_hash": "f3955457d794b70581b5d4a03c07b6b604dbb0cd0fe51498a23438fefea54129"
     },
     {
       "id": "rec_config014",
@@ -147,7 +157,7 @@
       "title": "Reshape config around records directories",
       "status": "accepted",
       "source_path": "docs/global-decisions/014-config-reshape.md",
-      "content_hash": "7bd83574b289ae64226e965366675871b849fb09e3708822b1422c9dcbf1e99e"
+      "content_hash": "0c5a173939ad4ba4a6759d70449bbb6da79577585fb101cd2f907768642c41c1"
     },
     {
       "id": "rec_0ed07ffad59c1d58b9e2",
@@ -155,9 +165,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Richer chunks and longer CLI results",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/010-richer-chunks-and-cli.md",
-      "content_hash": "be2f39b964ffd4abb7255e996d7bcd8ef66672df403370ba86cad9a41449eaee"
+      "content_hash": "9de38a262c651514d7c770c1f943620831a21326ee8a88d5f24bdbd9fa5ae6fa"
     },
     {
       "id": "rec_bbf3e07cb5eeec0bd837",
@@ -165,9 +175,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Separate SQLite index for global ADRs",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/006-separate-global-index.md",
-      "content_hash": "6ff6700cb66d57ede983e7f4a20643e07a5777eee26a37731aaf30e84a8ddde5"
+      "content_hash": "788be883d75dec51f62b46c18449114998856c3b8ad7fc4f13e769cfc841baa0"
     },
     {
       "id": "rec_2a6281f6b3917c11dc0b",
@@ -175,9 +185,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Separate global and repo ADRs",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/003-global-and-repo-adrs.md",
-      "content_hash": "79f1afbe75e4ef97bc6b75923d6a177b8850802fa4664a9943e9660c252b7549"
+      "content_hash": "69d6ab5057ab7e77c66a60e1a67685d80ea896b4079eaba03b65907d9c2b45ca"
     },
     {
       "id": "rec_f6175938c024887eacfb",
@@ -191,7 +201,7 @@
         "skills",
         "embed"
       ],
-      "content_hash": "dfbc8eda01eb59ed43a99f969751f4db78c437fec4c82176307e0ae05e48a344"
+      "content_hash": "d126418460973b69a904086ef500abf584c2040ffaeb69989445daf31ae4a2e3"
     },
     {
       "id": "rec_skills015",
@@ -201,7 +211,21 @@
       "title": "Split always-on rules from on-demand skills",
       "status": "accepted",
       "source_path": "docs/global-decisions/015-rules-and-skills.md",
-      "content_hash": "9854f8eec93e2a7f75c6658d70bec62091eb38eb19bde1a1caf272810db78d61"
+      "content_hash": "f2be651c9d1ac8fa63f67c7c5b6343621b922bfe11edaee9f386e8c622a2671c"
+    },
+    {
+      "id": "rec_d5453789652869540dbb",
+      "slug": "treat-fts-match-input-as-natural-language",
+      "type": "decision",
+      "scope": "global",
+      "title": "Treat FTS MATCH input as natural language",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/treat-fts-match-input-as-natural-language.md",
+      "tags": [
+        "search",
+        "fts"
+      ],
+      "content_hash": "a080d31109a1b8220c594f83a16ae807810f7a3e0346c26c3aa52082a898ff77"
     },
     {
       "id": "rec_03b53c31d84603de473c",
@@ -211,7 +235,7 @@
       "title": "Use Bubble Tea for the index TUI",
       "status": "superseded",
       "source_path": "docs/global-decisions/001-bubbletea-index-tui.md",
-      "content_hash": "0482b6834a2c318d013a1cacbbe3746c4c3791300ab1860069596623079925a6"
+      "content_hash": "76e81fffca45c385c7e8a4b9e5314c312b97edce423619a7a9761c579eb3aca7"
     },
     {
       "id": "rec_487f791d4ced16a80cde",
@@ -221,7 +245,7 @@
       "title": "Use Huh for the init TUI",
       "status": "superseded",
       "source_path": "docs/global-decisions/002-huh-init-tui.md",
-      "content_hash": "c2900f0c71744a7fd60bd3780514d5acf6cc73b72d0afc339f3fb1d35e450e52"
+      "content_hash": "f8c78d440f2058834c916fa7b3aea4d0ef13696446716a2abaecb17cda221cb3"
     },
     {
       "id": "rec_d517cd894e443ee0d4f2",
@@ -231,23 +255,63 @@
       "title": "Use qwen3-embedding:0.6b for this repository",
       "status": "superseded",
       "source_path": "docs/decisions/001-use-qwen3-embedding.md",
-      "content_hash": "cd8bbf9210237686d8564da40590dc2cb9c376f948cd4f8564a96a058f196a67"
+      "content_hash": "0e49b7c5b6eea16014fe37b9def957d446d6ee5685ded7a341d33f88935818c6"
     },
     {
-      "id": "rec_d5b84579e761adee897e",
-      "slug": "records-dev-is-unset-defaults-to-archivist-records",
-      "type": "decision",
-      "scope": "dev",
-      "title": "records.dev is unset (defaults to ~/.archivist/records)",
+      "id": "rec_423018b323939206d5cc",
+      "slug": "embed-queue-and-worker",
+      "type": "feature",
+      "scope": "global",
+      "title": "Embed queue and worker",
       "status": "accepted",
-      "source_path": "user/records-dev-is-unset-defaults-to-archivist-records.md",
+      "source_path": "docs/global-decisions/embed-queue-and-worker.md",
       "tags": [
-        "archivist",
-        "later",
-        "G-records-dev-unset",
-        "gap"
+        "embed",
+        "queue",
+        "ollama"
       ],
-      "content_hash": "d56ffadf7e0595024bc1078d21bb44f16c740025fc6a47086e7b2e1f7c479b5a"
+      "applies_to": [
+        "internal/embed/**",
+        "internal/store/**",
+        "internal/cmd/**"
+      ],
+      "content_hash": "cfcd43dc03839871088e355ab4fa971930c9a4df44fb5ccb3d5b4a1adba40cb1"
+    },
+    {
+      "id": "rec_393fc5d328e835dae38b",
+      "slug": "hybrid-search",
+      "type": "feature",
+      "scope": "global",
+      "title": "Hybrid search",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/hybrid-search.md",
+      "tags": [
+        "search",
+        "fts",
+        "embed"
+      ],
+      "applies_to": [
+        "internal/retrieve/**",
+        "internal/store/**"
+      ],
+      "content_hash": "7ea5412f0368ff094ca9017aacda44eec091696a721f51a65049b725abc6bd21"
+    },
+    {
+      "id": "rec_179dbf51d8a090fef8d7",
+      "slug": "typed-archive-records",
+      "type": "feature",
+      "scope": "global",
+      "title": "Typed archive records",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/typed-archive-records.md",
+      "tags": [
+        "records"
+      ],
+      "applies_to": [
+        "internal/record/**",
+        "internal/archive/**"
+      ],
+      "content_hash": "26c4e5a2c4c4312700f57e96346972170a7f17bebf117f09ce02957a39008959"
     },
     {
       "id": "rec_184e12358de7c5b12414",
@@ -300,6 +364,43 @@
         "internal/codemap/**"
       ],
       "content_hash": "e20d4ae59dee0e11f8c10f1711a172cec809058f8d2b529d57b7dab1a2082e1c"
+    },
+    {
+      "id": "rec_0d9749973b9e9660b83a",
+      "slug": "do-not-store-session-notes-as-accepted-archive-records",
+      "type": "rule",
+      "scope": "global",
+      "title": "Do not store session notes as accepted archive records",
+      "status": "accepted",
+      "severity": "should-not",
+      "source_path": "docs/global-decisions/do-not-store-session-notes-as-accepted-archive-records.md",
+      "tags": [
+        "hygiene"
+      ],
+      "applies_to": [
+        "docs/decisions/**",
+        "docs/global-decisions/**"
+      ],
+      "content_hash": "a5782d882051b7cb751fcff5a23dacc5cdbf21e0cab34b785456fe7914269e6d"
+    },
+    {
+      "id": "rec_a774cf613e4d5dd33694",
+      "slug": "never-pass-unsanitized-text-to-fts5-match",
+      "type": "rule",
+      "scope": "global",
+      "title": "Never pass unsanitized text to FTS5 MATCH",
+      "status": "accepted",
+      "severity": "must",
+      "source_path": "docs/global-decisions/never-pass-unsanitized-text-to-fts5-match.md",
+      "tags": [
+        "search",
+        "fts"
+      ],
+      "applies_to": [
+        "internal/store/**",
+        "internal/retrieve/**"
+      ],
+      "content_hash": "ceaf3e3672d842c170ca967617ca177cfb1ce094048f23188c2d987207169701"
     }
   ]
 }

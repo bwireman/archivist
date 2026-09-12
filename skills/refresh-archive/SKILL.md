@@ -14,4 +14,5 @@ archivist export
 - `index` writes records and the code map. No Ollama.
 - `embed --worker --once` drains the queue. Needs Ollama; skip if it is down.
 - `export` regenerates `records.export` (default `docs/archive/`). Do not hand-edit that tree.
+- After changing how a capability behaves, update its `feature` record (or create one with `record-feature`) before this refresh.
 - Skip the whole sequence if you only changed `docs/archive/` or `.archivist/`.

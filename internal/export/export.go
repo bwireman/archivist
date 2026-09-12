@@ -104,7 +104,7 @@ func writeIndex(recs []*record.Record, path string) error {
 	for _, r := range recs {
 		byType[r.Type] = append(byType[r.Type], r)
 	}
-	for _, typ := range []record.Type{record.TypeRule, record.TypeDecision, record.TypeGuide, record.TypeMap, record.TypePitfall} {
+	for _, typ := range record.IndexOrder {
 		items := byType[typ]
 		if len(items) == 0 {
 			continue

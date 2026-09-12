@@ -9,7 +9,7 @@ tags: [skills, embed]
 
 ## Context
 
-`archivist skills install` read `rules/` and `skills/` from the target repository. That works in this checkout, but a consumer repo like go-over has no template tree, so install failed.
+`archivist skills install` read `rules/` and `skills/` from the target repository. That works in this checkout, but a consumer repo has no template tree, so install failed.
 
 Alternatives: copy templates into every repo; require running install from this source tree; look up files next to the executable; embed the templates in the binary.
 

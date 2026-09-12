@@ -18,10 +18,24 @@ type Type string
 const (
 	TypeDecision Type = "decision"
 	TypeRule     Type = "rule"
+	TypeFeature  Type = "feature"
 	TypeGuide    Type = "guide"
 	TypeMap      Type = "map"
 	TypePitfall  Type = "pitfall"
 )
+
+// IndexOrder is the section order in docs/archive/INDEX.md.
+var IndexOrder = []Type{TypeRule, TypeDecision, TypeFeature, TypeGuide, TypeMap, TypePitfall}
+
+// ValidType reports whether t is a known record type.
+func ValidType(t Type) bool {
+	switch t {
+	case TypeDecision, TypeRule, TypeFeature, TypeGuide, TypeMap, TypePitfall:
+		return true
+	default:
+		return false
+	}
+}
 
 type Scope string
 
@@ -141,9 +155,7 @@ func (r *Record) Validate() error {
 	if r.Type == "" {
 		return fmt.Errorf("record type is required")
 	}
-	switch r.Type {
-	case TypeDecision, TypeRule, TypeGuide, TypeMap, TypePitfall:
-	default:
+	if !ValidType(r.Type) {
 		return fmt.Errorf("invalid record type %q", r.Type)
 	}
 	if r.Scope == "" {

@@ -185,7 +185,7 @@ func newSearchCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().IntVar(&topK, "top", retrieve.DefaultTopK, "number of results")
-	cmd.Flags().StringVar(&recType, "type", "", "filter by record type")
+	cmd.Flags().StringVar(&recType, "type", "", "filter by record type: decision, rule, feature, guide, map, pitfall")
 	cmd.Flags().StringVar(&scope, "scope", "", "filter by scope: dev|repo|global")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
