@@ -10,7 +10,7 @@ import (
 func newSkillsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "skills",
-		Short: "Install neutral skills for agent hosts",
+		Short: "Install always-on rules and on-demand skills",
 	}
 	install := &cobra.Command{
 		Use:   "install",
@@ -28,7 +28,7 @@ func newSkillsCmd() *cobra.Command {
 			if err := skills.Install(root, t); err != nil {
 				return err
 			}
-			fmt.Printf("Installed skills for %s\n", target)
+			fmt.Printf("Installed agent rules and skills for %s\n", target)
 			return nil
 		},
 	}

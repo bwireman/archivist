@@ -66,7 +66,7 @@ tags: [billing]
 | `archivist publish <name>` | no | Bundle + configured shell command |
 | `archivist mcp` | optional | MCP server (primary agent API) |
 | `archivist migrate records` | no | Convert legacy ADRs |
-| `archivist skills install --target cursor` | no | Generate agent skill files |
+| `archivist skills install --target cursor` | no | Always-on rules + on-demand skills |
 | `archivist status` | no | Archive + queue status |
 
 ## MCP tools
@@ -117,6 +117,15 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 - Empty `records.dev` is `~/.archivist/records`.
 - SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
+
+## Agent rules and skills
+
+`archivist skills install --target cursor|claude|agents-md|copilot` writes:
+
+- **Rules** (always on): consult the archive, record decisions, refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
+- **Skills** (on demand): `record-decision`, `record-rule`, `refresh-archive`, `publish-archive`. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
+
+Templates live in `rules/` and `skills/` in this repo.
 
 ## Publish destinations
 

@@ -1,8 +1,3 @@
----
-description: Archivist rule consult
-alwaysApply: true
----
-
 # Consult the archive
 
 Before implementing, researching, or changing architecture, look things up in this order. Do not guess APIs, defaults, or past decisions.

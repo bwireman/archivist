@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T19:51:00Z",
+  "exported_at": "2026-09-12T20:00:26Z",
   "records": [
     {
       "id": "rec_293e0ad9ce7ae2e270dd",
@@ -121,6 +121,16 @@
       "status": "accepted",
       "source_path": "docs/global-decisions/003-global-and-repo-adrs.md",
       "content_hash": "79f1afbe75e4ef97bc6b75923d6a177b8850802fa4664a9943e9660c252b7549"
+    },
+    {
+      "id": "rec_skills015",
+      "slug": "015-rules-and-skills",
+      "type": "decision",
+      "scope": "global",
+      "title": "Split always-on rules from on-demand skills",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/015-rules-and-skills.md",
+      "content_hash": "9854f8eec93e2a7f75c6658d70bec62091eb38eb19bde1a1caf272810db78d61"
     },
     {
       "id": "rec_03b53c31d84603de473c",

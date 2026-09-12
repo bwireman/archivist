@@ -402,9 +402,17 @@
 
 - `Target` (type_spec) line 10
 - `ParseTarget` (function_declaration) line 19
-- `Install` (function_declaration) line 34
-- `destPath` (function_declaration) line 64
-- `wrapCursorMDC` (function_declaration) line 79
+- `Install` (function_declaration) line 35
+- `installRules` (function_declaration) line 47
+- `installSkills` (function_declaration) line 92
+- `wrapCursorRule` (function_declaration) line 123
+- `writeFile` (function_declaration) line 127
+
+## internal/skills/install_test.go
+
+- `TestInstallCursor` (function_declaration) line 10
+- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 30
+- `writeTree` (function_declaration) line 48
 
 ## internal/store/embedding.go
 

@@ -14,6 +14,7 @@
 - [Richer chunks and longer CLI results](records/global/010-richer-chunks-and-cli.md) (accepted)
 - [Separate SQLite index for global ADRs](records/global/006-separate-global-index.md) (accepted)
 - [Separate global and repo ADRs](records/global/003-global-and-repo-adrs.md) (accepted)
+- [Split always-on rules from on-demand skills](records/global/015-rules-and-skills.md) (accepted)
 - [Use Bubble Tea for the index TUI](records/global/001-bubbletea-index-tui.md) (superseded)
 - [Use Huh for the init TUI](records/global/002-huh-init-tui.md) (superseded)
 - [Use qwen3-embedding:0.6b for this repository](records/repo/001-use-qwen3-embedding.md) (superseded)
