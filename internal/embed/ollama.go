@@ -24,7 +24,7 @@ func NewOllamaClient(baseURL, embedModel string) *OllamaClient {
 }
 
 func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {
-	return NewOllamaClientWithTimeout(cfg.BaseURL, cfg.EmbedModel, cfg.EmbedTimeoutDuration())
+	return NewOllamaClientWithTimeout(cfg.ResolvedBaseURL(), cfg.EmbedModel, cfg.EmbedTimeoutDuration())
 }
 
 func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {

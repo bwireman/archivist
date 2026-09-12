@@ -4,26 +4,9 @@
     "embed_model": "qwen3-embedding:0.6b",
     "embed_timeout": "5m"
   },
-  "index": {
-    "skip_dirs": [
-      ".git",
-      "vendor",
-      "node_modules",
-      ".archivist"
-    ],
-    "skip_globs": [],
-    "honor_gitignore": true,
-    "adr": {
-      "repo": [
-        "docs/decisions/**"
-      ],
-      "global": [
-        "docs/global-decisions/**"
-      ]
-    }
-  },
-  "store": {
-    "path": ".archivist/index.db",
-    "global_path": "global.db"
+  "records": {
+    "repo": "docs/decisions",
+    "global": "docs/global-decisions",
+    "export": "docs/archive"
   }
 }

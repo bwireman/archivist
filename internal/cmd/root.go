@@ -77,44 +77,24 @@ func loadEnv() (string, *config.Config, error) {
 	return root, cfg, nil
 }
 
-func openStore(root string, cfg *config.Config) (*store.Store, error) {
-	return store.Open(config.StorePath(root, cfg))
+func openStore(root string, _ *config.Config) (*store.Store, error) {
+	return store.Open(config.StorePath(root))
 }
 
-func openHomeStore(cfg *config.Config) (*store.Store, error) {
-	path, err := resolveHomeStorePath(cfg)
+func openHomeStore(_ *config.Config) (*store.Store, error) {
+	path, err := resolveHomeStorePath()
 	if err != nil {
 		return nil, err
 	}
 	return store.Open(path)
 }
 
-func openHomeStoreExisting(cfg *config.Config) (*store.Store, error) {
-	path, err := resolveHomeStorePath(cfg)
-	if err != nil {
-		return nil, err
-	}
-	st, ok, err := store.OpenIfExists(path)
-	if err != nil {
-		return nil, err
-	}
-	if !ok {
-		return nil, fmt.Errorf("home archive not found at %s (run archivist index)", path)
-	}
-	return st, nil
-}
-
-func resolveHomeStorePath(cfg *config.Config) (string, error) {
-	path := config.GlobalStorePath(cfg)
+func resolveHomeStorePath() (string, error) {
+	path := config.HomeStorePath()
 	if path != "" {
 		return path, nil
 	}
-	if cfg != nil {
-		if p := strings.TrimSpace(cfg.Store.GlobalPath); p != "" && !filepath.IsAbs(p) {
-			return "", fmt.Errorf("store.global_path %q escapes ~/.archivist; use an absolute path", p)
-		}
-	}
-	return "", fmt.Errorf("cannot resolve home archive path (set store.global_path or $HOME)")
+	return "", fmt.Errorf("cannot resolve home archive path (set $HOME)")
 }
 
 func openStores(root string, cfg *config.Config) (*store.Store, *store.Store, error) {

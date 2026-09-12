@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/bwireman/archivist/internal/export"
 	"github.com/spf13/cobra"
@@ -26,6 +27,8 @@ func newExportCmd() *cobra.Command {
 			opts := export.Options{RepoRoot: root}
 			if bundle != "" {
 				opts.OutDir = bundle
+			} else {
+				opts.OutDir = filepath.Join(root, cfg.Records.Export)
 			}
 			if err := export.Run(repo, home, opts); err != nil {
 				return err

@@ -34,7 +34,7 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embed
 		Cfg:      cfg,
 		RepoDB:   repoDB,
 		HomeDB:   homeDB,
-		Archive:  &archive.Service{RepoRoot: repoRoot, RepoDB: repoDB, HomeDB: homeDB},
+		Archive:  archive.New(repoRoot, cfg, repoDB, homeDB),
 		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB},
 		Embedder: embedder,
 	}

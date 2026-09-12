@@ -14,8 +14,17 @@ import (
 
 type Service struct {
 	RepoRoot string
+	Records  config.RecordsConfig
 	RepoDB   *store.Store
 	HomeDB   *store.Store
+}
+
+func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store) *Service {
+	recs := config.Default().Records
+	if cfg != nil {
+		recs = cfg.Records
+	}
+	return &Service{RepoRoot: repoRoot, Records: recs, RepoDB: repoDB, HomeDB: homeDB}
 }
 
 func (s *Service) Remember(rec *record.Record) (string, error) {
@@ -123,18 +132,29 @@ func (s *Service) defaultPath(rec *record.Record) string {
 	name := slug + ".md"
 	switch rec.Scope {
 	case record.ScopeGlobal:
-		return filepath.ToSlash(filepath.Join(config.DefaultGlobalDecisionsDir, name))
+		return filepath.ToSlash(filepath.Join(s.Records.Global, name))
 	case record.ScopeDev:
 		return config.VirtualUserADRPath(name)
 	default:
-		return filepath.ToSlash(filepath.Join(config.DefaultDecisionsDir, name))
+		return filepath.ToSlash(filepath.Join(s.Records.Repo, name))
 	}
 }
 
 func (s *Service) absPath(sourcePath string) string {
 	if strings.HasPrefix(sourcePath, config.UserGlobalPrefix+"/") {
 		rel := strings.TrimPrefix(sourcePath, config.UserGlobalPrefix+"/")
-		return filepath.Join(config.UserRecordsDir(), rel)
+		dir := config.UserRecordsDir()
+		if s.Records.Dev != "" {
+			if filepath.IsAbs(s.Records.Dev) {
+				dir = s.Records.Dev
+			} else {
+				home := config.ArchivistHome()
+				if home != "" {
+					dir = filepath.Join(home, s.Records.Dev)
+				}
+			}
+		}
+		return filepath.Join(dir, rel)
 	}
 	return filepath.Join(s.RepoRoot, sourcePath)
 }

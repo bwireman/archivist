@@ -118,17 +118,17 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 }
 
 func (idx *Indexer) isGlobalRecord(rel string) bool {
-	return glob.MatchAnyPattern(rel, idx.Cfg.Index.ADR.Global)
+	if idx.Cfg == nil {
+		return false
+	}
+	return config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
 func (idx *Indexer) isRecordFile(rel string) bool {
-	if glob.MatchAnyPattern(rel, idx.Cfg.Index.ADR.Repo) {
-		return true
+	if idx.Cfg == nil {
+		return false
 	}
-	if glob.MatchAnyPattern(rel, idx.Cfg.Index.ADR.Global) {
-		return true
-	}
-	return false
+	return config.PathUnder(rel, idx.Cfg.Records.Repo) || config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
 func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.Store) error {
@@ -164,6 +164,13 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 		if ok {
 			rec.ID = existing.ID
 			rec.CreatedAt = existing.CreatedAt
+		}
+		if config.IsUserGlobalPath(rel) {
+			rec.Scope = record.ScopeDev
+		} else if idx.isGlobalRecord(rel) {
+			rec.Scope = record.ScopeGlobal
+		} else {
+			rec.Scope = record.ScopeRepo
 		}
 		if err := dest.UpsertRecord(rec); err != nil {
 			return err
@@ -232,6 +239,9 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 func (idx *Indexer) userDir() string {
 	if idx.UserDir != "" {
 		return idx.UserDir
+	}
+	if idx.Cfg != nil {
+		return idx.Cfg.DevRecordsDir()
 	}
 	return config.UserRecordsDir()
 }
@@ -314,17 +324,15 @@ func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error
 
 func (idx *Indexer) shouldSkipDir(path string) bool {
 	base := filepath.Base(path)
-	for _, skip := range idx.Cfg.Index.SkipDirs {
-		if base == skip {
-			return true
-		}
+	if base == ".git" || base == config.DefaultDataDir {
+		return true
 	}
 	rel, err := filepath.Rel(idx.RepoRoot, path)
 	if err != nil {
 		return false
 	}
 	rel = filepath.ToSlash(rel)
-	if isArchivePath(rel) {
+	if idx.isExportPath(rel) {
 		return true
 	}
 	return idx.gitignored(rel, true)
@@ -335,14 +343,17 @@ func (idx *Indexer) shouldSkipFile(rel string) bool {
 	if filepath.Base(rel) == ".gitkeep" {
 		return true
 	}
-	if isArchivePath(rel) {
+	if idx.isExportPath(rel) {
 		return true
 	}
 	ext := strings.ToLower(filepath.Ext(rel))
 	if binaryExts[ext] {
 		return true
 	}
-	return glob.MatchAnyPattern(rel, idx.Cfg.Index.SkipGlobs)
+	if idx.Cfg != nil {
+		return glob.MatchAnyPattern(rel, idx.Cfg.Index.SkipGlobs)
+	}
+	return false
 }
 
 func (idx *Indexer) shouldSkipRepoFile(rel string) bool {
@@ -358,9 +369,6 @@ func (idx *Indexer) gitignored(rel string, isDir bool) bool {
 
 func (idx *Indexer) loadIgnore() error {
 	idx.ignore = nil
-	if idx.Cfg == nil || !idx.Cfg.Index.HonorGitignore {
-		return nil
-	}
 	ig, err := gitindex.LoadGitignore(idx.RepoRoot)
 	if err != nil {
 		return err
@@ -369,10 +377,13 @@ func (idx *Indexer) loadIgnore() error {
 	return nil
 }
 
-func isArchivePath(rel string) bool {
+func (idx *Indexer) isExportPath(rel string) bool {
 	rel = filepath.ToSlash(rel)
-	archiveDir := filepath.ToSlash(config.DefaultArchiveDir)
-	return rel == archiveDir || strings.HasPrefix(rel, archiveDir+"/")
+	dir := config.DefaultArchiveDir
+	if idx.Cfg != nil && idx.Cfg.Records.Export != "" {
+		dir = idx.Cfg.Records.Export
+	}
+	return config.PathUnder(rel, dir)
 }
 
 var binaryExts = map[string]bool{

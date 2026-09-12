@@ -85,6 +85,39 @@ tags: [billing]
 
 Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 
+## Configuration
+
+`.archivist.json` keys:
+
+```json
+{
+  "ollama": {
+    "base_url": "http://localhost:11434",
+    "embed_model": "qwen3-embedding:0.6b",
+    "embed_timeout": "5m"
+  },
+  "index": {
+    "skip_globs": ["*.pb.go"]
+  },
+  "records": {
+    "repo": "docs/decisions",
+    "global": "docs/global-decisions",
+    "dev": "",
+    "export": "docs/archive"
+  },
+  "publish": {
+    "destinations": {
+      "team-wiki": { "command": ["./scripts/push.sh", "{{bundle}}"] }
+    }
+  }
+}
+```
+
+- Empty `ollama.base_url` uses `$OLLAMA_HOST` (scheme optional) or `http://localhost:11434`.
+- Empty `records.dev` is `~/.archivist/records`.
+- SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
+- `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
+
 ## Publish destinations
 
 Configure in `.archivist.json`:

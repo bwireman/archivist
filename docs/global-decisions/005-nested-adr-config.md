@@ -2,13 +2,14 @@
 id: rec_b709c21fa97255bd7629
 type: decision
 scope: global
-status: accepted
+status: superseded
 title: Nest ADR globs under index.adr
+superseded_by: rec_config014
 ---
 
 # Nest ADR globs under index.adr
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-08-28
 - Scope: global
 

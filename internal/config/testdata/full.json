@@ -5,32 +5,22 @@
     "embed_timeout": "5m"
   },
   "index": {
-    "skip_dirs": [
-      ".git",
-      "vendor",
-      "node_modules",
-      ".archivist",
-      "dist",
-      "build"
-    ],
     "skip_globs": [
       "*.min.js",
       "*.pb.go"
-    ],
-    "honor_gitignore": true,
-    "adr": {
-      "repo": [
-        "docs/decisions/**",
-        "architecture/decisions/**"
-      ],
-      "global": [
-        "docs/global-decisions/**",
-        "architecture/global-decisions/**"
-      ]
-    }
+    ]
   },
-  "store": {
-    "path": ".archivist/custom-index.db",
-    "global_path": "custom-global.db"
+  "records": {
+    "repo": "docs/decisions",
+    "global": "docs/global-decisions",
+    "dev": "notes",
+    "export": "docs/archive"
+  },
+  "publish": {
+    "destinations": {
+      "wiki": {
+        "command": ["./scripts/push.sh", "{{bundle}}"]
+      }
+    }
   }
 }

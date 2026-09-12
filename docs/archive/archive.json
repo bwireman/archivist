@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T19:43:30Z",
+  "exported_at": "2026-09-12T19:51:00Z",
   "records": [
     {
       "id": "rec_293e0ad9ce7ae2e270dd",
@@ -10,7 +10,7 @@
       "title": "Default ADR globs are the product directories",
       "status": "accepted",
       "source_path": "docs/global-decisions/008-default-adr-globs.md",
-      "content_hash": "1a6e66cceda182cea14850aa15ea85b58eb1236fecbe90c6dc1aafa485cc243f"
+      "content_hash": "29dd2d2be7e622c5a6e0edb4603d4090b6e86356a25babf4d99a4f4b77f9ab3c"
     },
     {
       "id": "rec_330b72a24aff842edf5a",
@@ -40,7 +40,7 @@
       "title": "Honor .gitignore when indexing",
       "status": "accepted",
       "source_path": "docs/global-decisions/007-honor-gitignore.md",
-      "content_hash": "489800ffc22b6717b7c304550ac70e1b74cc6406f6ce20e5450d4b86de6cca30"
+      "content_hash": "ec906e1368c1b59e02633cc52a0e9d5daa9c34bda098b8fadea797d7e45680a4"
     },
     {
       "id": "rec_b709c21fa97255bd7629",
@@ -48,9 +48,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Nest ADR globs under index.adr",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/005-nested-adr-config.md",
-      "content_hash": "8a672c61faa781fc2d42ada51e00e58074fdc639316e590230ecf34be932d224"
+      "content_hash": "c9ae09de0358a761487732215137266be7da5e869d05332471c1a463b391d267"
     },
     {
       "id": "rec_ac188553efd793db61e5",
@@ -81,6 +81,16 @@
       "status": "accepted",
       "source_path": "docs/global-decisions/004-schema-and-cli-version.md",
       "content_hash": "327829f2111d78d3bb28993c9cb97106bcd570cf3cc96da610be872af414b3bc"
+    },
+    {
+      "id": "rec_config014",
+      "slug": "014-config-reshape",
+      "type": "decision",
+      "scope": "global",
+      "title": "Reshape config around records directories",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/014-config-reshape.md",
+      "content_hash": "7bd83574b289ae64226e965366675871b849fb09e3708822b1422c9dcbf1e99e"
     },
     {
       "id": "rec_0ed07ffad59c1d58b9e2",

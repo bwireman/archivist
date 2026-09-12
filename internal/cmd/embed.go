@@ -22,7 +22,7 @@ func newEmbedCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			stores, err := embed.OpenWorkerStores(root, cfg)
+			stores, err := embed.OpenWorkerStores(root)
 			if err != nil {
 				return err
 			}

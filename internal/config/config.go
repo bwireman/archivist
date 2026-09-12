@@ -14,8 +14,9 @@ const (
 	DefaultDataDir            = ".archivist"
 	DefaultIndexDB            = "index.db"
 	DefaultEmbedModel         = "qwen3-embedding:0.6b"
-	DefaultEmbedTimeout       = 2 * time.Minute
-	DefaultEmbedTimeoutStr    = "2m"
+	DefaultEmbedTimeout       = 5 * time.Minute
+	DefaultEmbedTimeoutStr    = "5m"
+	DefaultOllamaURL          = "http://localhost:11434"
 	DefaultDecisionsDir       = "docs/decisions"
 	DefaultGlobalDecisionsDir = "docs/global-decisions"
 	DefaultArchiveDir         = "docs/archive"
@@ -25,13 +26,13 @@ const (
 
 type Config struct {
 	Ollama  OllamaConfig  `json:"ollama"`
-	Index   IndexConfig   `json:"index"`
-	Store   StoreConfig   `json:"store"`
-	Publish PublishConfig `json:"publish"`
+	Index   IndexConfig   `json:"index,omitempty"`
+	Records RecordsConfig `json:"records"`
+	Publish PublishConfig `json:"publish,omitempty"`
 }
 
 type PublishConfig struct {
-	Destinations map[string]PublishDestination `json:"destinations"`
+	Destinations map[string]PublishDestination `json:"destinations,omitempty"`
 }
 
 type PublishDestination struct {
@@ -48,6 +49,29 @@ func (o OllamaConfig) EmbedTimeoutDuration() time.Duration {
 	return parseTimeout(o.EmbedTimeout, DefaultEmbedTimeout)
 }
 
+// ResolvedBaseURL is ollama.base_url, else $OLLAMA_HOST, else localhost.
+func (o OllamaConfig) ResolvedBaseURL() string {
+	if u := strings.TrimSpace(o.BaseURL); u != "" {
+		return normalizeOllamaURL(u)
+	}
+	if u := strings.TrimSpace(os.Getenv("OLLAMA_HOST")); u != "" {
+		return normalizeOllamaURL(u)
+	}
+	return DefaultOllamaURL
+}
+
+func normalizeOllamaURL(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimRight(s, "/")
+	if s == "" {
+		return DefaultOllamaURL
+	}
+	if strings.Contains(s, "://") {
+		return s
+	}
+	return "http://" + s
+}
+
 func parseTimeout(raw string, fallback time.Duration) time.Duration {
 	if raw == "" {
 		return fallback
@@ -60,48 +84,52 @@ func parseTimeout(raw string, fallback time.Duration) time.Duration {
 }
 
 type IndexConfig struct {
-	SkipDirs       []string  `json:"skip_dirs"`
-	SkipGlobs      []string  `json:"skip_globs"`
-	HonorGitignore bool      `json:"honor_gitignore"`
-	ADR            ADRConfig `json:"adr"`
+	SkipGlobs []string `json:"skip_globs,omitempty"`
 }
 
-// ADRConfig is the globs that classify markdown as ADRs.
-// Repo vs global is which list matches; global wins if both do.
-type ADRConfig struct {
-	Repo   []string `json:"repo"`
-	Global []string `json:"global"`
+type RecordsConfig struct {
+	Repo   string `json:"repo,omitempty"`
+	Global string `json:"global,omitempty"`
+	Dev    string `json:"dev,omitempty"`
+	Export string `json:"export,omitempty"`
 }
 
-type StoreConfig struct {
-	Path       string `json:"path"`
-	GlobalPath string `json:"global_path,omitempty"`
+func (r RecordsConfig) withDefaults() RecordsConfig {
+	if strings.TrimSpace(r.Repo) == "" {
+		r.Repo = DefaultDecisionsDir
+	}
+	if strings.TrimSpace(r.Global) == "" {
+		r.Global = DefaultGlobalDecisionsDir
+	}
+	if strings.TrimSpace(r.Export) == "" {
+		r.Export = DefaultArchiveDir
+	}
+	r.Repo = filepath.ToSlash(strings.Trim(r.Repo, "/"))
+	r.Global = filepath.ToSlash(strings.Trim(r.Global, "/"))
+	r.Export = filepath.ToSlash(strings.Trim(r.Export, "/"))
+	return r
+}
+
+func PathUnder(rel, dir string) bool {
+	rel = filepath.ToSlash(rel)
+	dir = filepath.ToSlash(strings.Trim(dir, "/"))
+	if dir == "" {
+		return false
+	}
+	return rel == dir || strings.HasPrefix(rel, dir+"/")
 }
 
 func Default() *Config {
 	return &Config{
 		Ollama: OllamaConfig{
-			BaseURL:      "http://localhost:11434",
+			BaseURL:      DefaultOllamaURL,
 			EmbedModel:   DefaultEmbedModel,
 			EmbedTimeout: DefaultEmbedTimeoutStr,
 		},
-		Index: IndexConfig{
-			SkipDirs: []string{
-				".git", "vendor", "node_modules", ".archivist",
-			},
-			SkipGlobs:      []string{},
-			HonorGitignore: true,
-			ADR: ADRConfig{
-				Repo: []string{
-					filepath.ToSlash(DefaultDecisionsDir) + "/**",
-				},
-				Global: []string{
-					filepath.ToSlash(DefaultGlobalDecisionsDir) + "/**",
-				},
-			},
-		},
-		Store: StoreConfig{
-			Path: filepath.Join(DefaultDataDir, DefaultIndexDB),
+		Records: RecordsConfig{
+			Repo:   DefaultDecisionsDir,
+			Global: DefaultGlobalDecisionsDir,
+			Export: DefaultArchiveDir,
 		},
 	}
 }
@@ -119,53 +147,17 @@ func Load(repoRoot string) (*Config, error) {
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-	if cfg.Store.Path == "" {
-		cfg.Store.Path = filepath.Join(DefaultDataDir, DefaultIndexDB)
+	if strings.TrimSpace(cfg.Ollama.BaseURL) == "" {
+		cfg.Ollama.BaseURL = DefaultOllamaURL
 	}
-	cfg.Index.applyADRDefaults(Default().Index.ADR)
+	if strings.TrimSpace(cfg.Ollama.EmbedModel) == "" {
+		cfg.Ollama.EmbedModel = DefaultEmbedModel
+	}
+	if strings.TrimSpace(cfg.Ollama.EmbedTimeout) == "" {
+		cfg.Ollama.EmbedTimeout = DefaultEmbedTimeoutStr
+	}
+	cfg.Records = cfg.Records.withDefaults()
 	return cfg, nil
-}
-
-func (c *IndexConfig) applyADRDefaults(defaults ADRConfig) {
-	if c.ADR.Repo == nil {
-		c.ADR.Repo = defaults.Repo
-	}
-	if c.ADR.Global == nil {
-		c.ADR.Global = defaults.Global
-	}
-}
-
-// UnmarshalJSON accepts nested index.adr and the older adr_paths / global_adr_paths keys.
-func (c *IndexConfig) UnmarshalJSON(data []byte) error {
-	var w struct {
-		SkipDirs       []string   `json:"skip_dirs"`
-		SkipGlobs      []string   `json:"skip_globs"`
-		HonorGitignore *bool      `json:"honor_gitignore"`
-		ADR            *ADRConfig `json:"adr"`
-		ADRPaths       []string   `json:"adr_paths"`
-		GlobalADRPaths []string   `json:"global_adr_paths"`
-	}
-	if err := json.Unmarshal(data, &w); err != nil {
-		return err
-	}
-	c.SkipDirs = w.SkipDirs
-	c.SkipGlobs = w.SkipGlobs
-	if w.HonorGitignore != nil {
-		c.HonorGitignore = *w.HonorGitignore
-	} else {
-		c.HonorGitignore = true
-	}
-	c.ADR = ADRConfig{}
-	if w.ADR != nil {
-		c.ADR = *w.ADR
-	}
-	if c.ADR.Repo == nil && w.ADRPaths != nil {
-		c.ADR.Repo = w.ADRPaths
-	}
-	if c.ADR.Global == nil && w.GlobalADRPaths != nil {
-		c.ADR.Global = w.GlobalADRPaths
-	}
-	return nil
 }
 
 func Save(repoRoot string, cfg *Config) error {
@@ -182,14 +174,10 @@ func DataDir(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir)
 }
 
-func StorePath(repoRoot string, cfg *Config) string {
-	if filepath.IsAbs(cfg.Store.Path) {
-		return cfg.Store.Path
-	}
-	return filepath.Join(repoRoot, cfg.Store.Path)
+func StorePath(repoRoot string) string {
+	return filepath.Join(repoRoot, DefaultDataDir, DefaultIndexDB)
 }
 
-// ArchivistHome is ~/.archivist.
 func ArchivistHome() string {
 	home, err := os.UserHomeDir()
 	if err != nil || home == "" {
@@ -198,40 +186,14 @@ func ArchivistHome() string {
 	return filepath.Join(home, DefaultDataDir)
 }
 
-// GlobalStorePath is the machine-wide ADR index. Empty store.global_path
-// means ~/.archivist/global.db. A relative path is resolved under
-// ~/.archivist/, not the repo, so it cannot become per-checkout.
-func GlobalStorePath(cfg *Config) string {
-	var p string
-	if cfg != nil {
-		p = strings.TrimSpace(cfg.Store.GlobalPath)
-	}
-	if filepath.IsAbs(p) {
-		return p
-	}
+func HomeStorePath() string {
 	home := ArchivistHome()
 	if home == "" {
 		return ""
 	}
-	if p == "" {
-		return filepath.Join(home, DefaultGlobalDB)
-	}
-	resolved := filepath.Clean(filepath.Join(home, p))
-	if !pathUnderDir(home, resolved) {
-		return ""
-	}
-	return resolved
+	return filepath.Join(home, DefaultGlobalDB)
 }
 
-func pathUnderDir(dir, path string) bool {
-	dir = filepath.Clean(dir)
-	path = filepath.Clean(path)
-	sep := string(filepath.Separator)
-	return path == dir || strings.HasPrefix(path, dir+sep)
-}
-
-// UserRecordsDir is ~/.archivist/records — dev-scoped records in the
-// machine-wide archive index, not the repo DB.
 func UserRecordsDir() string {
 	home := ArchivistHome()
 	if home == "" {
@@ -240,12 +202,26 @@ func UserRecordsDir() string {
 	return filepath.Join(home, "records")
 }
 
-// UserDecisionsDir is the legacy path; prefer UserRecordsDir.
 func UserDecisionsDir() string {
 	return UserRecordsDir()
 }
 
-// VirtualUserADRPath is the index path for a file under UserDecisionsDir.
+func (c *Config) DevRecordsDir() string {
+	if c != nil {
+		if p := strings.TrimSpace(c.Records.Dev); p != "" {
+			if filepath.IsAbs(p) {
+				return p
+			}
+			home := ArchivistHome()
+			if home == "" {
+				return p
+			}
+			return filepath.Join(home, p)
+		}
+	}
+	return UserRecordsDir()
+}
+
 func VirtualUserADRPath(rel string) string {
 	rel = filepath.ToSlash(strings.TrimPrefix(rel, "/"))
 	if rel == "" || rel == "." {
@@ -254,7 +230,6 @@ func VirtualUserADRPath(rel string) string {
 	return UserGlobalPrefix + "/" + rel
 }
 
-// IsUserGlobalPath reports whether path is a virtual user-ADR path (user/…).
 func IsUserGlobalPath(path string) bool {
 	path = filepath.ToSlash(path)
 	if path == UserGlobalPrefix {

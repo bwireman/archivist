@@ -7,11 +7,12 @@
 ## internal/archive/service.go
 
 - `Service` (type_spec) line 15
-- `error` (method_declaration) line 53
-- `error` (method_declaration) line 73
-- `string` (method_declaration) line 118
-- `string` (method_declaration) line 134
-- `slugify` (function_declaration) line 142
+- `New` (function_declaration) line 22
+- `error` (method_declaration) line 62
+- `error` (method_declaration) line 82
+- `string` (method_declaration) line 127
+- `string` (method_declaration) line 143
+- `slugify` (function_declaration) line 162
 
 ## internal/check/check.go
 
@@ -91,7 +92,7 @@
 
 ## internal/cmd/export.go
 
-- `newExportCmd` (function_declaration) line 10
+- `newExportCmd` (function_declaration) line 11
 
 ## internal/cmd/index.go
 
@@ -134,13 +135,12 @@
 - `loadEnv` (function_declaration) line 68
 - `openStore` (function_declaration) line 80
 - `openHomeStore` (function_declaration) line 84
-- `openHomeStoreExisting` (function_declaration) line 92
-- `resolveHomeStorePath` (function_declaration) line 107
-- `openStores` (function_declaration) line 120
-- `appendGitignore` (function_declaration) line 133
-- `newSearchCmd` (function_declaration) line 155
-- `newStatusCmd` (function_declaration) line 209
-- `status` (type_spec) line 233
+- `resolveHomeStorePath` (function_declaration) line 92
+- `openStores` (function_declaration) line 100
+- `appendGitignore` (function_declaration) line 113
+- `newSearchCmd` (function_declaration) line 135
+- `newStatusCmd` (function_declaration) line 189
+- `status` (type_spec) line 213
 
 ## internal/cmd/skills.go
 
@@ -165,46 +165,46 @@
 
 ## internal/config/config.go
 
-- `Config` (type_spec) line 26
-- `PublishConfig` (type_spec) line 33
-- `PublishDestination` (type_spec) line 37
-- `OllamaConfig` (type_spec) line 41
-- `parseTimeout` (function_declaration) line 51
-- `IndexConfig` (type_spec) line 62
-- `ADRConfig` (type_spec) line 71
-- `StoreConfig` (type_spec) line 76
-- `Default` (function_declaration) line 81
-- `Load` (function_declaration) line 109
-- `error` (method_declaration) line 139
-- `Save` (function_declaration) line 171
-- `DataDir` (function_declaration) line 181
-- `StorePath` (function_declaration) line 185
-- `ArchivistHome` (function_declaration) line 193
-- `GlobalStorePath` (function_declaration) line 204
-- `pathUnderDir` (function_declaration) line 226
-- `UserRecordsDir` (function_declaration) line 235
-- `UserDecisionsDir` (function_declaration) line 244
-- `VirtualUserADRPath` (function_declaration) line 249
-- `IsUserGlobalPath` (function_declaration) line 258
+- `Config` (type_spec) line 27
+- `PublishConfig` (type_spec) line 34
+- `PublishDestination` (type_spec) line 38
+- `OllamaConfig` (type_spec) line 42
+- `string` (method_declaration) line 53
+- `normalizeOllamaURL` (function_declaration) line 63
+- `parseTimeout` (function_declaration) line 75
+- `IndexConfig` (type_spec) line 86
+- `RecordsConfig` (type_spec) line 90
+- `RecordsConfig` (method_declaration) line 97
+- `PathUnder` (function_declaration) line 113
+- `Default` (function_declaration) line 122
+- `Load` (function_declaration) line 137
+- `Save` (function_declaration) line 163
+- `DataDir` (function_declaration) line 173
+- `StorePath` (function_declaration) line 177
+- `ArchivistHome` (function_declaration) line 181
+- `HomeStorePath` (function_declaration) line 189
+- `UserRecordsDir` (function_declaration) line 197
+- `UserDecisionsDir` (function_declaration) line 205
+- `string` (method_declaration) line 209
+- `VirtualUserADRPath` (function_declaration) line 225
+- `IsUserGlobalPath` (function_declaration) line 233
 
 ## internal/config/config_test.go
 
 - `fullConfig` (function_declaration) line 13
-- `TestDefaultConfig` (function_declaration) line 44
-- `TestLoadFullConfigFixture` (function_declaration) line 79
-- `TestLoadFullConfigFromDisk` (function_declaration) line 96
-- `TestSaveLoadRoundTripAllKeys` (function_declaration) line 117
-- `TestLoadMissingConfigUsesDefaults` (function_declaration) line 181
-- `TestLoadInvalidJSON` (function_declaration) line 192
-- `TestLoadOmitsADRUsesDefault` (function_declaration) line 202
-- `TestLoadHonorGitignoreFalse` (function_declaration) line 232
-- `TestLoadLegacyADRPaths` (function_declaration) line 254
-- `TestVirtualUserADRPath` (function_declaration) line 280
-- `TestIsUserGlobalPath` (function_declaration) line 289
-- `TestGlobalStorePath` (function_declaration) line 298
-- `TestStorePath` (function_declaration) line 327
-- `TestDataDir` (function_declaration) line 343
-- `TestLoadEmptyStorePathFallsBackToDefault` (function_declaration) line 350
+- `TestDefaultConfig` (function_declaration) line 37
+- `TestLoadFullConfigFromDisk` (function_declaration) line 65
+- `TestSaveLoadRoundTrip` (function_declaration) line 84
+- `TestLoadMissingConfigUsesDefaults` (function_declaration) line 112
+- `TestLoadInvalidJSON` (function_declaration) line 123
+- `TestLoadOmitsRecordsUsesDefaults` (function_declaration) line 133
+- `TestPathUnder` (function_declaration) line 151
+- `TestVirtualUserADRPath` (function_declaration) line 160
+- `TestIsUserGlobalPath` (function_declaration) line 166
+- `TestStorePaths` (function_declaration) line 175
+- `TestResolvedBaseURLEnv` (function_declaration) line 191
+- `TestDataDir` (function_declaration) line 203
+- `TestNormalizeOllamaHostWithoutScheme` (function_declaration) line 210
 
 ## internal/embed/embedder.go
 
@@ -301,22 +301,22 @@
 - `Indexer` (type_spec) line 22
 - `error` (method_declaration) line 40
 - `bool` (method_declaration) line 120
-- `bool` (method_declaration) line 124
+- `bool` (method_declaration) line 127
 - `error` (method_declaration) line 134
-- `error` (method_declaration) line 200
-- `string` (method_declaration) line 232
-- `error` (method_declaration) line 239
-- `error` (method_declaration) line 292
-- `bool` (method_declaration) line 315
-- `bool` (method_declaration) line 333
-- `bool` (method_declaration) line 348
-- `bool` (method_declaration) line 355
-- `error` (method_declaration) line 359
-- `isArchivePath` (function_declaration) line 372
-- `error` (method_declaration) line 384
-- `error` (method_declaration) line 404
-- `pathInScope` (function_declaration) line 425
-- `fileHash` (function_declaration) line 434
+- `error` (method_declaration) line 207
+- `string` (method_declaration) line 239
+- `error` (method_declaration) line 249
+- `error` (method_declaration) line 302
+- `bool` (method_declaration) line 325
+- `bool` (method_declaration) line 341
+- `bool` (method_declaration) line 359
+- `bool` (method_declaration) line 366
+- `error` (method_declaration) line 370
+- `bool` (method_declaration) line 380
+- `error` (method_declaration) line 395
+- `error` (method_declaration) line 415
+- `pathInScope` (function_declaration) line 436
+- `fileHash` (function_declaration) line 445
 
 ## internal/index/indexer_test.go
 

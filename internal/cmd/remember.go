@@ -32,7 +32,7 @@ func newRememberCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
-			svc := &archive.Service{RepoRoot: root, RepoDB: repo, HomeDB: home}
+			svc := archive.New(root, cfg, repo, home)
 			rec := &record.Record{
 				Type:      record.Type(recType),
 				Scope:     record.Scope(scope),
@@ -85,7 +85,7 @@ func newUpdateCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
-			svc := &archive.Service{RepoRoot: root, RepoDB: repo, HomeDB: home}
+			svc := archive.New(root, cfg, repo, home)
 			err = svc.Update(args[0], func(r *record.Record) error {
 				if title != "" {
 					r.Title = title
@@ -133,7 +133,7 @@ func newRetireCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
-			svc := &archive.Service{RepoRoot: root, RepoDB: repo, HomeDB: home}
+			svc := archive.New(root, cfg, repo, home)
 			if err := svc.Retire(args[0], supersededBy); err != nil {
 				return err
 			}

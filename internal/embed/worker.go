@@ -124,14 +124,14 @@ func (w *Worker) processOne(ctx context.Context, item store.QueueItem) error {
 }
 
 // OpenWorkerStores returns repo and home stores for embedding.
-func OpenWorkerStores(repoRoot string, cfg *config.Config) ([]*store.Store, error) {
+func OpenWorkerStores(repoRoot string) ([]*store.Store, error) {
 	var out []*store.Store
-	repo, err := store.Open(config.StorePath(repoRoot, cfg))
+	repo, err := store.Open(config.StorePath(repoRoot))
 	if err != nil {
 		return nil, err
 	}
 	out = append(out, repo)
-	homePath := config.GlobalStorePath(cfg)
+	homePath := config.HomeStorePath()
 	if homePath != "" {
 		home, err := store.Open(homePath)
 		if err != nil {
