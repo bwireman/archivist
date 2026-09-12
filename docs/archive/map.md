@@ -107,6 +107,7 @@
 ## internal/cmd/init_test.go
 
 - `TestApplyInitCreatesDecisionDirs` (function_declaration) line 11
+- `TestAppendGitignoreInsertsNewline` (function_declaration) line 26
 
 ## internal/cmd/mcp.go
 
@@ -138,9 +139,9 @@
 - `resolveHomeStorePath` (function_declaration) line 92
 - `openStores` (function_declaration) line 100
 - `appendGitignore` (function_declaration) line 113
-- `newSearchCmd` (function_declaration) line 135
-- `newStatusCmd` (function_declaration) line 189
-- `status` (type_spec) line 213
+- `newSearchCmd` (function_declaration) line 140
+- `newStatusCmd` (function_declaration) line 194
+- `status` (type_spec) line 218
 
 ## internal/cmd/skills.go
 
@@ -400,19 +401,23 @@
 
 ## internal/skills/install.go
 
-- `Target` (type_spec) line 10
-- `ParseTarget` (function_declaration) line 19
-- `Install` (function_declaration) line 35
-- `installRules` (function_declaration) line 47
-- `installSkills` (function_declaration) line 92
-- `wrapCursorRule` (function_declaration) line 123
-- `writeFile` (function_declaration) line 127
+- `Target` (type_spec) line 15
+- `ParseTarget` (function_declaration) line 24
+- `Install` (function_declaration) line 40
+- `installRules` (function_declaration) line 52
+- `installSkills` (function_declaration) line 94
+- `ruleFS` (function_declaration) line 124
+- `skillFS` (function_declaration) line 131
+- `dirWithSuffix` (function_declaration) line 148
+- `wrapCursorRule` (function_declaration) line 161
+- `writeFile` (function_declaration) line 165
 
 ## internal/skills/install_test.go
 
 - `TestInstallCursor` (function_declaration) line 10
-- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 30
-- `writeTree` (function_declaration) line 48
+- `TestInstallCursorEmbeddedTemplates` (function_declaration) line 30
+- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 49
+- `writeTree` (function_declaration) line 67
 
 ## internal/store/embedding.go
 

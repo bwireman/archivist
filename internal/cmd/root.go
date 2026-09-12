@@ -128,6 +128,11 @@ func appendGitignore(path, line string) error {
 		return err
 	}
 	defer f.Close()
+	if len(data) > 0 && data[len(data)-1] != '\n' {
+		if _, err := f.WriteString("\n"); err != nil {
+			return err
+		}
+	}
 	_, err = f.WriteString(line)
 	return err
 }

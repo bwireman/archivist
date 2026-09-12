@@ -2,9 +2,14 @@ package skills
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
+
+	ruletmpl "github.com/bwireman/archivist/rules"
+	skilltmpl "github.com/bwireman/archivist/skills"
 )
 
 type Target string
@@ -45,8 +50,8 @@ func Install(repoRoot string, target Target) error {
 }
 
 func installRules(repoRoot string, target Target) error {
-	dir := filepath.Join(repoRoot, "rules")
-	entries, err := os.ReadDir(dir)
+	fsys := ruleFS(repoRoot)
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		return err
 	}
@@ -55,7 +60,7 @@ func installRules(repoRoot string, target Target) error {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".md") {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		data, err := fs.ReadFile(fsys, e.Name())
 		if err != nil {
 			return err
 		}
@@ -64,10 +69,7 @@ func installRules(repoRoot string, target Target) error {
 		switch target {
 		case TargetCursor:
 			dst := filepath.Join(repoRoot, ".cursor", "rules", "archivist-"+name+".mdc")
-			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-				return err
-			}
-			if err := os.WriteFile(dst, []byte(wrapCursorRule(body, name)), 0o644); err != nil {
+			if err := writeFile(dst, wrapCursorRule(body, name)); err != nil {
 				return err
 			}
 		default:
@@ -90,8 +92,8 @@ func installRules(repoRoot string, target Target) error {
 }
 
 func installSkills(repoRoot string, target Target) error {
-	skillsDir := filepath.Join(repoRoot, "skills")
-	entries, err := os.ReadDir(skillsDir)
+	fsys := skillFS(repoRoot)
+	entries, err := fs.ReadDir(fsys, ".")
 	if err != nil {
 		return err
 	}
@@ -99,8 +101,7 @@ func installSkills(repoRoot string, target Target) error {
 		if !e.IsDir() {
 			continue
 		}
-		src := filepath.Join(skillsDir, e.Name(), "SKILL.md")
-		data, err := os.ReadFile(src)
+		data, err := fs.ReadFile(fsys, path.Join(e.Name(), "SKILL.md"))
 		if err != nil {
 			continue
 		}
@@ -115,6 +116,43 @@ func installSkills(repoRoot string, target Target) error {
 		}
 		if err := writeFile(dst, string(data)); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+func ruleFS(repoRoot string) fs.FS {
+	if local := dirWithSuffix(filepath.Join(repoRoot, "rules"), ".md"); local != nil {
+		return local
+	}
+	return ruletmpl.FS
+}
+
+func skillFS(repoRoot string) fs.FS {
+	dir := filepath.Join(repoRoot, "skills")
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return skilltmpl.FS
+	}
+	for _, e := range ents {
+		if !e.IsDir() {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(dir, e.Name(), "SKILL.md")); err == nil {
+			return os.DirFS(dir)
+		}
+	}
+	return skilltmpl.FS
+}
+
+func dirWithSuffix(dir, suffix string) fs.FS {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return nil
+	}
+	for _, e := range ents {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), suffix) {
+			return os.DirFS(dir)
 		}
 	}
 	return nil

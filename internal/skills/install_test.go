@@ -27,6 +27,25 @@ func TestInstallCursor(t *testing.T) {
 	}
 }
 
+func TestInstallCursorEmbeddedTemplates(t *testing.T) {
+	root := t.TempDir()
+	if err := Install(root, TargetCursor); err != nil {
+		t.Fatal(err)
+	}
+	rule := filepath.Join(root, ".cursor", "rules", "archivist-consult.mdc")
+	data, err := os.ReadFile(rule)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "Consult the archive") {
+		t.Fatalf("embedded consult rule missing: %s", data)
+	}
+	skill := filepath.Join(root, ".cursor", "skills", "record-decision", "SKILL.md")
+	if _, err := os.Stat(skill); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root)

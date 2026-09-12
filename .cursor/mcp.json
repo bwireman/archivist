@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "archivist": {
+      "command": "archivist",
+      "args": ["mcp"]
+    }
+  }
+}

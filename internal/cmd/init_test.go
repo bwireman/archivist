@@ -22,3 +22,22 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestAppendGitignoreInsertsNewline(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, ".gitignore")
+	if err := os.WriteFile(path, []byte("key._"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := appendGitignore(path, ".archivist/\n"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "key._\n.archivist/\n"
+	if string(got) != want {
+		t.Fatalf("got %q want %q", got, want)
+	}
+}

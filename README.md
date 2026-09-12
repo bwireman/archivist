@@ -233,7 +233,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 - **Rules** (always on): consult the archive, record decisions, refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
 - **Skills** (on demand): `record-decision`, `record-rule`, `refresh-archive`, `publish-archive`. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
-Templates live in `rules/` and `skills/` in this repo.
+Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
 
 ## Publish destinations
 

@@ -28,9 +28,6 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store) *Serv
 }
 
 func (s *Service) Remember(rec *record.Record) (string, error) {
-	if err := rec.Validate(); err != nil {
-		return "", err
-	}
 	if rec.ID == "" {
 		rec.ID = record.NewID()
 	}
@@ -39,6 +36,9 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 	}
 	if rec.SourcePath == "" {
 		rec.SourcePath = s.defaultPath(rec)
+	}
+	if err := rec.Validate(); err != nil {
+		return "", err
 	}
 	rec.ContentHash = record.ContentHash(rec)
 

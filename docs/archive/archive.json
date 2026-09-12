@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T20:02:21Z",
+  "exported_at": "2026-09-12T20:20:13Z",
   "records": [
     {
       "id": "rec_293e0ad9ce7ae2e270dd",
@@ -123,6 +123,20 @@
       "content_hash": "79f1afbe75e4ef97bc6b75923d6a177b8850802fa4664a9943e9660c252b7549"
     },
     {
+      "id": "rec_f6175938c024887eacfb",
+      "slug": "ship-rule-and-skill-templates-in-the-cli",
+      "type": "decision",
+      "scope": "global",
+      "title": "Ship rule and skill templates in the CLI",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/ship-rule-and-skill-templates-in-the-cli.md",
+      "tags": [
+        "skills",
+        "embed"
+      ],
+      "content_hash": "dfbc8eda01eb59ed43a99f969751f4db78c437fec4c82176307e0ae05e48a344"
+    },
+    {
       "id": "rec_skills015",
       "slug": "015-rules-and-skills",
       "type": "decision",
@@ -161,6 +175,24 @@
       "status": "superseded",
       "source_path": "docs/decisions/001-use-qwen3-embedding.md",
       "content_hash": "cd8bbf9210237686d8564da40590dc2cb9c376f948cd4f8564a96a058f196a67"
+    },
+    {
+      "id": "rec_184e12358de7c5b12414",
+      "slug": "append-gitignore-entries-on-their-own-line",
+      "type": "rule",
+      "scope": "global",
+      "title": "Append gitignore entries on their own line",
+      "status": "accepted",
+      "severity": "must",
+      "source_path": "docs/global-decisions/append-gitignore-entries-on-their-own-line.md",
+      "tags": [
+        "init",
+        "gitignore"
+      ],
+      "applies_to": [
+        "internal/cmd/**"
+      ],
+      "content_hash": "7ebf3c9984474d6fb6e9a277e246107a8b7b01b036bf8ebbbe2ec2345337afbc"
     }
   ]
 }
