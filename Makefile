@@ -32,7 +32,7 @@ run: ## Run archivist (e.g. make run ARGS='search --help')
 	go run $(LDFLAGS) $(PKG) $(ARGS)
 
 index: build ## Index records and code map (no Ollama)
-	./$(BIN) index --plain
+	./$(BIN) index
 
 embed: build ## Drain embed queue (needs Ollama)
 	./$(BIN) embed --worker --once

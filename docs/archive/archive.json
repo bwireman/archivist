@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T19:36:03Z",
+  "exported_at": "2026-09-12T19:40:49Z",
   "records": [
     {
       "id": "rec_293e0ad9ce7ae2e270dd",
@@ -20,7 +20,17 @@
       "title": "Default embed model is qwen3-embedding:0.6b",
       "status": "accepted",
       "source_path": "docs/global-decisions/009-qwen3-embed-default.md",
-      "content_hash": "c71830efd2e256c34898c0156a3c5a7fd9be77bd6c1ded2cf2212c9eecc739e6"
+      "content_hash": "9a72cbe8bed25d3df79d538a8c35bf9e0c6770299b99367c10a210ea727d5699"
+    },
+    {
+      "id": "rec_plaincli013",
+      "slug": "013-plain-cli",
+      "type": "decision",
+      "scope": "global",
+      "title": "Drop interactive TUIs; CLI is always plain",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/013-plain-cli.md",
+      "content_hash": "7bb5f8f030714593139e248380514e28ba9ce86cfdc7494ca0069322911d4715"
     },
     {
       "id": "rec_6e94d1190b59d6365335",
@@ -30,7 +40,7 @@
       "title": "Honor .gitignore when indexing",
       "status": "accepted",
       "source_path": "docs/global-decisions/007-honor-gitignore.md",
-      "content_hash": "eb45fb52b4ca8a429e6676a638c9faf7593790e9b425d44e23eccc45af7f19ad"
+      "content_hash": "489800ffc22b6717b7c304550ac70e1b74cc6406f6ce20e5450d4b86de6cca30"
     },
     {
       "id": "rec_b709c21fa97255bd7629",
@@ -108,9 +118,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Use Bubble Tea for the index TUI",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/001-bubbletea-index-tui.md",
-      "content_hash": "d69c51f991410b9efc8ddc827b70a57d8faa9e572b70971e8457a65869333ba5"
+      "content_hash": "0482b6834a2c318d013a1cacbbe3746c4c3791300ab1860069596623079925a6"
     },
     {
       "id": "rec_487f791d4ced16a80cde",
@@ -118,9 +128,9 @@
       "type": "decision",
       "scope": "global",
       "title": "Use Huh for the init TUI",
-      "status": "accepted",
+      "status": "superseded",
       "source_path": "docs/global-decisions/002-huh-init-tui.md",
-      "content_hash": "2b98bec6f6ed50993671b6f26bf6140fabb5e823d84cb779a07ddb10cbba8545"
+      "content_hash": "c2900f0c71744a7fd60bd3780514d5acf6cc73b72d0afc339f3fb1d35e450e52"
     },
     {
       "id": "rec_d517cd894e443ee0d4f2",

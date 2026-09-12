@@ -249,13 +249,13 @@
 
 ## internal/cmd/index.go
 
-- `newIndexCmd` (function_declaration) line 15
+- `newIndexCmd` (function_declaration) line 12
 
 ## internal/cmd/init.go
 
-- `newInitCmd` (function_declaration) line 16
-- `configExists` (function_declaration) line 60
-- `applyInit` (function_declaration) line 65
+- `newInitCmd` (function_declaration) line 12
+- `configExists` (function_declaration) line 40
+- `applyInit` (function_declaration) line 45
 
 ## internal/cmd/init_test.go
 
@@ -479,13 +479,16 @@
 - `TestIndexCodeMap` (function_declaration) line 48
 - `TestIndexRecord` (function_declaration) line 64
 - `TestIndexSkipsArchive` (function_declaration) line 95
+- `TestFormatSummary` (function_declaration) line 108
 
 ## internal/index/progress.go
 
-- `Phase` (type_spec) line 4
-- `string` (method_declaration) line 14
-- `Progress` (type_spec) line 32
-- `Reporter` (type_spec) line 51
+- `Phase` (type_spec) line 6
+- `string` (method_declaration) line 16
+- `Progress` (type_spec) line 34
+- `Reporter` (type_spec) line 53
+- `FormatSummary` (function_declaration) line 56
+- `plural` (function_declaration) line 66
 
 ## internal/mcp/server.go
 
@@ -604,46 +607,6 @@
 - `TestRecordRoundTrip` (function_declaration) line 14
 - `TestSchemaNewerThanCLI` (function_declaration) line 57
 - `TestFileMapRoundTrip` (function_declaration) line 80
-
-## internal/tui/index.go
-
-- `progressMsg` (type_spec) line 25
-- `doneMsg` (type_spec) line 27
-- `model` (type_spec) line 29
-- `RunIndex` (function_declaration) line 39
-- `newModel` (function_declaration) line 76
-- `string` (method_declaration) line 139
-- `ratio` (function_declaration) line 186
-- `truncate` (function_declaration) line 200
-- `FormatSummary` (function_declaration) line 208
-- `plural` (function_declaration) line 218
-
-## internal/tui/index_test.go
-
-- `TestFormatSummary` (function_declaration) line 10
-- `TestIndexViewShowsProgress` (function_declaration) line 21
-- `TestPhaseString` (function_declaration) line 39
-
-## internal/tui/init.go
-
-- `InitForm` (type_spec) line 15
-- `FormFromConfig` (function_declaration) line 29
-- `ConfigFromForm` (function_declaration) line 48
-- `JoinList` (function_declaration) line 78
-- `SplitList` (function_declaration) line 83
-- `RunInit` (function_declaration) line 96
-- `required` (function_declaration) line 169
-- `validDuration` (function_declaration) line 178
-- `FormatInitSummary` (function_declaration) line 187
-
-## internal/tui/init_test.go
-
-- `TestSplitJoinList` (function_declaration) line 10
-- `TestConfigFromFormRoundTrip` (function_declaration) line 24
-- `TestConfigFromFormPreservesGlobalPath` (function_declaration) line 47
-- `TestConfigFromFormRejectsBadTimeout` (function_declaration) line 59
-- `TestConfigFromFormCustom` (function_declaration) line 67
-- `TestFormatInitSummary` (function_declaration) line 98
 
 ## internal/version/version.go
 

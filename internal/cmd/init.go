@@ -1,15 +1,11 @@
 package cmd
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/bwireman/archivist/internal/config"
-	"github.com/bwireman/archivist/internal/tui"
-	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
@@ -25,35 +21,19 @@ func newInitCmd() *cobra.Command {
 			}
 			existed := configExists(root)
 			cfg := config.Default()
-			if existed {
-				loaded, err := config.Load(root)
-				if err != nil {
-					return err
-				}
-				cfg = loaded
-			}
-
-			useTUI := !plain && isatty.IsTerminal(os.Stdout.Fd())
-			if useTUI {
-				cfg, err = tui.RunInit(cmd.Context(), cfg)
-				if err != nil {
-					if errors.Is(err, context.Canceled) {
-						return fmt.Errorf("init cancelled")
-					}
-					return err
-				}
-			} else {
-				cfg = config.Default()
-			}
-
 			if err := applyInit(root, cfg); err != nil {
 				return err
 			}
-			fmt.Print(tui.FormatInitSummary(cfg, existed))
+			verb := "Created"
+			if existed {
+				verb = "Updated"
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s .archivist.json and .archivist/\nEmbeddings use Ollama:\n  ollama pull %s\n", verb, cfg.Ollama.EmbedModel)
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&plain, "plain", false, "write default config without the setup TUI")
+	cmd.Flags().BoolVar(&plain, "plain", false, "ignored; init always writes defaults")
+	_ = cmd.Flags().MarkHidden("plain")
 	return cmd
 }
 

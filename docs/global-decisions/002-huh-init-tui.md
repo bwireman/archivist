@@ -2,13 +2,14 @@
 id: rec_487f791d4ced16a80cde
 type: decision
 scope: global
-status: accepted
+status: superseded
 title: Use Huh for the init TUI
+superseded_by: rec_plaincli013
 ---
 
 # Use Huh for the init TUI
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-08-28
 - Scope: global
 

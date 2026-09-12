@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 
 	"github.com/bwireman/archivist/internal/index"
-	"github.com/bwireman/archivist/internal/tui"
-	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 )
 
@@ -37,32 +34,21 @@ func newIndexCmd() *cobra.Command {
 				Home:     home,
 			}
 
-			useTUI := !plain && isatty.IsTerminal(os.Stdout.Fd())
-			var (
-				progress index.Progress
-				runErr   error
-			)
-			if useTUI {
-				progress, runErr = tui.RunIndex(cmd.Context(), func(ctx context.Context, r index.Reporter) error {
-					idx.Reporter = r
-					return idx.Index(ctx, scope)
-				})
-			} else {
-				idx.Reporter = func(p index.Progress) { progress = p }
-				runErr = idx.Index(cmd.Context(), scope)
-			}
-			if runErr != nil {
-				if errors.Is(runErr, context.Canceled) {
+			var progress index.Progress
+			idx.Reporter = func(p index.Progress) { progress = p }
+			if err := idx.Index(cmd.Context(), scope); err != nil {
+				if errors.Is(err, context.Canceled) {
 					return fmt.Errorf("indexing cancelled")
 				}
-				return runErr
+				return err
 			}
 			count, _ := repo.RecordCount()
-			fmt.Println(tui.FormatSummary(progress, count))
+			fmt.Fprintln(cmd.OutOrStdout(), index.FormatSummary(progress, count))
 			return nil
 		},
 	}
 	cmd.Flags().StringVar(&scope, "scope", "", "limit indexing to a subdirectory")
-	cmd.Flags().BoolVar(&plain, "plain", false, "print a one-line summary instead of the TUI")
+	cmd.Flags().BoolVar(&plain, "plain", false, "ignored; index always prints a one-line summary")
+	_ = cmd.Flags().MarkHidden("plain")
 	return cmd
 }

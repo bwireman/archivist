@@ -4,6 +4,7 @@
 
 - [Default ADR globs are the product directories](records/global/008-default-adr-globs.md) (accepted)
 - [Default embed model is qwen3-embedding:0.6b](records/global/009-qwen3-embed-default.md) (accepted)
+- [Drop interactive TUIs; CLI is always plain](records/global/013-plain-cli.md) (accepted)
 - [Honor .gitignore when indexing](records/global/007-honor-gitignore.md) (accepted)
 - [Nest ADR globs under index.adr](records/global/005-nested-adr-config.md) (accepted)
 - [Pivot to knowledge archive with MCP primary surface](records/global/012-knowledge-archive-pivot.md) (accepted)
@@ -12,7 +13,7 @@
 - [Richer chunks and longer CLI results](records/global/010-richer-chunks-and-cli.md) (accepted)
 - [Separate SQLite index for global ADRs](records/global/006-separate-global-index.md) (accepted)
 - [Separate global and repo ADRs](records/global/003-global-and-repo-adrs.md) (accepted)
-- [Use Bubble Tea for the index TUI](records/global/001-bubbletea-index-tui.md) (accepted)
-- [Use Huh for the init TUI](records/global/002-huh-init-tui.md) (accepted)
+- [Use Bubble Tea for the index TUI](records/global/001-bubbletea-index-tui.md) (superseded)
+- [Use Huh for the init TUI](records/global/002-huh-init-tui.md) (superseded)
 - [Use qwen3-embedding:0.6b for this repository](records/repo/001-use-qwen3-embedding.md) (superseded)
 

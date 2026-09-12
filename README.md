@@ -20,8 +20,8 @@ archivist version
 
 ```bash
 cd /path/to/your/repo
-archivist init --plain
-archivist index --plain          # no Ollama required
+archivist init
+archivist index                  # no Ollama required
 archivist embed --worker --once  # needs Ollama
 archivist export                 # writes docs/archive/
 archivist mcp                    # MCP server on stdio
@@ -113,7 +113,7 @@ make refresh-archive
 ```bash
 archivist migrate records
 rm -f .archivist/index.db ~/.archivist/global.db   # schema v3 reset
-archivist index --plain
+archivist index
 archivist embed --worker --once
 archivist export
 ```

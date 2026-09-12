@@ -20,4 +20,4 @@ Or use the MCP `remember` tool.
 
 Use front matter with `type`, `scope`, `status`, and for rules `severity` and `applies_to`.
 
-Then `archivist index --plain` and `archivist export`.
+Then `archivist index` and `archivist export`.

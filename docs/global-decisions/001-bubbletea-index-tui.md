@@ -2,13 +2,14 @@
 id: rec_03b53c31d84603de473c
 type: decision
 scope: global
-status: accepted
+status: superseded
 title: Use Bubble Tea for the index TUI
+superseded_by: rec_plaincli013
 ---
 
 # Use Bubble Tea for the index TUI
 
-- Status: accepted
+- Status: superseded
 - Date: 2026-08-28
 - Scope: global
 

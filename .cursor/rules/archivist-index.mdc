@@ -8,7 +8,7 @@ alwaysApply: true
 Run when you finish a turn that changed records, Go sources, or docs under `docs/decisions/` or `docs/global-decisions/`.
 
 ```bash
-archivist index --plain
+archivist index
 archivist embed --worker --once   # when Ollama is available
 archivist export
 ```

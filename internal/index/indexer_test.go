@@ -104,3 +104,14 @@ func TestIndexSkipsArchive(t *testing.T) {
 		t.Fatalf("expected archive skipped, file count %d", n)
 	}
 }
+
+func TestFormatSummary(t *testing.T) {
+	upToDate := index.FormatSummary(index.Progress{}, 215)
+	if upToDate != "Index up to date (215 records)" {
+		t.Fatalf("got %q", upToDate)
+	}
+	changed := index.FormatSummary(index.Progress{FilesIndexed: 3, CommitsNew: 1}, 40)
+	if changed != "Indexed 3 files, 1 commit (40 records)" {
+		t.Fatalf("got %q", changed)
+	}
+}

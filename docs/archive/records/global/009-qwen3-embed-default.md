@@ -16,7 +16,7 @@ title: "Default embed model is qwen3-embedding:0.6b"
 `archivist init` wrote `nomic-embed-text` via `config.Default()`. This checkout already indexes with `qwen3-embedding:0.6b` because that model is installed locally. New repos should get the same default so they can index without a per-repo pin.
 
 ## Decision
-`config.Default()` and `archivist init --plain` use `qwen3-embedding:0.6b`. The init TUI still suggests `nomic-embed-text` and `mxbai-embed-large` as alternatives. A repo may override `ollama.embed_model` in `.archivist.json`.
+`config.Default()` and `archivist init` use `qwen3-embedding:0.6b`. A repo may override `ollama.embed_model` in `.archivist.json`.
 
 ## Consequences
 - `ollama pull qwen3-embedding:0.6b` is the documented setup step.
