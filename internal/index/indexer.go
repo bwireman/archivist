@@ -8,6 +8,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ type Indexer struct {
 
 	progress Progress
 	ignore   *gitindex.Ignore
+	remap    bool
 }
 
 func (idx *Indexer) report() {
@@ -49,13 +51,19 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 	if err := idx.loadIgnore(); err != nil {
 		return err
 	}
+	remap, err := idx.needsCodemapRemap()
+	if err != nil {
+		return err
+	}
+	idx.remap = remap
 
 	n, err := idx.countFiles(root)
 	if err != nil {
 		return err
 	}
 	userN, _ := idx.countUserRecords()
-	idx.progress.FilesTotal = n + userN
+	homeN, _ := idx.countHomeGlobalRecords()
+	idx.progress.FilesTotal = n + userN + homeN
 	idx.progress.Phase = PhaseFiles
 	idx.report()
 
@@ -89,6 +97,9 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 	if err := idx.indexUserRecords(ctx, seenHome); err != nil {
 		return err
 	}
+	if err := idx.indexHomeGlobalRecords(ctx, seenHome); err != nil {
+		return err
+	}
 	if err := idx.pruneFiles(seenRepo, scopePath); err != nil {
 		return err
 	}
@@ -106,6 +117,11 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 	if err := idx.Store.StampIndexed(now); err != nil {
 		return err
 	}
+	if scopePath == "" {
+		if err := idx.Store.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
+			return err
+		}
+	}
 	if idx.Home != nil {
 		if err := idx.Home.StampIndexed(now); err != nil {
 			return err
@@ -118,17 +134,26 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 }
 
 func (idx *Indexer) isGlobalRecord(rel string) bool {
-	if idx.Cfg == nil {
+	if config.IsHomeGlobalPath(rel) {
+		return true
+	}
+	if idx.Cfg == nil || !idx.Cfg.Records.GlobalInRepo() {
 		return false
 	}
 	return config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
 func (idx *Indexer) isRecordFile(rel string) bool {
+	if config.IsUserGlobalPath(rel) || config.IsHomeGlobalPath(rel) {
+		return true
+	}
 	if idx.Cfg == nil {
 		return false
 	}
-	return config.PathUnder(rel, idx.Cfg.Records.Repo) || config.PathUnder(rel, idx.Cfg.Records.Global)
+	if config.PathUnder(rel, idx.Cfg.Records.Repo) {
+		return true
+	}
+	return idx.Cfg.Records.GlobalInRepo() && config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
 func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.Store) error {
@@ -183,7 +208,7 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 	if err != nil {
 		return err
 	}
-	if ok && existing.ContentHash == hash {
+	if ok && existing.ContentHash == hash && !idx.remap {
 		idx.progress.FilesUnchanged++
 		return nil
 	}
@@ -275,6 +300,45 @@ func (idx *Indexer) indexUserRecords(ctx context.Context, seen map[string]struct
 	})
 }
 
+func (idx *Indexer) indexHomeGlobalRecords(ctx context.Context, seen map[string]struct{}) error {
+	if idx.Home == nil || idx.Cfg == nil || idx.Cfg.Records.GlobalInRepo() {
+		return nil
+	}
+	dir := idx.Cfg.Records.GlobalDir(idx.RepoRoot)
+	if dir == "" {
+		return nil
+	}
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return nil
+	}
+	dev := idx.userDir()
+	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if dev != "" && samePath(path, dev) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.ToLower(filepath.Ext(path)) != ".md" {
+			return nil
+		}
+		if idx.shouldSkipFile(filepath.Base(path)) {
+			return nil
+		}
+		rel, err := filepath.Rel(dir, path)
+		if err != nil {
+			return err
+		}
+		rel = filepath.ToSlash(rel)
+		virt := config.VirtualHomeGlobalPath(rel)
+		seen[virt] = struct{}{}
+		return idx.indexPath(ctx, virt, path, idx.Home)
+	})
+}
+
 func (idx *Indexer) countUserRecords() (int, error) {
 	dir := idx.userDir()
 	if dir == "" {
@@ -288,6 +352,43 @@ func (idx *Indexer) countUserRecords() (int, error) {
 		return nil
 	})
 	return n, nil
+}
+
+func (idx *Indexer) countHomeGlobalRecords() (int, error) {
+	if idx.Cfg == nil || idx.Cfg.Records.GlobalInRepo() {
+		return 0, nil
+	}
+	dir := idx.Cfg.Records.GlobalDir(idx.RepoRoot)
+	if dir == "" {
+		return 0, nil
+	}
+	dev := idx.userDir()
+	n := 0
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if dev != "" && samePath(path, dev) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.ToLower(filepath.Ext(path)) == ".md" {
+			n++
+		}
+		return nil
+	})
+	return n, nil
+}
+
+func samePath(a, b string) bool {
+	a, err1 := filepath.Abs(a)
+	b, err2 := filepath.Abs(b)
+	if err1 != nil || err2 != nil {
+		return filepath.Clean(a) == filepath.Clean(b)
+	}
+	return a == b
 }
 
 func (idx *Indexer) countFiles(root string) (int, error) {
@@ -375,6 +476,24 @@ func (idx *Indexer) loadIgnore() error {
 	}
 	idx.ignore = ig
 	return nil
+}
+
+func (idx *Indexer) needsCodemapRemap() (bool, error) {
+	if idx.Store == nil {
+		return false, nil
+	}
+	raw, ok, err := idx.Store.GetMeta(store.MetaCodemapVersion)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return true, nil
+	}
+	have, err := strconv.Atoi(raw)
+	if err != nil {
+		return true, nil
+	}
+	return have != codemap.Version, nil
 }
 
 func (idx *Indexer) isExportPath(rel string) bool {

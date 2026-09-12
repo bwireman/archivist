@@ -18,10 +18,11 @@ const (
 	DefaultEmbedTimeoutStr    = "5m"
 	DefaultOllamaURL          = "http://localhost:11434"
 	DefaultDecisionsDir       = "docs/decisions"
-	DefaultGlobalDecisionsDir = "docs/global-decisions"
+	DefaultGlobalDecisionsDir = "docs/global-decisions" // in-repo layout when records.global is set relative to the checkout
 	DefaultArchiveDir         = "docs/archive"
 	DefaultGlobalDB           = "archive.db"
 	UserGlobalPrefix          = "user"
+	HomeGlobalPrefix          = "global"
 )
 
 type Config struct {
@@ -98,16 +99,65 @@ func (r RecordsConfig) withDefaults() RecordsConfig {
 	if strings.TrimSpace(r.Repo) == "" {
 		r.Repo = DefaultDecisionsDir
 	}
-	if strings.TrimSpace(r.Global) == "" {
-		r.Global = DefaultGlobalDecisionsDir
-	}
 	if strings.TrimSpace(r.Export) == "" {
 		r.Export = DefaultArchiveDir
 	}
 	r.Repo = filepath.ToSlash(strings.Trim(r.Repo, "/"))
-	r.Global = filepath.ToSlash(strings.Trim(r.Global, "/"))
 	r.Export = filepath.ToSlash(strings.Trim(r.Export, "/"))
+	r.Global = strings.TrimSpace(r.Global)
+	if r.GlobalInRepo() {
+		r.Global = filepath.ToSlash(strings.Trim(r.Global, "/"))
+	} else {
+		r.Global = filepath.ToSlash(strings.TrimRight(r.Global, "/"))
+	}
 	return r
+}
+
+func expandHomePath(p string) (string, bool) {
+	p = strings.TrimSpace(p)
+	if p != "~" && !strings.HasPrefix(p, "~/") {
+		return p, false
+	}
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return p, false
+	}
+	if p == "~" {
+		return home, true
+	}
+	return filepath.Join(home, strings.TrimPrefix(p, "~/")), true
+}
+
+// GlobalInRepo reports whether records.global is a checkout-relative directory.
+// Empty, absolute, and ~/… values live on the machine (default ~/.archivist).
+func (r RecordsConfig) GlobalInRepo() bool {
+	p := strings.TrimSpace(r.Global)
+	if p == "" || filepath.IsAbs(p) {
+		return false
+	}
+	if _, ok := expandHomePath(p); ok {
+		return false
+	}
+	return true
+}
+
+// GlobalDir is the directory for scope=global records.
+// Empty records.global is ~/.archivist.
+func (r RecordsConfig) GlobalDir(repoRoot string) string {
+	p := strings.TrimSpace(r.Global)
+	if p == "" {
+		return ArchivistHome()
+	}
+	if expanded, ok := expandHomePath(p); ok {
+		return expanded
+	}
+	if filepath.IsAbs(p) {
+		return p
+	}
+	if repoRoot == "" {
+		return p
+	}
+	return filepath.Join(repoRoot, p)
 }
 
 func PathUnder(rel, dir string) bool {
@@ -128,7 +178,6 @@ func Default() *Config {
 		},
 		Records: RecordsConfig{
 			Repo:   DefaultDecisionsDir,
-			Global: DefaultGlobalDecisionsDir,
 			Export: DefaultArchiveDir,
 		},
 	}
@@ -223,17 +272,33 @@ func (c *Config) DevRecordsDir() string {
 }
 
 func VirtualUserADRPath(rel string) string {
+	return prefixedHomePath(UserGlobalPrefix, rel)
+}
+
+func VirtualHomeGlobalPath(rel string) string {
+	return prefixedHomePath(HomeGlobalPrefix, rel)
+}
+
+func prefixedHomePath(prefix, rel string) string {
 	rel = filepath.ToSlash(strings.TrimPrefix(rel, "/"))
 	if rel == "" || rel == "." {
 		rel = "unknown.md"
 	}
-	return UserGlobalPrefix + "/" + rel
+	return prefix + "/" + rel
 }
 
 func IsUserGlobalPath(path string) bool {
+	return hasHomePrefix(path, UserGlobalPrefix)
+}
+
+func IsHomeGlobalPath(path string) bool {
+	return hasHomePrefix(path, HomeGlobalPrefix)
+}
+
+func hasHomePrefix(path, prefix string) bool {
 	path = filepath.ToSlash(path)
-	if path == UserGlobalPrefix {
+	if path == prefix {
 		return true
 	}
-	return strings.HasPrefix(path, UserGlobalPrefix+"/")
+	return strings.HasPrefix(path, prefix+"/")
 }

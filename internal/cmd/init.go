@@ -58,8 +58,12 @@ func applyInit(root string, cfg *config.Config) error {
 	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Repo), 0o755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Global), 0o755); err != nil {
-		return err
+	if cfg.Records.GlobalInRepo() {
+		if err := os.MkdirAll(filepath.Join(root, cfg.Records.Global), 0o755); err != nil {
+			return err
+		}
+	} else if dir := cfg.Records.GlobalDir(root); dir != "" {
+		_ = os.MkdirAll(dir, 0o755)
 	}
 	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Export), 0o755); err != nil {
 		return err

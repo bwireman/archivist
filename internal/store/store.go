@@ -22,6 +22,7 @@ const (
 	MetaArchivistVersion = "archivist_version"
 	MetaLastSearch       = "last_search"
 	MetaLastSearchAt     = "last_search_at"
+	MetaCodemapVersion   = "codemap_version"
 )
 
 type SchemaError struct {

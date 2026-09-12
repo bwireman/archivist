@@ -1,7 +1,23 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T20:20:13Z",
+  "exported_at": "2026-09-12T21:34:00Z",
   "records": [
+    {
+      "id": "rec_9d4061b8f978a752d7f7",
+      "slug": "archivist-mcp-is-configured-in-cursor-mcp-json-but-was-not-available-in-this-session",
+      "type": "decision",
+      "scope": "dev",
+      "title": "Archivist MCP is configured in .cursor/mcp.json but was not available in this session",
+      "status": "accepted",
+      "source_path": "user/archivist-mcp-is-configured-in-cursor-mcp-json-but-was-not-available-in-this-session.md",
+      "tags": [
+        "archivist",
+        "soon",
+        "G-mcp-missing",
+        "gap"
+      ],
+      "content_hash": "054e198b7ed398826139174caa14caa592090c99d0bc75c6483b892491347169"
+    },
     {
       "id": "rec_293e0ad9ce7ae2e270dd",
       "slug": "008-default-adr-globs",
@@ -23,6 +39,20 @@
       "content_hash": "9a72cbe8bed25d3df79d538a8c35bf9e0c6770299b99367c10a210ea727d5699"
     },
     {
+      "id": "rec_e62e2384d8f10e17a473",
+      "slug": "default-records-global-is-archivist",
+      "type": "decision",
+      "scope": "global",
+      "title": "Default records.global is ~/.archivist",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/default-records-global-is-archivist.md",
+      "tags": [
+        "config",
+        "records"
+      ],
+      "content_hash": "5446ea8535c2e3d49d8e94a24728ad16150668a1beef92ec4a50eb929b5c387a"
+    },
+    {
       "id": "rec_plaincli013",
       "slug": "013-plain-cli",
       "type": "decision",
@@ -41,6 +71,33 @@
       "status": "accepted",
       "source_path": "docs/global-decisions/007-honor-gitignore.md",
       "content_hash": "ec906e1368c1b59e02633cc52a0e9d5daa9c34bda098b8fadea797d7e45680a4"
+    },
+    {
+      "id": "rec_43749304c84ae79978c9",
+      "slug": "language-agnostic-code-map-backup-with-fixtures-per-language",
+      "type": "decision",
+      "scope": "global",
+      "title": "Language-agnostic code map backup with fixtures per language",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/language-agnostic-code-map-backup-with-fixtures-per-language.md",
+      "tags": [
+        "codemap"
+      ],
+      "content_hash": "7ba58684f65eea408c0527f8348f46d6c9df4d2648cdfb23a6e4474e7a981cad"
+    },
+    {
+      "id": "rec_daaae5decc593a5921ad",
+      "slug": "line-based-gleam-map-and-remapping-on-extractor-version",
+      "type": "decision",
+      "scope": "global",
+      "title": "Line-based Gleam map and remapping on extractor version",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/line-based-gleam-map-and-remapping-on-extractor-version.md",
+      "tags": [
+        "codemap",
+        "gleam"
+      ],
+      "content_hash": "7234caf5232ca19f5dc5a84bf34c13fb63995c11fb4ddf2c99d93d1e06dd731d"
     },
     {
       "id": "rec_b709c21fa97255bd7629",
@@ -177,6 +234,22 @@
       "content_hash": "cd8bbf9210237686d8564da40590dc2cb9c376f948cd4f8564a96a058f196a67"
     },
     {
+      "id": "rec_d5b84579e761adee897e",
+      "slug": "records-dev-is-unset-defaults-to-archivist-records",
+      "type": "decision",
+      "scope": "dev",
+      "title": "records.dev is unset (defaults to ~/.archivist/records)",
+      "status": "accepted",
+      "source_path": "user/records-dev-is-unset-defaults-to-archivist-records.md",
+      "tags": [
+        "archivist",
+        "later",
+        "G-records-dev-unset",
+        "gap"
+      ],
+      "content_hash": "d56ffadf7e0595024bc1078d21bb44f16c740025fc6a47086e7b2e1f7c479b5a"
+    },
+    {
       "id": "rec_184e12358de7c5b12414",
       "slug": "append-gitignore-entries-on-their-own-line",
       "type": "rule",
@@ -193,6 +266,40 @@
         "internal/cmd/**"
       ],
       "content_hash": "7ebf3c9984474d6fb6e9a277e246107a8b7b01b036bf8ebbbe2ec2345337afbc"
+    },
+    {
+      "id": "rec_d3c2e36d4c63cff21aad",
+      "slug": "bump-codemap-version-when-extractors-change",
+      "type": "rule",
+      "scope": "global",
+      "title": "Bump codemap.Version when extractors change",
+      "status": "accepted",
+      "severity": "must",
+      "source_path": "docs/global-decisions/bump-codemap-version-when-extractors-change.md",
+      "tags": [
+        "codemap"
+      ],
+      "applies_to": [
+        "internal/codemap/**"
+      ],
+      "content_hash": "99289ee53f75392a61d356880fecab76453a8f006271153f918bc63374a95644"
+    },
+    {
+      "id": "rec_6b33fa3dd9c4fec4fd8e",
+      "slug": "code-map-tests-must-fixture-every-registered-language",
+      "type": "rule",
+      "scope": "global",
+      "title": "Code map tests must fixture every registered language",
+      "status": "accepted",
+      "severity": "must",
+      "source_path": "docs/global-decisions/code-map-tests-must-fixture-every-registered-language.md",
+      "tags": [
+        "codemap"
+      ],
+      "applies_to": [
+        "internal/codemap/**"
+      ],
+      "content_hash": "e20d4ae59dee0e11f8c10f1711a172cec809058f8d2b529d57b7dab1a2082e1c"
     }
   ]
 }

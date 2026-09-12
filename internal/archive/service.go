@@ -132,7 +132,10 @@ func (s *Service) defaultPath(rec *record.Record) string {
 	name := slug + ".md"
 	switch rec.Scope {
 	case record.ScopeGlobal:
-		return filepath.ToSlash(filepath.Join(s.Records.Global, name))
+		if s.Records.GlobalInRepo() {
+			return filepath.ToSlash(filepath.Join(s.Records.Global, name))
+		}
+		return config.VirtualHomeGlobalPath(name)
 	case record.ScopeDev:
 		return config.VirtualUserADRPath(name)
 	default:
@@ -143,20 +146,28 @@ func (s *Service) defaultPath(rec *record.Record) string {
 func (s *Service) absPath(sourcePath string) string {
 	if strings.HasPrefix(sourcePath, config.UserGlobalPrefix+"/") {
 		rel := strings.TrimPrefix(sourcePath, config.UserGlobalPrefix+"/")
-		dir := config.UserRecordsDir()
-		if s.Records.Dev != "" {
-			if filepath.IsAbs(s.Records.Dev) {
-				dir = s.Records.Dev
-			} else {
-				home := config.ArchivistHome()
-				if home != "" {
-					dir = filepath.Join(home, s.Records.Dev)
-				}
-			}
-		}
-		return filepath.Join(dir, rel)
+		return filepath.Join(s.devDir(), rel)
+	}
+	if config.IsHomeGlobalPath(sourcePath) && !s.Records.GlobalInRepo() {
+		rel := strings.TrimPrefix(sourcePath, config.HomeGlobalPrefix+"/")
+		return filepath.Join(s.Records.GlobalDir(s.RepoRoot), rel)
 	}
 	return filepath.Join(s.RepoRoot, sourcePath)
+}
+
+func (s *Service) devDir() string {
+	p := strings.TrimSpace(s.Records.Dev)
+	if p == "" {
+		return config.UserRecordsDir()
+	}
+	if filepath.IsAbs(p) {
+		return p
+	}
+	home := config.ArchivistHome()
+	if home == "" {
+		return p
+	}
+	return filepath.Join(home, p)
 }
 
 func slugify(title string) string {

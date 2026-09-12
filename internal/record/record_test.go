@@ -54,3 +54,18 @@ func TestMatchesPaths(t *testing.T) {
 		t.Fatal("expected no match")
 	}
 }
+
+func TestInferScopeFromPath(t *testing.T) {
+	if InferScopeFromPath("user/note.md") != ScopeDev {
+		t.Fatal("user")
+	}
+	if InferScopeFromPath("global/note.md") != ScopeGlobal {
+		t.Fatal("home global")
+	}
+	if InferScopeFromPath("docs/global-decisions/note.md") != ScopeGlobal {
+		t.Fatal("in-repo global")
+	}
+	if InferScopeFromPath("docs/decisions/note.md") != ScopeRepo {
+		t.Fatal("repo")
+	}
+}

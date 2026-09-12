@@ -9,14 +9,22 @@ import (
 )
 
 func TestApplyInitCreatesDecisionDirs(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	root := t.TempDir()
 	if err := applyInit(root, config.Default()); err != nil {
 		t.Fatal(err)
 	}
-	for _, dir := range []string{config.DefaultDecisionsDir, config.DefaultGlobalDecisionsDir} {
+	for _, dir := range []string{config.DefaultDecisionsDir, config.DefaultArchiveDir} {
 		if _, err := os.Stat(filepath.Join(root, dir)); err != nil {
 			t.Fatalf("%s: %v", dir, err)
 		}
+	}
+	if _, err := os.Stat(filepath.Join(root, config.DefaultGlobalDecisionsDir)); !os.IsNotExist(err) {
+		t.Fatal("init should not create in-repo global docs by default")
+	}
+	if _, err := os.Stat(filepath.Join(home, ".archivist")); err != nil {
+		t.Fatalf("home global dir: %v", err)
 	}
 	if _, err := os.Stat(filepath.Join(root, config.DefaultConfigName)); err != nil {
 		t.Fatal(err)

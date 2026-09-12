@@ -34,40 +34,40 @@ const (
 type Status string
 
 const (
-	StatusProposed    Status = "proposed"
-	StatusAccepted    Status = "accepted"
-	StatusDeprecated  Status = "deprecated"
-	StatusSuperseded  Status = "superseded"
+	StatusProposed   Status = "proposed"
+	StatusAccepted   Status = "accepted"
+	StatusDeprecated Status = "deprecated"
+	StatusSuperseded Status = "superseded"
 )
 
 type Severity string
 
 const (
-	SeverityMust       Severity = "must"
-	SeverityMustNot    Severity = "must-not"
-	SeverityShould     Severity = "should"
-	SeverityShouldNot  Severity = "should-not"
+	SeverityMust      Severity = "must"
+	SeverityMustNot   Severity = "must-not"
+	SeverityShould    Severity = "should"
+	SeverityShouldNot Severity = "should-not"
 )
 
 // Record is the unit of knowledge in the archive.
 type Record struct {
-	ID                string
-	Slug              string
-	Type              Type
-	Scope             Scope
-	Title             string
-	Status            Status
-	Severity          Severity
-	Body              string
-	SourcePath        string
-	Tags              []string
-	AppliesTo         []string
-	Supersedes        []string
-	SupersededBy      string
-	ProvenanceCommit  string
-	ContentHash       string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID               string
+	Slug             string
+	Type             Type
+	Scope            Scope
+	Title            string
+	Status           Status
+	Severity         Severity
+	Body             string
+	SourcePath       string
+	Tags             []string
+	AppliesTo        []string
+	Supersedes       []string
+	SupersededBy     string
+	ProvenanceCommit string
+	ContentHash      string
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
 }
 
 // ScopePrecedence returns higher for more specific scopes.
@@ -89,6 +89,9 @@ func InferScopeFromPath(path string) Scope {
 	path = filepath.ToSlash(path)
 	if strings.HasPrefix(path, config.UserGlobalPrefix+"/") {
 		return ScopeDev
+	}
+	if config.IsHomeGlobalPath(path) {
+		return ScopeGlobal
 	}
 	if glob.MatchAnyPattern(path, []string{config.DefaultGlobalDecisionsDir + "/**"}) {
 		return ScopeGlobal

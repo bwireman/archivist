@@ -2,4 +2,4 @@
 
 When you choose between real alternatives, or a must/must-not constraint, write a typed archive record (`decision` or `rule`). Use `archivist remember` or the MCP `remember` tool. Do not leave the choice only in chat.
 
-Repo records go under the configured `records.repo` directory; product-wide under `records.global`; personal under `records.dev` (default `~/.archivist/records/`).
+Repo records go under the configured `records.repo` directory; product-wide under `records.global` (default `~/.archivist`); personal under `records.dev` (default `~/.archivist/records/`).

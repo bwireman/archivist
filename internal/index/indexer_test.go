@@ -24,6 +24,7 @@ func writeFile(t *testing.T, root, rel, content string) {
 
 func newIndexer(t *testing.T, root string) (*index.Indexer, *store.Store, *store.Store) {
 	t.Helper()
+	t.Setenv("HOME", t.TempDir())
 	cfg := config.Default()
 	st, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
 	if err != nil {
@@ -61,6 +62,77 @@ func TestIndexCodeMap(t *testing.T) {
 	}
 }
 
+func TestIndexGleamCodeMap(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
+	idx, st, _ := newIndexer(t, root)
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SymbolsForFile("src/mod.gleam")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 1 || syms[0].Name != "main" {
+		t.Fatalf("gleam symbols %+v", syms)
+	}
+}
+
+func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
+	idx, st, _ := newIndexer(t, root)
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	existing, ok, err := st.GetFile("src/mod.gleam")
+	if err != nil || !ok {
+		t.Fatalf("file: ok=%v err=%v", ok, err)
+	}
+	if err := st.ReplaceFileMap(*existing, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetMeta(store.MetaCodemapVersion, "0"); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SymbolsForFile("src/mod.gleam")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 1 || syms[0].Name != "main" {
+		t.Fatalf("expected remap, got %+v", syms)
+	}
+}
+
+func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
+	idx, st, _ := newIndexer(t, root)
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	existing, ok, err := st.GetFile("src/mod.gleam")
+	if err != nil || !ok {
+		t.Fatalf("file: ok=%v err=%v", ok, err)
+	}
+	if err := st.ReplaceFileMap(*existing, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SymbolsForFile("src/mod.gleam")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 0 {
+		t.Fatalf("hash skip should leave wiped symbols empty, got %+v", syms)
+	}
+}
+
 func TestIndexRecord(t *testing.T) {
 	root := t.TempDir()
 	content := `---
@@ -89,6 +161,50 @@ Yes.
 	depth, _ := st.QueueDepth()
 	if depth != 1 {
 		t.Fatalf("expected queue item, got %d", depth)
+	}
+}
+
+func TestIndexHomeGlobalRecord(t *testing.T) {
+	root := t.TempDir()
+	idx, _, home := newIndexer(t, root)
+	dir := config.ArchivistHome()
+	content := `---
+id: rec_home
+type: decision
+scope: global
+status: accepted
+title: Machine wide
+---
+
+Body.
+`
+	writeFile(t, dir, "machine.md", content)
+	writeFile(t, dir, "records/personal.md", `---
+id: rec_dev
+type: decision
+scope: dev
+status: accepted
+title: Personal
+---
+
+Note.
+`)
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	rec, ok, err := home.GetRecordByID("rec_home")
+	if err != nil || !ok {
+		t.Fatalf("home global: ok=%v err=%v", ok, err)
+	}
+	if rec.Scope != "global" || rec.SourcePath != "global/machine.md" {
+		t.Fatalf("got scope=%s path=%s", rec.Scope, rec.SourcePath)
+	}
+	dev, ok, err := home.GetRecordByID("rec_dev")
+	if err != nil || !ok {
+		t.Fatalf("dev: ok=%v err=%v", ok, err)
+	}
+	if dev.Scope != "dev" || dev.SourcePath != "user/personal.md" {
+		t.Fatalf("dev got scope=%s path=%s", dev.Scope, dev.SourcePath)
 	}
 }
 

@@ -1,0 +1,87 @@
+package archive
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/record"
+	"github.com/bwireman/archivist/internal/store"
+)
+
+func TestRememberGlobalWritesHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	repo := t.TempDir()
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	svc := New(repo, config.Default(), repoDB, homeDB)
+	id, err := svc.Remember(&record.Record{
+		Type:   record.TypeDecision,
+		Scope:  record.ScopeGlobal,
+		Title:  "Home global",
+		Body:   "Yes.",
+		Status: record.StatusAccepted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(home, ".archivist", "home-global.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected %s: %v", path, err)
+	}
+	if _, err := os.Stat(filepath.Join(repo, "docs/global-decisions/home-global.md")); !os.IsNotExist(err) {
+		t.Fatal("default global should not write in-repo")
+	}
+	rec, err := svc.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rec.SourcePath != "global/home-global.md" {
+		t.Fatalf("source %q", rec.SourcePath)
+	}
+}
+
+func TestRememberGlobalInRepoWhenConfigured(t *testing.T) {
+	repo := t.TempDir()
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	cfg := config.Default()
+	cfg.Records.Global = config.DefaultGlobalDecisionsDir
+	svc := New(repo, cfg, repoDB, homeDB)
+	_, err = svc.Remember(&record.Record{
+		Type:   record.TypeDecision,
+		Scope:  record.ScopeGlobal,
+		Title:  "In repo",
+		Body:   "Yes.",
+		Status: record.StatusAccepted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(repo, config.DefaultGlobalDecisionsDir, "in-repo.md")
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("expected %s: %v", path, err)
+	}
+}

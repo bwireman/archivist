@@ -54,8 +54,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Records.Repo != config.DefaultDecisionsDir {
 		t.Fatalf("records.repo: %q", cfg.Records.Repo)
 	}
-	if cfg.Records.Global != config.DefaultGlobalDecisionsDir {
-		t.Fatalf("records.global: %q", cfg.Records.Global)
+	if cfg.Records.Global != "" {
+		t.Fatalf("records.global: %q want empty home default", cfg.Records.Global)
 	}
 	if cfg.Records.Export != config.DefaultArchiveDir {
 		t.Fatalf("records.export: %q", cfg.Records.Export)
@@ -143,6 +143,9 @@ func TestLoadOmitsRecordsUsesDefaults(t *testing.T) {
 	if loaded.Records.Repo != config.DefaultDecisionsDir {
 		t.Fatalf("repo: %q", loaded.Records.Repo)
 	}
+	if loaded.Records.Global != "" {
+		t.Fatalf("global: %q want empty home default", loaded.Records.Global)
+	}
 	if loaded.Ollama.EmbedModel != "nomic-embed-text" {
 		t.Fatalf("model: %q", loaded.Ollama.EmbedModel)
 	}
@@ -169,6 +172,46 @@ func TestIsUserGlobalPath(t *testing.T) {
 	}
 	if config.IsUserGlobalPath("docs/global-decisions/001.md") {
 		t.Fatal("in-repo global is not a user path")
+	}
+}
+
+func TestIsHomeGlobalPath(t *testing.T) {
+	if !config.IsHomeGlobalPath("global/001.md") {
+		t.Fatal("expected home global path")
+	}
+	if config.IsHomeGlobalPath("docs/global-decisions/001.md") {
+		t.Fatal("in-repo global is not a home-global virtual path")
+	}
+	if config.IsHomeGlobalPath("user/001.md") {
+		t.Fatal("dev path is not home-global")
+	}
+}
+
+func TestGlobalDirDefaultsToArchivistHome(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	var r config.RecordsConfig
+	got := r.GlobalDir("/repo")
+	want := filepath.Join(home, ".archivist")
+	if got != want {
+		t.Fatalf("empty global: %q want %q", got, want)
+	}
+	if r.GlobalInRepo() {
+		t.Fatal("empty global is not in-repo")
+	}
+	r.Global = "docs/global-decisions"
+	if !r.GlobalInRepo() {
+		t.Fatal("relative global is in-repo")
+	}
+	if got := r.GlobalDir("/repo"); got != filepath.Join("/repo", "docs/global-decisions") {
+		t.Fatalf("in-repo dir: %q", got)
+	}
+	r.Global = "~/.archivist"
+	if r.GlobalInRepo() {
+		t.Fatal("~/ path is not in-repo")
+	}
+	if got := r.GlobalDir("/repo"); got != want {
+		t.Fatalf("~/.archivist: %q want %q", got, want)
 	}
 }
 

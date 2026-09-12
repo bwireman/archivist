@@ -17,4 +17,4 @@ Or MCP tool `remember` with the same fields.
 3. Scope: `repo` for this checkout, `global` for the product, `dev` for personal notes.
 4. Refresh: `archivist index` then `archivist export`.
 
-Directories come from `.archivist.json` `records.repo` / `records.global` / `records.dev`.
+Directories come from `.archivist.json` `records.repo` / `records.global` (default `~/.archivist`) / `records.dev` (default `~/.archivist/records`).

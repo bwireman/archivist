@@ -11,8 +11,14 @@
 - `error` (method_declaration) line 62
 - `error` (method_declaration) line 82
 - `string` (method_declaration) line 127
-- `string` (method_declaration) line 143
-- `slugify` (function_declaration) line 162
+- `string` (method_declaration) line 146
+- `string` (method_declaration) line 158
+- `slugify` (function_declaration) line 173
+
+## internal/archive/service_test.go
+
+- `TestRememberGlobalWritesHome` (function_declaration) line 13
+- `TestRememberGlobalInRepoWhenConfigured` (function_declaration) line 56
 
 ## internal/check/check.go
 
@@ -107,7 +113,7 @@
 ## internal/cmd/init_test.go
 
 - `TestApplyInitCreatesDecisionDirs` (function_declaration) line 11
-- `TestAppendGitignoreInsertsNewline` (function_declaration) line 26
+- `TestAppendGitignoreInsertsNewline` (function_declaration) line 34
 
 ## internal/cmd/mcp.go
 
@@ -153,42 +159,79 @@
 
 ## internal/codemap/codemap.go
 
-- `languageSpec` (type_spec) line 21
-- `Result` (type_spec) line 48
-- `Extract` (function_declaration) line 55
-- `extractGeneric` (function_declaration) line 121
-- `findPackage` (function_declaration) line 140
-- `symbolName` (function_declaration) line 163
-- `isExported` (function_declaration) line 177
-- `firstDocLine` (function_declaration) line 185
-- `cleanImport` (function_declaration) line 201
-- `IsBinary` (function_declaration) line 210
+- `languageSpec` (type_spec) line 26
+- `Result` (type_spec) line 57
+- `Extract` (function_declaration) line 66
+- `withGenericBackup` (function_declaration) line 79
+- `extractTreeSitter` (function_declaration) line 94
+- `findPackage` (function_declaration) line 154
+- `symbolName` (function_declaration) line 177
+- `isExported` (function_declaration) line 191
+- `firstDocLine` (function_declaration) line 199
+- `cleanImport` (function_declaration) line 219
+- `IsBinary` (function_declaration) line 228
+
+## internal/codemap/codemap_test.go
+
+- `TestExtractGleamTopLevel` (function_declaration) line 9
+- `keys` (function_declaration) line 92
+- `TestExtractGleamConstructors` (function_declaration) line 100
+- `TestExtractMjsUsesJavaScript` (function_declaration) line 133
+- `TestExtractGenericUnknownLanguage` (function_declaration) line 153
+- `TestExtractGenericUnsupportedLanguages` (function_declaration) line 170
+- `TestExtractGenericSkipsDocsAndData` (function_declaration) line 231
+- `TestExtractGenericBackupWhenTreeSitterFindsNothing` (function_declaration) line 244
+- `TestExtractGenericSkipsEnglishStopwords` (function_declaration) line 255
+
+## internal/codemap/generic.go
+
+- `extractGeneric` (function_declaration) line 39
+- `isGenericComment` (function_declaration) line 76
+- `genericKind` (function_declaration) line 84
+- `genericExported` (function_declaration) line 93
+
+## internal/codemap/gleam.go
+
+- `extractGleam` (function_declaration) line 20
+- `gleamSym` (function_declaration) line 86
+
+## internal/codemap/languages_test.go
+
+- `TestExtractEveryRegisteredLanguage` (function_declaration) line 26
+- `symbolNames` (function_declaration) line 152
 
 ## internal/config/config.go
 
-- `Config` (type_spec) line 27
-- `PublishConfig` (type_spec) line 34
-- `PublishDestination` (type_spec) line 38
-- `OllamaConfig` (type_spec) line 42
-- `string` (method_declaration) line 53
-- `normalizeOllamaURL` (function_declaration) line 63
-- `parseTimeout` (function_declaration) line 75
-- `IndexConfig` (type_spec) line 86
-- `RecordsConfig` (type_spec) line 90
-- `RecordsConfig` (method_declaration) line 97
-- `PathUnder` (function_declaration) line 113
-- `Default` (function_declaration) line 122
-- `Load` (function_declaration) line 137
-- `Save` (function_declaration) line 163
-- `DataDir` (function_declaration) line 173
-- `StorePath` (function_declaration) line 177
-- `ArchivistHome` (function_declaration) line 181
-- `HomeStorePath` (function_declaration) line 189
-- `UserRecordsDir` (function_declaration) line 197
-- `UserDecisionsDir` (function_declaration) line 205
-- `string` (method_declaration) line 209
-- `VirtualUserADRPath` (function_declaration) line 225
-- `IsUserGlobalPath` (function_declaration) line 233
+- `Config` (type_spec) line 28
+- `PublishConfig` (type_spec) line 35
+- `PublishDestination` (type_spec) line 39
+- `OllamaConfig` (type_spec) line 43
+- `string` (method_declaration) line 54
+- `normalizeOllamaURL` (function_declaration) line 64
+- `parseTimeout` (function_declaration) line 76
+- `IndexConfig` (type_spec) line 87
+- `RecordsConfig` (type_spec) line 91
+- `RecordsConfig` (method_declaration) line 98
+- `expandHomePath` (function_declaration) line 116
+- `bool` (method_declaration) line 133
+- `string` (method_declaration) line 146
+- `PathUnder` (function_declaration) line 163
+- `Default` (function_declaration) line 172
+- `Load` (function_declaration) line 186
+- `Save` (function_declaration) line 212
+- `DataDir` (function_declaration) line 222
+- `StorePath` (function_declaration) line 226
+- `ArchivistHome` (function_declaration) line 230
+- `HomeStorePath` (function_declaration) line 238
+- `UserRecordsDir` (function_declaration) line 246
+- `UserDecisionsDir` (function_declaration) line 254
+- `string` (method_declaration) line 258
+- `VirtualUserADRPath` (function_declaration) line 274
+- `VirtualHomeGlobalPath` (function_declaration) line 278
+- `prefixedHomePath` (function_declaration) line 282
+- `IsUserGlobalPath` (function_declaration) line 290
+- `IsHomeGlobalPath` (function_declaration) line 294
+- `hasHomePrefix` (function_declaration) line 298
 
 ## internal/config/config_test.go
 
@@ -199,13 +242,15 @@
 - `TestLoadMissingConfigUsesDefaults` (function_declaration) line 112
 - `TestLoadInvalidJSON` (function_declaration) line 123
 - `TestLoadOmitsRecordsUsesDefaults` (function_declaration) line 133
-- `TestPathUnder` (function_declaration) line 151
-- `TestVirtualUserADRPath` (function_declaration) line 160
-- `TestIsUserGlobalPath` (function_declaration) line 166
-- `TestStorePaths` (function_declaration) line 175
-- `TestResolvedBaseURLEnv` (function_declaration) line 191
-- `TestDataDir` (function_declaration) line 203
-- `TestNormalizeOllamaHostWithoutScheme` (function_declaration) line 210
+- `TestPathUnder` (function_declaration) line 154
+- `TestVirtualUserADRPath` (function_declaration) line 163
+- `TestIsUserGlobalPath` (function_declaration) line 169
+- `TestIsHomeGlobalPath` (function_declaration) line 178
+- `TestGlobalDirDefaultsToArchivistHome` (function_declaration) line 190
+- `TestStorePaths` (function_declaration) line 218
+- `TestResolvedBaseURLEnv` (function_declaration) line 234
+- `TestDataDir` (function_declaration) line 246
+- `TestNormalizeOllamaHostWithoutScheme` (function_declaration) line 253
 
 ## internal/embed/embedder.go
 
@@ -299,34 +344,40 @@
 
 ## internal/index/indexer.go
 
-- `Indexer` (type_spec) line 22
-- `error` (method_declaration) line 40
-- `bool` (method_declaration) line 120
-- `bool` (method_declaration) line 127
-- `error` (method_declaration) line 134
-- `error` (method_declaration) line 207
-- `string` (method_declaration) line 239
-- `error` (method_declaration) line 249
-- `error` (method_declaration) line 302
-- `bool` (method_declaration) line 325
-- `bool` (method_declaration) line 341
-- `bool` (method_declaration) line 359
-- `bool` (method_declaration) line 366
-- `error` (method_declaration) line 370
-- `bool` (method_declaration) line 380
-- `error` (method_declaration) line 395
-- `error` (method_declaration) line 415
-- `pathInScope` (function_declaration) line 436
-- `fileHash` (function_declaration) line 445
+- `Indexer` (type_spec) line 23
+- `error` (method_declaration) line 42
+- `bool` (method_declaration) line 136
+- `bool` (method_declaration) line 146
+- `error` (method_declaration) line 159
+- `error` (method_declaration) line 232
+- `string` (method_declaration) line 264
+- `error` (method_declaration) line 274
+- `error` (method_declaration) line 303
+- `samePath` (function_declaration) line 385
+- `error` (method_declaration) line 403
+- `bool` (method_declaration) line 426
+- `bool` (method_declaration) line 442
+- `bool` (method_declaration) line 460
+- `bool` (method_declaration) line 467
+- `error` (method_declaration) line 471
+- `bool` (method_declaration) line 499
+- `error` (method_declaration) line 514
+- `error` (method_declaration) line 534
+- `pathInScope` (function_declaration) line 555
+- `fileHash` (function_declaration) line 564
 
 ## internal/index/indexer_test.go
 
 - `writeFile` (function_declaration) line 14
 - `newIndexer` (function_declaration) line 25
-- `TestIndexCodeMap` (function_declaration) line 48
-- `TestIndexRecord` (function_declaration) line 64
-- `TestIndexSkipsArchive` (function_declaration) line 95
-- `TestFormatSummary` (function_declaration) line 108
+- `TestIndexCodeMap` (function_declaration) line 49
+- `TestIndexGleamCodeMap` (function_declaration) line 65
+- `TestIndexRemapsWhenCodemapVersionStale` (function_declaration) line 81
+- `TestIndexSkipsUnchangedWhenCodemapCurrent` (function_declaration) line 110
+- `TestIndexRecord` (function_declaration) line 136
+- `TestIndexHomeGlobalRecord` (function_declaration) line 167
+- `TestIndexSkipsArchive` (function_declaration) line 211
+- `TestFormatSummary` (function_declaration) line 224
 
 ## internal/index/progress.go
 
@@ -377,18 +428,19 @@
 - `Record` (type_spec) line 53
 - `ScopePrecedence` (function_declaration) line 74
 - `InferScopeFromPath` (function_declaration) line 88
-- `SlugFromPath` (function_declaration) line 103
-- `NewID` (function_declaration) line 113
-- `ContentHash` (function_declaration) line 120
-- `error` (method_declaration) line 137
-- `string` (method_declaration) line 182
-- `bool` (method_declaration) line 202
-- `bool` (method_declaration) line 215
+- `SlugFromPath` (function_declaration) line 106
+- `NewID` (function_declaration) line 116
+- `ContentHash` (function_declaration) line 123
+- `error` (method_declaration) line 140
+- `string` (method_declaration) line 185
+- `bool` (method_declaration) line 205
+- `bool` (method_declaration) line 218
 
 ## internal/record/record_test.go
 
 - `TestParseAndSerialize` (function_declaration) line 8
 - `TestMatchesPaths` (function_declaration) line 45
+- `TestInferScopeFromPath` (function_declaration) line 58
 
 ## internal/retrieve/retrieve.go
 
@@ -427,39 +479,39 @@
 
 ## internal/store/store.go
 
-- `SchemaError` (type_spec) line 27
-- `string` (method_declaration) line 32
-- `Store` (type_spec) line 36
-- `Open` (function_declaration) line 40
-- `OpenIfExists` (function_declaration) line 56
-- `error` (method_declaration) line 74
-- `error` (method_declaration) line 78
-- `error` (method_declaration) line 173
-- `error` (method_declaration) line 183
-- `error` (method_declaration) line 206
-- `error` (method_declaration) line 308
-- `error` (method_declaration) line 340
-- `error` (method_declaration) line 347
-- `encodeJSONList` (function_declaration) line 376
-- `decodeJSONList` (function_declaration) line 384
-- `scanRecord` (function_declaration) line 395
-- `scanner` (type_spec) line 425
-- `error` (method_declaration) line 431
-- `nullString` (function_declaration) line 499
-- `error` (method_declaration) line 576
-- `error` (method_declaration) line 600
-- `VectorRecord` (type_spec) line 632
-- `QueueItem` (type_spec) line 680
-- `error` (method_declaration) line 716
-- `FTSResult` (type_spec) line 725
-- `FileRecord` (type_spec) line 759
-- `Symbol` (type_spec) line 766
-- `SymbolEdge` (type_spec) line 776
-- `error` (method_declaration) line 797
-- `boolToInt` (function_declaration) line 837
-- `error` (method_declaration) line 844
-- `CommitRecord` (type_spec) line 928
-- `error` (method_declaration) line 954
+- `SchemaError` (type_spec) line 28
+- `string` (method_declaration) line 33
+- `Store` (type_spec) line 37
+- `Open` (function_declaration) line 41
+- `OpenIfExists` (function_declaration) line 57
+- `error` (method_declaration) line 75
+- `error` (method_declaration) line 79
+- `error` (method_declaration) line 174
+- `error` (method_declaration) line 184
+- `error` (method_declaration) line 207
+- `error` (method_declaration) line 309
+- `error` (method_declaration) line 341
+- `error` (method_declaration) line 348
+- `encodeJSONList` (function_declaration) line 377
+- `decodeJSONList` (function_declaration) line 385
+- `scanRecord` (function_declaration) line 396
+- `scanner` (type_spec) line 426
+- `error` (method_declaration) line 432
+- `nullString` (function_declaration) line 500
+- `error` (method_declaration) line 577
+- `error` (method_declaration) line 601
+- `VectorRecord` (type_spec) line 633
+- `QueueItem` (type_spec) line 681
+- `error` (method_declaration) line 717
+- `FTSResult` (type_spec) line 726
+- `FileRecord` (type_spec) line 760
+- `Symbol` (type_spec) line 767
+- `SymbolEdge` (type_spec) line 777
+- `error` (method_declaration) line 798
+- `boolToInt` (function_declaration) line 838
+- `error` (method_declaration) line 845
+- `CommitRecord` (type_spec) line 929
+- `error` (method_declaration) line 955
 
 ## internal/store/store_test.go
 

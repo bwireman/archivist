@@ -47,7 +47,7 @@ make build          # ./archivist
    archivist init
    ```
 
-   That writes `.archivist.json`, creates record dirs (`docs/decisions/`, `docs/global-decisions/`, `docs/archive/`), appends `.archivist/` to `.gitignore`, and creates `~/.archivist/records/` for dev-scoped notes.
+   That writes `.archivist.json`, creates `docs/decisions/` and `docs/archive/`, appends `.archivist/` to `.gitignore`, and uses `~/.archivist` for global records (plus `~/.archivist/records/` for dev-scoped notes).
 
 3. **Index, embed, export:**
 
@@ -160,7 +160,7 @@ tags: [billing]
 ```
 
 - **type**: `decision`, `rule`, `guide`, `map`, `pitfall`
-- **scope**: `dev` (`~/.archivist/records/`), `repo` (`docs/decisions/`), `global` (`docs/global-decisions/`)
+- **scope**: `dev` (`~/.archivist/records/`), `repo` (`docs/decisions/`), `global` (`~/.archivist`, or `records.global` if set)
 - **severity** (rules): `must`, `must-not`, `should`, `should-not`
 
 ## Commands
@@ -209,7 +209,6 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
   },
   "records": {
     "repo": "docs/decisions",
-    "global": "docs/global-decisions",
     "dev": "",
     "export": "docs/archive"
   },
@@ -223,6 +222,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 
 - Empty `ollama.base_url` uses `$OLLAMA_HOST` (scheme optional) or `http://localhost:11434`.
 - Empty `records.dev` is `~/.archivist/records`.
+- Empty `records.global` is `~/.archivist`. Set it to a checkout-relative directory (this repo uses `docs/global-decisions`) to keep product-wide records in git.
 - SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
 

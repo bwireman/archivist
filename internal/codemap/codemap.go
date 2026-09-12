@@ -2,6 +2,7 @@ package codemap
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"unicode"
@@ -18,30 +19,38 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
+// Version is the code-map extractor contract. Bump it when extractors change
+// so the next full index remaps files whose content hashes have not changed.
+const Version = 2
+
 type languageSpec struct {
-	lang      *sitter.Language
-	symbols   []string
-	imports   []string
-	pkgNode   string
+	lang    *sitter.Language
+	symbols []string
+	imports []string
+	pkgNode string
 }
 
 var languageSpecs = map[string]languageSpec{
 	".go": {
-		lang: golang.GetLanguage(),
+		lang:    golang.GetLanguage(),
 		symbols: []string{"function_declaration", "method_declaration", "type_declaration", "type_spec", "interface_type"},
 		imports: []string{"import_spec"},
 		pkgNode: "package_clause",
 	},
 	".py": {
-		lang: python.GetLanguage(),
+		lang:    python.GetLanguage(),
 		symbols: []string{"function_definition", "class_definition"},
 		imports: []string{"import_statement", "import_from_statement"},
 	},
-	".js":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".jsx": {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".ts":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".tsx": {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".rs":  {lang: rust.GetLanguage(), symbols: []string{"function_item", "struct_item", "enum_item", "trait_item", "impl_item"}, imports: []string{"use_declaration"}},
+	".js":   {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".jsx":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".mjs":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".cjs":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".ts":   {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".tsx":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".mts":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".cts":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
+	".rs":   {lang: rust.GetLanguage(), symbols: []string{"function_item", "struct_item", "enum_item", "trait_item", "impl_item"}, imports: []string{"use_declaration"}},
 	".java": {lang: java.GetLanguage(), symbols: []string{"method_declaration", "class_declaration", "interface_declaration"}, imports: []string{"import_declaration"}},
 }
 
@@ -52,18 +61,42 @@ type Result struct {
 }
 
 // Extract parses a source file and returns structural map data only.
+// Tree-sitter or Gleam extractors run first; a language-agnostic line
+// matcher fills in when they error or return no symbols or imports.
 func Extract(path, content string) (Result, error) {
 	ext := strings.ToLower(filepath.Ext(path))
-	spec, ok := languageSpecs[ext]
-	if !ok {
+	if spec, ok := languageSpecs[ext]; ok {
+		res, err := extractTreeSitter(path, content, spec, ext)
+		return withGenericBackup(path, content, res, err)
+	}
+	if ext == ".gleam" {
+		res, err := extractGleam(path, content)
+		return withGenericBackup(path, content, res, err)
+	}
+	return extractGeneric(path, content)
+}
+
+func withGenericBackup(path, content string, res Result, err error) (Result, error) {
+	if err != nil {
 		return extractGeneric(path, content)
 	}
+	if len(res.Symbols) > 0 || len(res.Edges) > 0 {
+		return res, nil
+	}
+	gen, gerr := extractGeneric(path, content)
+	if gerr != nil || (len(gen.Symbols) == 0 && len(gen.Edges) == 0) {
+		return res, nil
+	}
+	gen.PackageName = res.PackageName
+	return gen, nil
+}
 
+func extractTreeSitter(path, content string, spec languageSpec, ext string) (Result, error) {
 	parser := sitter.NewParser()
 	parser.SetLanguage(spec.lang)
 	tree, err := parser.ParseCtx(context.Background(), nil, []byte(content))
 	if err != nil || tree == nil {
-		return extractGeneric(path, content)
+		return Result{}, fmt.Errorf("parse %s", path)
 	}
 	defer tree.Close()
 
@@ -118,25 +151,6 @@ func Extract(path, content string) (Result, error) {
 	return res, nil
 }
 
-func extractGeneric(path, content string) (Result, error) {
-	lines := strings.Split(content, "\n")
-	var syms []store.Symbol
-	for i, line := range lines {
-		trimmed := strings.TrimSpace(line)
-		if strings.HasPrefix(trimmed, "func ") || strings.HasPrefix(trimmed, "def ") ||
-			strings.HasPrefix(trimmed, "class ") || strings.HasPrefix(trimmed, "export ") {
-			syms = append(syms, store.Symbol{
-				FilePath: path,
-				Name:     trimmed,
-				Kind:     "line",
-				Line:     i + 1,
-				Exported: strings.HasPrefix(trimmed, "export "),
-			})
-		}
-	}
-	return Result{Symbols: syms}, nil
-}
-
 func findPackage(root *sitter.Node, src []byte, pkgNode, ext string) string {
 	var name string
 	var walk func(node *sitter.Node)
@@ -183,15 +197,19 @@ func isExported(name, ext string) bool {
 }
 
 func firstDocLine(lines []string, symLine int) string {
-	for i := symLine - 2; i >= 0 && i >= symLine-6; i-- {
+	for i := symLine - 2; i >= 0 && i >= symLine-8; i-- {
 		line := strings.TrimSpace(lines[i])
+		if line == "" || strings.HasPrefix(line, "@") {
+			continue
+		}
 		if strings.HasPrefix(line, "//") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "//"))
+			doc := strings.TrimSpace(strings.TrimPrefix(line, "//"))
+			return strings.TrimSpace(strings.TrimPrefix(doc, "/"))
 		}
 		if strings.HasPrefix(line, "#") {
 			return strings.TrimSpace(strings.TrimPrefix(line, "#"))
 		}
-		if line != "" && !strings.HasPrefix(line, "/*") {
+		if !strings.HasPrefix(line, "/*") {
 			break
 		}
 	}
