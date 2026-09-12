@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/bwireman/archivist/internal/embed"
@@ -67,6 +68,9 @@ func Search(ctx context.Context, st *store.Store, embedder embed.Embedder, query
 	})
 	if len(results) > opts.TopK {
 		results = results[:opts.TopK]
+	}
+	if err := st.StampSearch(query, time.Now()); err != nil {
+		return nil, err
 	}
 	return results, nil
 }

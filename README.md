@@ -170,7 +170,7 @@ What we chose, in one or two sentences.
 | `archivist index` | yes | Incremental embed into repo + global SQLite |
 | `archivist search <query>` | yes | Semantic search (`--type`, `--adr-scope`, `--top`, `--json`) |
 | `archivist dump [query]` | yes if there is a query | Markdown for an LLM (`-o` file or directory) |
-| `archivist status` | no (reports embedder health) | Chunk counts, last index time, Ollama reachability |
+| `archivist status` | no (reports embedder health) | Chunk counts, last index time, last search, Ollama reachability |
 | `archivist version` | no | CLI version and schema |
 
 `--type` is `code`, `doc`, `commit`, `adr`, or `comment`. `search` defaults to 20 hits and prints a multi-line excerpt of each chunk. Query `dump` defaults to 40 chunks and writes the full stored text.

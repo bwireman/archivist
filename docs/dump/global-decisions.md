@@ -5,7 +5,7 @@ Retrieved chunks from a local code index. Use only facts present here.
 - Query: (all matching chunks)
 - ADR scope: global
 - Type: adr
-- Chunks: 10
+- Chunks: 11
 
 ## `docs/global-decisions/001-bubbletea-index-tui.md` (adr/global, lines 1-17)
 
@@ -263,5 +263,31 @@ Default max chunk size is 4000 bytes with 400 bytes of overlap. Docs and ADRs pa
 - Existing indexes reopen as schema 2 with files cleared; `archivist index` is required before search is useful again. Commit chunks are left in place.
 - Larger embeddings take longer per file. Token-dense files (lockfiles, `go.sum`) still fit the default 4000-byte cap on `qwen3-embedding:0.6b`; a higher cap overflows that model even when the advertised context is 32k.
 - Heading-only splits of tiny markdown files no longer happen.
+```
+
+
+## `docs/global-decisions/011-last-search-meta.md` (adr/global, lines 1-18)
+
+```md
+File: docs/global-decisions/011-last-search-meta.md
+Kind: adr
+
+# Record last search in index meta
+
+- Status: accepted
+- Date: 2026-08-30
+- Scope: global
+
+## Context
+`archivist status` already shows `last_indexed_at` from the `meta` table. There was no record of what was last retrieved, so it was hard to tell whether the index had been queried or with which prompt.
+
+## Decision
+After a successful semantic retrieval (`archivist search`, or `archivist dump` with a query), write `last_search` (the trimmed query) and `last_search_at` (RFC3339 UTC) on the store that was queried. `archivist status` prints both for the repo index, and the same pair for the global index when those keys are set. Empty queries are not stored.
+
+## Consequences
+- Status can show the last retrieval without parsing shell history.
+- `--adr-scope global` stamps `~/.archivist/global.db`; default search stamps the repo DB.
+- A failed embed does not update the keys.
+- No schema bump: these are extra `meta` rows.
 ```
 

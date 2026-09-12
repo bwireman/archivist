@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/bwireman/archivist/internal/version"
@@ -18,6 +19,8 @@ const (
 	MetaLastIndexedAt    = "last_indexed_at"
 	MetaSchemaVersion    = "schema_version"
 	MetaArchivistVersion = "archivist_version"
+	MetaLastSearch       = "last_search"
+	MetaLastSearchAt     = "last_search_at"
 )
 
 // SchemaError is returned when the index was written by a newer CLI.
@@ -500,6 +503,33 @@ func (s *Store) StampIndexed(t time.Time) error {
 		return err
 	}
 	return s.SetMeta(MetaArchivistVersion, version.Version)
+}
+
+func (s *Store) LastSearch() (string, bool, error) {
+	return s.GetMeta(MetaLastSearch)
+}
+
+func (s *Store) LastSearchAt() (time.Time, bool, error) {
+	val, ok, err := s.GetMeta(MetaLastSearchAt)
+	if err != nil || !ok {
+		return time.Time{}, ok, err
+	}
+	t, err := time.Parse(time.RFC3339, val)
+	return t, true, err
+}
+
+func (s *Store) StampSearch(query string, t time.Time) error {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil
+	}
+	if t.IsZero() {
+		t = time.Now()
+	}
+	if err := s.SetMeta(MetaLastSearch, query); err != nil {
+		return err
+	}
+	return s.SetMeta(MetaLastSearchAt, t.UTC().Format(time.RFC3339))
 }
 
 func (s *Store) ChunkCount() (int, error) {

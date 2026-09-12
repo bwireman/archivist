@@ -200,6 +200,42 @@ func TestStampIndexedWritesVersion(t *testing.T) {
 	}
 }
 
+func TestStampSearch(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	if _, ok, err := st.LastSearch(); err != nil || ok {
+		t.Fatalf("expected no last search, ok=%v err=%v", ok, err)
+	}
+
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := st.StampSearch("  how indexing works  ", now); err != nil {
+		t.Fatal(err)
+	}
+	q, ok, err := st.LastSearch()
+	if err != nil || !ok || q != "how indexing works" {
+		t.Fatalf("last_search: ok=%v got=%q err=%v", ok, q, err)
+	}
+	at, ok, err := st.LastSearchAt()
+	if err != nil || !ok {
+		t.Fatalf("last_search_at: ok=%v err=%v", ok, err)
+	}
+	if !at.Equal(now) {
+		t.Fatalf("last_search_at: got %s want %s", at, now)
+	}
+
+	if err := st.StampSearch("   ", now); err != nil {
+		t.Fatal(err)
+	}
+	q, ok, err = st.LastSearch()
+	if err != nil || !ok || q != "how indexing works" {
+		t.Fatalf("empty stamp should not clear last_search: %q", q)
+	}
+}
+
 func TestOpenRejectsNewerSchema(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "test.db")
 	st, err := store.Open(path)

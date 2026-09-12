@@ -319,15 +319,20 @@ func newStatusCmd() *cobra.Command {
 			lastIdx, hasIdx, _ := st.LastIndexedAt()
 			schema, _ := st.SchemaVersion()
 			indexedBy, _, _ := st.ArchivistVersion()
+			lastSearch, hasSearch, _ := st.LastSearch()
+			lastSearchAt, hasSearchAt, _ := st.LastSearchAt()
 
 			var (
-				globalPath      string
-				globalChunks    int
-				globalFiles     int
-				globalLast      string
-				hasGlobalIdx    bool
-				globalSchema    int
-				globalIndexedBy string
+				globalPath          string
+				globalChunks        int
+				globalFiles         int
+				globalLast          string
+				hasGlobalIdx        bool
+				globalSchema        int
+				globalIndexedBy     string
+				globalLastSearch    string
+				globalLastSearchAt  string
+				hasGlobalLastSearch bool
 			)
 			gpath, gpathErr := resolveGlobalStorePath(cfg)
 			if gpathErr != nil {
@@ -347,43 +352,62 @@ func newStatusCmd() *cobra.Command {
 				if ghas {
 					globalLast = glast.Format("2006-01-02 15:04:05 UTC")
 				}
+				if q, ok, _ := gst.LastSearch(); ok {
+					globalLastSearch = q
+					hasGlobalLastSearch = true
+				}
+				if at, ok, _ := gst.LastSearchAt(); ok {
+					globalLastSearchAt = at.Format("2006-01-02 15:04:05 UTC")
+				}
 			}
 
 			type status struct {
-				Version           string `json:"version"`
-				Schema            int    `json:"schema"`
-				IndexSchema       int    `json:"index_schema"`
-				IndexedBy         string `json:"indexed_by,omitempty"`
-				EmbedderOK        bool   `json:"embedder_ok"`
-				EmbedderError     string `json:"embedder_error,omitempty"`
-				ChunkCount        int    `json:"chunk_count"`
-				FileCount         int    `json:"file_count"`
-				LastIndexedAt     string `json:"last_indexed_at,omitempty"`
-				GlobalPath        string `json:"global_path,omitempty"`
-				GlobalSchema      int    `json:"global_schema,omitempty"`
-				GlobalIndexedBy   string `json:"global_indexed_by,omitempty"`
-				GlobalChunkCount  int    `json:"global_chunk_count"`
-				GlobalFileCount   int    `json:"global_file_count"`
-				GlobalLastIndexed string `json:"global_last_indexed_at,omitempty"`
+				Version            string `json:"version"`
+				Schema             int    `json:"schema"`
+				IndexSchema        int    `json:"index_schema"`
+				IndexedBy          string `json:"indexed_by,omitempty"`
+				EmbedderOK         bool   `json:"embedder_ok"`
+				EmbedderError      string `json:"embedder_error,omitempty"`
+				ChunkCount         int    `json:"chunk_count"`
+				FileCount          int    `json:"file_count"`
+				LastIndexedAt      string `json:"last_indexed_at,omitempty"`
+				LastSearch         string `json:"last_search,omitempty"`
+				LastSearchAt       string `json:"last_search_at,omitempty"`
+				GlobalPath         string `json:"global_path,omitempty"`
+				GlobalSchema       int    `json:"global_schema,omitempty"`
+				GlobalIndexedBy    string `json:"global_indexed_by,omitempty"`
+				GlobalChunkCount   int    `json:"global_chunk_count"`
+				GlobalFileCount    int    `json:"global_file_count"`
+				GlobalLastIndexed  string `json:"global_last_indexed_at,omitempty"`
+				GlobalLastSearch   string `json:"global_last_search,omitempty"`
+				GlobalLastSearchAt string `json:"global_last_search_at,omitempty"`
 			}
 			s := status{
-				Version:           version.Version,
-				Schema:            version.Schema,
-				IndexSchema:       schema,
-				IndexedBy:         indexedBy,
-				EmbedderOK:        health.EmbedderOK,
-				EmbedderError:     health.EmbedderError,
-				ChunkCount:        chunks,
-				FileCount:         files,
-				GlobalPath:        globalPath,
-				GlobalSchema:      globalSchema,
-				GlobalIndexedBy:   globalIndexedBy,
-				GlobalChunkCount:  globalChunks,
-				GlobalFileCount:   globalFiles,
-				GlobalLastIndexed: globalLast,
+				Version:            version.Version,
+				Schema:             version.Schema,
+				IndexSchema:        schema,
+				IndexedBy:          indexedBy,
+				EmbedderOK:         health.EmbedderOK,
+				EmbedderError:      health.EmbedderError,
+				ChunkCount:         chunks,
+				FileCount:          files,
+				GlobalPath:         globalPath,
+				GlobalSchema:       globalSchema,
+				GlobalIndexedBy:    globalIndexedBy,
+				GlobalChunkCount:   globalChunks,
+				GlobalFileCount:    globalFiles,
+				GlobalLastIndexed:  globalLast,
+				GlobalLastSearch:   globalLastSearch,
+				GlobalLastSearchAt: globalLastSearchAt,
 			}
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
+			}
+			if hasSearch {
+				s.LastSearch = lastSearch
+			}
+			if hasSearchAt {
+				s.LastSearchAt = lastSearchAt.Format("2006-01-02 15:04:05 UTC")
 			}
 
 			if asJSON {
@@ -410,10 +434,22 @@ func newStatusCmd() *cobra.Command {
 			if hasIdx {
 				fmt.Printf("Last indexed: %s\n", s.LastIndexedAt)
 			}
+			if s.LastSearch != "" {
+				fmt.Printf("Last search: %s\n", s.LastSearch)
+			}
+			if s.LastSearchAt != "" {
+				fmt.Printf("Last search at: %s\n", s.LastSearchAt)
+			}
 			if s.GlobalPath != "" {
 				fmt.Printf("Global ADRs: %d chunks (%d files) at %s\n", s.GlobalChunkCount, s.GlobalFileCount, s.GlobalPath)
 				if hasGlobalIdx {
 					fmt.Printf("Global last indexed: %s\n", s.GlobalLastIndexed)
+				}
+				if hasGlobalLastSearch {
+					fmt.Printf("Global last search: %s\n", s.GlobalLastSearch)
+				}
+				if s.GlobalLastSearchAt != "" {
+					fmt.Printf("Global last search at: %s\n", s.GlobalLastSearchAt)
 				}
 			}
 			return nil

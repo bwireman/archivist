@@ -58,6 +58,13 @@ func TestSearchRanking(t *testing.T) {
 	if results[0].Chunk.Path != "auth.go" {
 		t.Fatalf("expected auth.go, got %s", results[0].Chunk.Path)
 	}
+	q, ok, err := st.LastSearch()
+	if err != nil || !ok || q != "authentication" {
+		t.Fatalf("last_search: ok=%v got=%q err=%v", ok, q, err)
+	}
+	if _, ok, err := st.LastSearchAt(); err != nil || !ok {
+		t.Fatalf("last_search_at: ok=%v err=%v", ok, err)
+	}
 }
 
 func TestFormatResults(t *testing.T) {
