@@ -9,11 +9,11 @@ import (
 
 func TestFormatSummary(t *testing.T) {
 	upToDate := FormatSummary(index.Progress{}, 215)
-	if upToDate != "Index up to date (215 chunks)" {
+	if upToDate != "Index up to date (215 records)" {
 		t.Fatalf("got %q", upToDate)
 	}
 	changed := FormatSummary(index.Progress{FilesIndexed: 3, CommitsNew: 1}, 40)
-	if changed != "Indexed 3 files, 1 commit (40 chunks)" {
+	if changed != "Indexed 3 files, 1 commit (40 records)" {
 		t.Fatalf("got %q", changed)
 	}
 }

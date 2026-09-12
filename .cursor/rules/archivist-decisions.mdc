@@ -1,40 +1,23 @@
 ---
-description: Record architecture decisions as ADRs that Archivist indexes
+description: Record design decisions and rules
 alwaysApply: true
 ---
 
 # Record decisions
 
-When you choose between real alternatives (storage, APIs, defaults, rejected approaches), write an ADR before you finish. Skip this for typos, formatting, and obvious bugfixes.
+When you choose between real alternatives, record them as typed archive records.
 
-## Where
-
-- **Repo** (this checkout only: embed pin, local paths, anything that must not follow the binary): `docs/decisions/NNN-slug.md`
-- **Global** (how Archivist works in every repo): `docs/global-decisions/NNN-slug.md`
-- **User-global** (your machine, every repo): `~/.archivist/decisions/NNN-slug.md`
-
-`NNN` is the next number **in that directory**. `slug` is a lowercase hyphenated title. Do not put product ADRs in `docs/decisions/`, and do not put this checkout's pins in `docs/global-decisions/`.
-
-```markdown
-# Use SQLite for the local index
-
-- Status: accepted
-- Date: 2026-08-28
-- Scope: repo
-
-## Context
-Why the question came up.
-
-## Decision
-What we chose, in one or two sentences.
-
-## Consequences
-- What becomes easier
-- What we are accepting
+```bash
+archivist remember --type decision --scope repo --title "..." --body "..."
+archivist remember --type rule --scope repo --severity must-not --title "..." --applies-to "internal/**" --body "..."
 ```
 
-`Scope` is `repo` or `global` (for humans). Classification comes from the path. Repo ADRs go in `.archivist/index.db`. Global ADRs go in `~/.archivist/global.db`.
+Or use the MCP `remember` tool.
 
-Status is `proposed`, `accepted`, `deprecated`, or `superseded`. Only state facts from this repo; do not invent APIs.
+- Repo: `docs/decisions/NNN-slug.md`
+- Global (product): `docs/global-decisions/NNN-slug.md`
+- Dev: `~/.archivist/records/`
 
-Then `make refresh-docs` (index + dump). If Ollama is down, still write the ADR; skip `make index` and dump whatever is already indexed.
+Use front matter with `type`, `scope`, `status`, and for rules `severity` and `applies_to`.
+
+Then `archivist index --plain` and `archivist export`.

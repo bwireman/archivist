@@ -1,190 +1,119 @@
 # Archivist
 
-A local semantic index for a Git repository. Archivist chunks code, docs, comments, git history, and architecture decision records (ADRs), embeds them with [Ollama](https://ollama.com), and stores them in SQLite. `search` and `dump` are the interfaces for you and for agents.
+A local knowledge archive for design decisions, rules, guides, and code structure. Records live as markdown with front matter; SQLite indexes them for hybrid search; MCP is the primary agent surface. A generated `docs/archive/` tree serves humans and tools without MCP.
 
-There is no cloud service. The index lives on disk next to the repo (plus one machine-wide ADR database under `~/.archivist/`).
+Archivist depends only on SQLite and Ollama HTTP — no vendor SDKs.
 
 ## Requirements
 
-- [Ollama](https://ollama.com) running locally (`ollama serve`, default `http://localhost:11434`)
-- An embedding model pulled in Ollama. Init defaults to `qwen3-embedding:0.6b`; pick any model you actually have.
-- [Go](https://go.dev) 1.26+ to build or install the CLI from this checkout
+- [Go](https://go.dev) 1.27+ to build
+- [Ollama](https://ollama.com) for embedding (optional at index time; required for `embed --worker`)
 
-## Install the CLI
-
-There is no published binary yet. From this checkout:
+## Install
 
 ```bash
 make install
-```
-
-That runs `go install ./cmd/archivist` into `$(go env GOPATH)/bin`. Put that directory on your `PATH`, then check:
-
-```bash
 archivist version
 ```
 
-You can also run `./archivist` after `make build` without installing.
-
-## Set up a new repository
-
-1. **Start Ollama** and pull the embed model you will pin in this repo:
-
-   ```bash
-   ollama serve   # if it is not already running
-   ollama pull qwen3-embedding:0.6b
-   ```
-
-   Init can use a different model (for example `nomic-embed-text`). Pull that name instead, and set it in the init form or in `.archivist.json`. Changing the model later needs a full reindex; existing vectors are not comparable across models.
-
-2. **Initialize Archivist in the repo:**
-
-   ```bash
-   cd /path/to/your/repo
-   archivist init
-   ```
-
-   On a TTY, init opens a form for Ollama URL, embed model, skip dirs/globs, gitignore, and ADR globs. `--plain` writes the tool defaults with no prompt:
-
-   ```bash
-   archivist init --plain
-   ```
-
-   Init writes:
-
-   | Path | Commit? | Purpose |
-   | --- | --- | --- |
-   | `.archivist.json` | yes | Ollama, skip lists, ADR globs, store paths |
-   | `.archivist/` | no | Repo SQLite index (`index.db`). Init appends `.archivist/` to `.gitignore`. |
-   | `docs/decisions/` | yes (when you add ADRs) | Repo ADRs for this checkout |
-   | `docs/global-decisions/` | only if you author product ADRs | Files here go in the machine-wide global index, not the repo DB |
-
-   `archivist init` does not copy Cursor rules and does not create `~/.archivist/decisions/`.
-
-3. **Index:**
-
-   ```bash
-   archivist index
-   ```
-
-   On a TTY this shows a progress view (`q` cancels). Scripts and agents should pass `--plain` for a one-line summary:
-
-   ```bash
-   archivist index --plain
-   ```
-
-   Indexing walks the repo (honoring `.gitignore` by default), skips `docs/dump/`, embeds new or changed chunks, and writes:
-
-   - **Repo index:** `.archivist/index.db` — code, docs, git, and repo ADRs (`docs/decisions/**`)
-   - **Global index:** `~/.archivist/global.db` — in-repo `docs/global-decisions/**` plus `~/.archivist/decisions/`
-
-4. **Confirm:**
-
-   ```bash
-   archivist status
-   ```
-
-5. **Search and dump:**
-
-   ```bash
-   archivist search "how auth middleware works"
-   archivist dump "how auth middleware works"
-   archivist dump "how auth middleware works" -o docs/dump/auth.md
-   archivist dump --type adr --adr-scope repo -o docs/dump/decisions.md
-   ```
-
-   Query `search`/`dump` need Ollama. Dumping already-indexed ADRs with `--type adr` and no query does not.
-
-From another directory, pass `--path`:
+## Quick start
 
 ```bash
-archivist --path /path/to/your/repo status
+cd /path/to/your/repo
+archivist init --plain
+archivist index --plain          # no Ollama required
+archivist embed --worker --once  # needs Ollama
+archivist export                 # writes docs/archive/
+archivist mcp                    # MCP server on stdio
 ```
 
-### Optional Makefile targets
+## Record model
 
-This checkout’s `Makefile` is for building Archivist. In an application repo you only need something like:
-
-```makefile
-.PHONY: index dump-docs refresh-docs
-
-index:
-	archivist index --plain
-
-dump-docs:
-	mkdir -p docs/dump
-	archivist dump --type adr --adr-scope repo -o docs/dump/decisions.md
-
-refresh-docs: index dump-docs
-```
-
-## Two indexes
-
-Default `search` and `dump` use **this checkout’s** `.archivist/index.db` (code, docs, git, repo ADRs). They do not mix in other projects.
-
-`--adr-scope global` reads `~/.archivist/global.db`: product ADRs from `docs/global-decisions/` in repos you have indexed, and user ADRs under `~/.archivist/decisions/`. Use that only when the question is about those shared decisions, not this repo’s code.
-
-`--scope` is a path prefix or glob inside the index you opened. It is not ADR kind.
-
-## Cursor / agent rules
-
-Init does not install editor rules. Copy the four files under [`.cursor/rules/`](.cursor/rules/) from this repo into the new project, then change two things so they match a repo that has Archivist on `PATH` rather than a local `./archivist` binary:
-
-- Use `archivist` instead of `./archivist`.
-- Use `archivist index --plain` (or `make index` if you added the targets above) instead of `make index` from this checkout.
-
-Keep the workflow the rules describe:
-
-1. **Consult** the index (then `docs/decisions/` / `docs/dump/`) before guessing APIs or past decisions.
-2. **Record** real design choices as ADRs in `docs/decisions/NNN-slug.md` (user-wide: `~/.archivist/decisions/`). Do not put application decisions in `docs/global-decisions/`; that directory is for how Archivist itself works.
-3. **Dump** retrieved context into `docs/dump/` after decisions or architecture work. Do not hand-edit dumps; `docs/dump/` is not indexed.
-4. **Re-index** at the end of a turn that changed indexed files. Skip if you only touched `docs/dump/` or `.archivist/`. If Ollama is down, say so and continue.
-
-ADR shape:
+Records are markdown files with YAML front matter:
 
 ```markdown
-# Use SQLite for the local index
-
-- Status: accepted
-- Date: 2026-08-28
-- Scope: repo
+---
+id: rec_...
+type: rule
+scope: repo
+status: accepted
+title: Never call billing from handlers
+severity: must-not
+applies_to: ["internal/http/**"]
+tags: [billing]
+---
 
 ## Context
-Why the question came up.
-
-## Decision
-What we chose, in one or two sentences.
-
-## Consequences
-- What becomes easier
-- What we are accepting
+...
 ```
 
-`NNN` is the next number **in that directory**. Status is `proposed`, `accepted`, `deprecated`, or `superseded`. `Scope` is for humans; classification is the path (repo vs global globs).
+- **type**: `decision`, `rule`, `guide`, `map`, `pitfall`
+- **scope**: `dev` (`~/.archivist/records/`), `repo` (`docs/decisions/`), `global` (`docs/global-decisions/`)
+- **severity** (rules): `must`, `must-not`, `should`, `should-not`
 
 ## Commands
 
-| Command | Needs Ollama | What it does |
+| Command | Ollama | Purpose |
 | --- | --- | --- |
-| `archivist init` | no | Write `.archivist.json`, data dirs, ADR dirs, gitignore |
-| `archivist index` | yes | Incremental embed into repo + global SQLite |
-| `archivist search <query>` | yes | Semantic search (`--type`, `--adr-scope`, `--top`, `--json`) |
-| `archivist dump [query]` | yes if there is a query | Markdown for an LLM (`-o` file or directory) |
-| `archivist status` | no (reports embedder health) | Chunk counts, last index time, last search, Ollama reachability |
-| `archivist version` | no | CLI version and schema |
+| `archivist init` | no | Config, data dirs, decision dirs |
+| `archivist index` | no | Index records + code map |
+| `archivist embed --worker` | yes | Drain embed queue |
+| `archivist search <query>` | optional | Hybrid FTS + vector search |
+| `archivist check` | optional | Match rules to a change |
+| `archivist remember` | no | Create a record |
+| `archivist update` / `retire` | no | Amend or supersede |
+| `archivist export` | no | Generate `docs/archive/` |
+| `archivist publish <name>` | no | Bundle + configured shell command |
+| `archivist mcp` | optional | MCP server (primary agent API) |
+| `archivist migrate records` | no | Convert legacy ADRs |
+| `archivist skills install --target cursor` | no | Generate agent skill files |
+| `archivist status` | no | Archive + queue status |
 
-`--type` is `code`, `doc`, `commit`, `adr`, or `comment`. `search` defaults to 20 hits and prints a multi-line excerpt of each chunk. Query `dump` defaults to 40 chunks and writes the full stored text.
+## MCP tools
 
-## This checkout
+`search`, `get`, `check`, `map`, `remember`, `update`, `retire`, `status`
 
-This repository is the Archivist tool. `archivist init` and this checkout both default to `qwen3-embedding:0.6b`.
+## Generated archive
 
-```bash
-make build          # ./archivist
-make test
-make index          # ./archivist index --plain
-make dump-docs      # repo ADRs and (separately) global ADRs into docs/dump/
-make refresh-docs   # index, then dump-docs
+`archivist export` writes:
+
+- `docs/archive/INDEX.md` — catalog by type and scope
+- `docs/archive/rules.md` — must/must-not rules inline
+- `docs/archive/map.md` — code structure overview
+- `docs/archive/records/<scope>/<slug>.md` — one file per record
+- `docs/archive/archive.json` — machine-readable manifest
+
+Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
+
+## Publish destinations
+
+Configure in `.archivist.json`:
+
+```json
+"publish": {
+  "destinations": {
+    "team-wiki": { "command": ["./scripts/push.sh", "{{bundle}}"] }
+  }
+}
 ```
 
-Product ADRs live in `docs/global-decisions/`. Pins that must not follow the binary (embed model, local paths) live in `docs/decisions/`. Regenerated dumps are under `docs/dump/`; do not edit them by hand.
+## Makefile (this checkout)
+
+```bash
+make build
+make test
+make index
+make embed      # needs Ollama
+make export
+make refresh-archive
+```
+
+## Migration from v2
+
+```bash
+archivist migrate records
+rm -f .archivist/index.db ~/.archivist/global.db   # schema v3 reset
+archivist index --plain
+archivist embed --worker --once
+archivist export
+```

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/tui"
 	"github.com/mattn/go-isatty"
@@ -18,35 +17,24 @@ func newIndexCmd() *cobra.Command {
 	var plain bool
 	cmd := &cobra.Command{
 		Use:   "index",
-		Short: "Incrementally index code, docs, git history, and ADRs",
+		Short: "Index records and code structure (no Ollama required)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err
 			}
-			st, err := openStore(root, cfg)
+			repo, home, err := openStores(root, cfg)
 			if err != nil {
 				return err
 			}
-			defer st.Close()
-
-			gst, err := openGlobalStore(cfg)
-			if err != nil {
-				return err
-			}
-			defer gst.Close()
-
-			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
-			if err := client.Healthy(cmd.Context()); err != nil {
-				return fmt.Errorf("%w (run: ollama serve)", err)
-			}
+			defer repo.Close()
+			defer home.Close()
 
 			idx := &index.Indexer{
 				RepoRoot: root,
 				Cfg:      cfg,
-				Store:    st,
-				Global:   gst,
-				Embedder: client,
+				Store:    repo,
+				Home:     home,
 			}
 
 			useTUI := !plain && isatty.IsTerminal(os.Stdout.Fd())
@@ -69,11 +57,8 @@ func newIndexCmd() *cobra.Command {
 				}
 				return runErr
 			}
-			count, _ := st.ChunkCount()
+			count, _ := repo.RecordCount()
 			fmt.Println(tui.FormatSummary(progress, count))
-			if gc, err := gst.ChunkCount(); err == nil {
-				fmt.Printf("Global ADRs: %d chunks\n", gc)
-			}
 			return nil
 		},
 	}

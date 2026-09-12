@@ -205,14 +205,14 @@ func truncate(s string, n int) string {
 }
 
 // FormatSummary is the one-line result printed after the TUI (or instead of it).
-func FormatSummary(p index.Progress, chunkCount int) string {
+func FormatSummary(p index.Progress, recordCount int) string {
 	if p.FilesIndexed == 0 && p.CommitsNew == 0 && p.FilesRemoved == 0 {
-		return fmt.Sprintf("Index up to date (%d chunks)", chunkCount)
+		return fmt.Sprintf("Index up to date (%d records)", recordCount)
 	}
-	return fmt.Sprintf("Indexed %d %s, %d %s (%d chunks)",
+	return fmt.Sprintf("Indexed %d %s, %d %s (%d records)",
 		p.FilesIndexed, plural(p.FilesIndexed, "file", "files"),
 		p.CommitsNew, plural(p.CommitsNew, "commit", "commits"),
-		chunkCount)
+		recordCount)
 }
 
 func plural(n int, one, many string) string {

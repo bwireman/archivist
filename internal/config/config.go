@@ -18,15 +18,25 @@ const (
 	DefaultEmbedTimeoutStr    = "2m"
 	DefaultDecisionsDir       = "docs/decisions"
 	DefaultGlobalDecisionsDir = "docs/global-decisions"
-	DefaultDumpDir            = "docs/dump"
-	DefaultGlobalDB           = "global.db"
+	DefaultArchiveDir         = "docs/archive"
+	DefaultDumpDir            = "docs/archive" // legacy alias
+	DefaultGlobalDB           = "archive.db"
 	UserGlobalPrefix          = "user"
 )
 
 type Config struct {
-	Ollama OllamaConfig `json:"ollama"`
-	Index  IndexConfig  `json:"index"`
-	Store  StoreConfig  `json:"store"`
+	Ollama  OllamaConfig  `json:"ollama"`
+	Index   IndexConfig   `json:"index"`
+	Store   StoreConfig   `json:"store"`
+	Publish PublishConfig `json:"publish"`
+}
+
+type PublishConfig struct {
+	Destinations map[string]PublishDestination `json:"destinations"`
+}
+
+type PublishDestination struct {
+	Command []string `json:"command"`
 }
 
 type OllamaConfig struct {
@@ -221,14 +231,19 @@ func pathUnderDir(dir, path string) bool {
 	return path == dir || strings.HasPrefix(path, dir+sep)
 }
 
-// UserDecisionsDir is ~/.archivist/decisions — user-global ADRs in the
-// machine-wide global index, not the repo DB.
-func UserDecisionsDir() string {
+// UserRecordsDir is ~/.archivist/records — dev-scoped records in the
+// machine-wide archive index, not the repo DB.
+func UserRecordsDir() string {
 	home := ArchivistHome()
 	if home == "" {
 		return ""
 	}
-	return filepath.Join(home, "decisions")
+	return filepath.Join(home, "records")
+}
+
+// UserDecisionsDir is the legacy path; prefer UserRecordsDir.
+func UserDecisionsDir() string {
+	return UserRecordsDir()
 }
 
 // VirtualUserADRPath is the index path for a file under UserDecisionsDir.

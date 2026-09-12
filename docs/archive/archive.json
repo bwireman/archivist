@@ -1,0 +1,136 @@
+{
+  "schema_version": 3,
+  "exported_at": "2026-09-12T19:36:03Z",
+  "records": [
+    {
+      "id": "rec_293e0ad9ce7ae2e270dd",
+      "slug": "008-default-adr-globs",
+      "type": "decision",
+      "scope": "global",
+      "title": "Default ADR globs are the product directories",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/008-default-adr-globs.md",
+      "content_hash": "1a6e66cceda182cea14850aa15ea85b58eb1236fecbe90c6dc1aafa485cc243f"
+    },
+    {
+      "id": "rec_330b72a24aff842edf5a",
+      "slug": "009-qwen3-embed-default",
+      "type": "decision",
+      "scope": "global",
+      "title": "Default embed model is qwen3-embedding:0.6b",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/009-qwen3-embed-default.md",
+      "content_hash": "c71830efd2e256c34898c0156a3c5a7fd9be77bd6c1ded2cf2212c9eecc739e6"
+    },
+    {
+      "id": "rec_6e94d1190b59d6365335",
+      "slug": "007-honor-gitignore",
+      "type": "decision",
+      "scope": "global",
+      "title": "Honor .gitignore when indexing",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/007-honor-gitignore.md",
+      "content_hash": "eb45fb52b4ca8a429e6676a638c9faf7593790e9b425d44e23eccc45af7f19ad"
+    },
+    {
+      "id": "rec_b709c21fa97255bd7629",
+      "slug": "005-nested-adr-config",
+      "type": "decision",
+      "scope": "global",
+      "title": "Nest ADR globs under index.adr",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/005-nested-adr-config.md",
+      "content_hash": "8a672c61faa781fc2d42ada51e00e58074fdc639316e590230ecf34be932d224"
+    },
+    {
+      "id": "rec_ac188553efd793db61e5",
+      "slug": "012-knowledge-archive-pivot",
+      "type": "decision",
+      "scope": "global",
+      "title": "Pivot to knowledge archive with MCP primary surface",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/012-knowledge-archive-pivot.md",
+      "content_hash": "65dbb0ef6bfdbc01e0c4c78ec44526511ae87a2a46f6cd11713f562686775bd1"
+    },
+    {
+      "id": "rec_2af87c2692626de3ecd7",
+      "slug": "011-last-search-meta",
+      "type": "decision",
+      "scope": "global",
+      "title": "Record last search in index meta",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/011-last-search-meta.md",
+      "content_hash": "0b0b0ab8a44bf8d22923a411d930e428db2f4533613843995e279ebc82de5aac"
+    },
+    {
+      "id": "rec_68b392b5b1d7fd67e7b3",
+      "slug": "004-schema-and-cli-version",
+      "type": "decision",
+      "scope": "global",
+      "title": "Record schema and CLI version",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/004-schema-and-cli-version.md",
+      "content_hash": "327829f2111d78d3bb28993c9cb97106bcd570cf3cc96da610be872af414b3bc"
+    },
+    {
+      "id": "rec_0ed07ffad59c1d58b9e2",
+      "slug": "010-richer-chunks-and-cli",
+      "type": "decision",
+      "scope": "global",
+      "title": "Richer chunks and longer CLI results",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/010-richer-chunks-and-cli.md",
+      "content_hash": "be2f39b964ffd4abb7255e996d7bcd8ef66672df403370ba86cad9a41449eaee"
+    },
+    {
+      "id": "rec_bbf3e07cb5eeec0bd837",
+      "slug": "006-separate-global-index",
+      "type": "decision",
+      "scope": "global",
+      "title": "Separate SQLite index for global ADRs",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/006-separate-global-index.md",
+      "content_hash": "6ff6700cb66d57ede983e7f4a20643e07a5777eee26a37731aaf30e84a8ddde5"
+    },
+    {
+      "id": "rec_2a6281f6b3917c11dc0b",
+      "slug": "003-global-and-repo-adrs",
+      "type": "decision",
+      "scope": "global",
+      "title": "Separate global and repo ADRs",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/003-global-and-repo-adrs.md",
+      "content_hash": "79f1afbe75e4ef97bc6b75923d6a177b8850802fa4664a9943e9660c252b7549"
+    },
+    {
+      "id": "rec_03b53c31d84603de473c",
+      "slug": "001-bubbletea-index-tui",
+      "type": "decision",
+      "scope": "global",
+      "title": "Use Bubble Tea for the index TUI",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/001-bubbletea-index-tui.md",
+      "content_hash": "d69c51f991410b9efc8ddc827b70a57d8faa9e572b70971e8457a65869333ba5"
+    },
+    {
+      "id": "rec_487f791d4ced16a80cde",
+      "slug": "002-huh-init-tui",
+      "type": "decision",
+      "scope": "global",
+      "title": "Use Huh for the init TUI",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/002-huh-init-tui.md",
+      "content_hash": "2b98bec6f6ed50993671b6f26bf6140fabb5e823d84cb779a07ddb10cbba8545"
+    },
+    {
+      "id": "rec_d517cd894e443ee0d4f2",
+      "slug": "001-use-qwen3-embedding",
+      "type": "decision",
+      "scope": "repo",
+      "title": "Use qwen3-embedding:0.6b for this repository",
+      "status": "superseded",
+      "source_path": "docs/decisions/001-use-qwen3-embedding.md",
+      "content_hash": "cd8bbf9210237686d8564da40590dc2cb9c376f948cd4f8564a96a058f196a67"
+    }
+  ]
+}

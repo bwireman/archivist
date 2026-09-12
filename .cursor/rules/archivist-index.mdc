@@ -1,20 +1,18 @@
 ---
-description: Regularly re-index the repository with Archivist
+description: Keep the archive index current
 alwaysApply: true
 ---
 
 # Index regularly
 
-Keep the Archivist index current. Run `make index` (needs Ollama) when you finish a turn that changed indexed files: Go sources, markdown docs, repo ADRs under `docs/decisions/`, product ADRs under `docs/global-decisions/`, or anything else the indexer walks.
-
-Repo files update `.archivist/index.db`. In-repo product ADRs also update `~/.archivist/global.db`.
+Run when you finish a turn that changed records, Go sources, or docs under `docs/decisions/` or `docs/global-decisions/`.
 
 ```bash
-make index
+archivist index --plain
+archivist embed --worker --once   # when Ollama is available
+archivist export
 ```
 
-- Do this at the end of the turn, not only after writing an ADR
-- Skip if you only touched `docs/dump/`, `.archivist/`, or files the indexer ignores
-- Skip if you already indexed those changes this turn
-- If Ollama is down, say so and continue; do not retry in a loop
-- After indexing new or updated ADRs, also dump: `make dump-docs`
+- Index does not require Ollama
+- Skip if you only touched `docs/archive/` or `.archivist/`
+- If Ollama is down, index and export anyway; skip embed

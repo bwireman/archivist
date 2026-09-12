@@ -1,12 +1,10 @@
 BIN      ?= archivist
 PKG      := ./cmd/archivist
 ARGS     ?=
-DUMP       ?= docs/dump/decisions.md
-GLOBALDUMP ?= docs/dump/global-decisions.md
 VERSION  ?=
 LDFLAGS  := $(if $(VERSION),-ldflags "-X github.com/bwireman/archivist/internal/version.Version=$(VERSION)")
 
-.PHONY: all build test vet fmt tidy check install run index dump-docs refresh-docs clean help
+.PHONY: all build test vet fmt tidy check install run index embed export refresh-archive clean help
 
 all: build
 
@@ -30,20 +28,22 @@ check: fmt vet test ## Format, vet, and test
 install: ## Install archivist to GOPATH/bin
 	go install $(LDFLAGS) $(PKG)
 
-run: ## Run archivist (e.g. make run ARGS='dump --help')
+run: ## Run archivist (e.g. make run ARGS='search --help')
 	go run $(LDFLAGS) $(PKG) $(ARGS)
 
-index: build ## Incrementally index the repository (needs Ollama)
+index: build ## Index records and code map (no Ollama)
 	./$(BIN) index --plain
 
-dump-docs: build ## Dump indexed ADRs to docs/dump/
-	./$(BIN) dump --type adr --adr-scope repo -o $(DUMP)
-	./$(BIN) dump --type adr --adr-scope global -o $(GLOBALDUMP)
+embed: build ## Drain embed queue (needs Ollama)
+	./$(BIN) embed --worker --once
 
-refresh-docs: index dump-docs ## Index, then dump ADRs into docs/dump/
+export: build ## Generate docs/archive/
+	./$(BIN) export
+
+refresh-archive: index embed export ## Index, embed, then export
 
 clean: ## Remove the local binary
 	rm -f $(BIN)
 
 help: ## Show this help
-	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-10s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*## "} /^[a-zA-Z_-]+:.*## / {printf "  %-16s %s\n", $$1, $$2}' $(MAKEFILE_LIST)
