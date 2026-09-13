@@ -1,5 +1,5 @@
 ---
-description: Archivist rule refresh
+description: Rebuild the Archivist index, embeddings, and export after record or code changes
 alwaysApply: true
 ---
 

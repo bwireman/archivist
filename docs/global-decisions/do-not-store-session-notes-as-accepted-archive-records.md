@@ -9,4 +9,4 @@ applies_to: [docs/decisions/**, docs/global-decisions/**]
 tags: [hygiene]
 ---
 
-Ephemeral session observations (MCP down this chat, config currently unset, unverified "gap" catalogs) are not accepted decisions. Record a decision or rule only when choosing between alternatives or encoding a lasting constraint. Prefer `update` or `retire` over adding a parallel accepted note.
+Ephemeral session observations (MCP down this chat, config currently unset, unverified "gap" catalogs), conversation transcripts, and restatements of records already on file are not accepted archive records. Distill a lasting choice, constraint, or capability. Prefer `update` or `retire` over adding a parallel accepted note.

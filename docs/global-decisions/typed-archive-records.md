@@ -26,7 +26,7 @@ In this product checkout, `records.global` is `docs/global-decisions` so product
 - Indexer walks those directories (and home global/dev) and prunes missing files.
 - Export writes `INDEX.md` by `record.IndexOrder`, a full-text digest per type (`rules.md`, `features.md`, …), and copies under `records/<scope>/<type>/`.
 - Check only enforces `rule` records.
-- On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents when to write each type.
+- On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents to distill lasting facts from this conversation (search first, skip chat glut). MCP initialize `instructions` are the consult + record templates so hosts without skills install still get that bar.
 
 ## Entry points
 

@@ -1,5 +1,35 @@
 # Features
 
+## Agent rules and skills
+
+- Status: accepted
+- Scope: global
+- Applies to: rules/**, skills/**, internal/skills/**
+- Tags: agents, skills
+
+## Purpose
+
+Generate host-specific always-on rules and on-demand skills from templates shipped in the CLI.
+
+## Behavior
+
+`archivist skills install --target cursor|claude|agents-md|copilot` writes consult, record, and refresh rules, and (for Cursor/Claude) the record, refresh, and publish skills. If the target checkout already has `rules/` or `skills/` with real files, those override the embedded copies.
+
+The record rule tells agents to scan this conversation and distill lasting decisions, rules, and features without dumping chat. Skills are the per-type procedure (search first, short body). Cursor rule front matter is `alwaysApply: true` plus a one-line description (`cursorRuleDescription`). `agents-md` and Copilot get concatenated rules only.
+
+## Connects to
+
+- Template trees `rules/` and `skills/` (`go:embed` via `rules/fs.go`, `skills/fs.go`).
+- MCP initialize instructions reuse consult + record.
+- Decision: split always-on rules from on-demand skills; ship templates in the CLI.
+
+## Entry points
+
+- CLI: `archivist skills install --target cursor`
+- Types: `skills.Install`
+
+---
+
 ## Archive export
 
 - Status: accepted
@@ -34,6 +64,37 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. `--bundle`
 
 - CLI: `archivist export`, `archivist export --bundle <dir>`
 - Types: `export.Run`, `export.WriteBundle`
+
+---
+
+## Command log
+
+- Status: accepted
+- Scope: global
+- Applies to: internal/cmdlog/**, internal/cmd/**, internal/mcp/**, internal/config/**
+
+## Purpose
+
+Opt-in audit log of archive CLI commands and MCP tool calls, written as JSONL under `.archivist/commands.log`.
+
+## Behavior
+
+`log_commands` defaults false. When true, each archive command or MCP tool appends two lines: `dir=in` with arguments, then `dir=out` with parsed JSON result (MCP) or ok/error (CLI) plus `duration_ms`. `init`, `version`, `skills`, and `archivist mcp` itself are skipped; MCP tool calls are still logged. Write errors are swallowed. Fields over 64KiB become `{truncated, bytes, preview}`.
+
+Off: no file is created. On: `.archivist/` is created if needed. The path is not configurable.
+
+## Connects to
+
+- Config: `log_commands`.
+- Path: `.archivist/commands.log` (`config.CommandsLogPath`).
+- CLI wrap in `internal/cmd`; MCP `WithToolHandlerMiddleware`.
+
+## Entry points
+
+- Config: `.archivist.json` `log_commands`
+- Types: `cmdlog.Logger`, `cmdlog.FromConfig`
+- CLI: wrapped `search`, `status`, `remember`, `update`, `retire`, `check`, `index`, `embed`, `export`, `publish`, `migrate records`
+- MCP: all tools when the flag is on
 
 ---
 
@@ -108,6 +169,39 @@ After a successful search, the repo store stamps `last_search` and `last_search_
 
 ---
 
+## MCP server
+
+- Status: accepted
+- Scope: global
+- Applies to: internal/mcp/**, internal/cmd/mcp.go
+- Tags: mcp, agents
+
+## Purpose
+
+Primary agent API over stdio. Clients consult and curate the archive without a separate CLI round-trip.
+
+## Behavior
+
+`archivist mcp` serves `search`, `get`, `check`, `map`, `remember`, `update`, `retire`, and `status` over JSON-RPC stdio. Initialize `instructions` are `rules/consult.md` plus `rules/record.md` so hosts without `skills install` still look things up and distill lasting facts from conversation. Tool descriptions tell agents to search before writing, prefer `update` on an existing record, and skip chat transcripts.
+
+Search works if Ollama is down (keyword-only). Writes never need Ollama. The process cwd must be the repo, or the client must pass `--path`.
+
+When `log_commands` is true, each tool call is appended to `.archivist/commands.log` (`dir=in` then `dir=out`) via tool-handler middleware. The `mcp` process itself is not logged as a CLI command. Stdio JSON-RPC is never written to the log.
+
+## Connects to
+
+- `retrieve.Engine`, `archive.Service`, `check`, embed health/`status`.
+- Embedded rule templates in `rules/` (`consult.md`, `record.md`).
+- On-demand skills for the per-type write procedure.
+- Command log: `log_commands`, `cmdlog.Logger`.
+
+## Entry points
+
+- CLI: `archivist mcp`
+- Types: `mcp.Server`, `mcp.ServeStdio`
+
+---
+
 ## Typed archive records
 
 - Status: accepted
@@ -133,7 +227,7 @@ In this product checkout, `records.global` is `docs/global-decisions` so product
 - Indexer walks those directories (and home global/dev) and prunes missing files.
 - Export writes `INDEX.md` by `record.IndexOrder`, a full-text digest per type (`rules.md`, `features.md`, …), and copies under `records/<scope>/<type>/`.
 - Check only enforces `rule` records.
-- On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents when to write each type.
+- On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents to distill lasting facts from this conversation (search first, skip chat glut). MCP initialize `instructions` are the consult + record templates so hosts without skills install still get that bar.
 
 ## Entry points
 

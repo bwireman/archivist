@@ -31,6 +31,7 @@ func fullConfig() *config.Config {
 				"wiki": {Command: []string{"./scripts/push.sh", "{{bundle}}"}},
 			},
 		},
+		LogCommands: true,
 	}
 }
 
@@ -59,6 +60,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.Records.Export != config.DefaultArchiveDir {
 		t.Fatalf("records.export: %q", cfg.Records.Export)
+	}
+	if cfg.LogCommands {
+		t.Fatal("log_commands should default off")
 	}
 }
 
@@ -102,7 +106,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(raw, &keys); err != nil {
 		t.Fatal(err)
 	}
-	for _, key := range []string{"ollama", "index", "records", "publish"} {
+	for _, key := range []string{"ollama", "index", "records", "publish", "log_commands"} {
 		if _, ok := keys[key]; !ok {
 			t.Fatalf("missing key %q", key)
 		}
@@ -221,6 +225,9 @@ func TestStorePaths(t *testing.T) {
 	want := filepath.Join(dir, ".archivist", "index.db")
 	if got != want {
 		t.Fatalf("store: %q want %q", got, want)
+	}
+	if got := config.CommandsLogPath(dir); got != filepath.Join(dir, ".archivist", "commands.log") {
+		t.Fatalf("commands log: %q", got)
 	}
 	home := config.ArchivistHome()
 	if home == "" {

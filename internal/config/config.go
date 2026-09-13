@@ -13,6 +13,7 @@ const (
 	DefaultConfigName         = ".archivist.json"
 	DefaultDataDir            = ".archivist"
 	DefaultIndexDB            = "index.db"
+	DefaultCommandsLog        = "commands.log"
 	DefaultEmbedModel         = "qwen3-embedding:0.6b"
 	DefaultEmbedTimeout       = 5 * time.Minute
 	DefaultEmbedTimeoutStr    = "5m"
@@ -26,10 +27,11 @@ const (
 )
 
 type Config struct {
-	Ollama  OllamaConfig  `json:"ollama"`
-	Index   IndexConfig   `json:"index,omitempty"`
-	Records RecordsConfig `json:"records"`
-	Publish PublishConfig `json:"publish,omitempty"`
+	Ollama      OllamaConfig  `json:"ollama"`
+	Index       IndexConfig   `json:"index,omitempty"`
+	Records     RecordsConfig `json:"records"`
+	Publish     PublishConfig `json:"publish,omitempty"`
+	LogCommands bool          `json:"log_commands,omitempty"`
 }
 
 type PublishConfig struct {
@@ -225,6 +227,10 @@ func DataDir(repoRoot string) string {
 
 func StorePath(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir, DefaultIndexDB)
+}
+
+func CommandsLogPath(repoRoot string) string {
+	return filepath.Join(repoRoot, DefaultDataDir, DefaultCommandsLog)
 }
 
 func ArchivistHome() string {

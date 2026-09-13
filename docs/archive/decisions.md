@@ -127,6 +127,36 @@ Superseded by rec_config014. Default `records.repo` is `docs/decisions`. Empty `
 
 ---
 
+## Distill conversation into the archive without glut
+
+- Status: accepted
+- Scope: global
+- Tags: agents, mcp, hygiene
+
+## Context
+
+Always-on `rules/record.md` told agents to write a record when they chose among alternatives, but not to mine this conversation. Skill descriptions triggered mainly when the user said "remember". Durable choices died in chat. The opposite failure — dumping session notes — is already a rule.
+
+Alternatives: keep recording reactive (explicit remember only); auto-dump every turn into notes; distill lasting facts in-band with a quality bar.
+
+## Decision
+
+Agents must scan this conversation and distill lasting decisions, rules, and features in the same turn they appear. They must not wait for an explicit remember. Quality bar: one current document per topic; search first; update or retire instead of parallel notes; short bodies; skip transcripts, session errors, and code-only detail.
+
+Ship that bar in three places that stay aligned:
+
+- Always-on `rules/record.md` (when).
+- On-demand record skills (how, including search-first).
+- MCP initialize `instructions` copied from the consult + record templates, plus tool descriptions that prefer search/update over glut.
+
+## Consequences
+
+- Hosts that only configure `archivist mcp` still get consult + distill guidance.
+- Editing `rules/consult.md` or `rules/record.md` changes MCP initialize instructions on the next binary build (this checkout's `skills install` already reads the local template tree).
+- The session-notes rule remains the checkable constraint against chat glut.
+
+---
+
 ## Drop interactive TUIs; CLI is always plain
 
 - Status: accepted
@@ -246,6 +276,31 @@ Gleam sources appear in `map.md` after a full index. Existing indexes remap once
 - Scope: global
 
 Superseded by rec_config014. ADR globs (`index.adr`) were removed; record locations are `records.repo` / `records.global` directories.
+
+---
+
+## Optional JSONL command log at .archivist/commands.log
+
+- Status: accepted
+- Scope: global
+- Applies to: internal/config/**, internal/cmdlog/**, internal/cmd/**, internal/mcp/**
+
+## Context
+
+Need an opt-in trace of archive reads and writes (CLI and MCP) without a configurable extra path, and without mixing MCP JSON-RPC stdio into the log.
+
+## Decision
+
+- Top-level bool `log_commands` in `.archivist.json` (default false, omitempty).
+- When true, append JSONL to `.archivist/commands.log` (path fixed, like SQLite).
+- Each archive operation writes `dir=in` (command + args) then `dir=out` (result or error). MCP tools and archive CLI commands are logged; `init`, `version`, `skills`, and the `mcp` process itself are not.
+- Logging failures are ignored so they never fail the command. Payloads larger than 64KiB are truncated.
+
+## Consequences
+
+- Existing configs stay quiet. This checkout sets `log_commands` true.
+- The log lives under `.archivist/` so gitignore already covers it.
+- Restart `archivist mcp` after flipping the flag.
 
 ---
 

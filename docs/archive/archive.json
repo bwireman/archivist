@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-13T17:24:47Z",
+  "exported_at": "2026-09-13T19:01:51Z",
   "records": [
     {
       "id": "rec_cd668042d22370100627",
@@ -82,6 +82,21 @@
       "content_hash": "7e695d4d2913ae445d4c2c1116353db839079ba3736d0579e6c49aaf85530804"
     },
     {
+      "id": "rec_8a68f4096ab3498eeaa3",
+      "slug": "distill-conversation-into-the-archive-without-glut",
+      "type": "decision",
+      "scope": "global",
+      "title": "Distill conversation into the archive without glut",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/distill-conversation-into-the-archive-without-glut.md",
+      "tags": [
+        "agents",
+        "mcp",
+        "hygiene"
+      ],
+      "content_hash": "aa69ab42893df414781e7aea5057bc1bae8b5449b12324e12d5d1d4493d4846c"
+    },
+    {
       "id": "rec_plaincli013",
       "slug": "013-plain-cli",
       "type": "decision",
@@ -151,6 +166,22 @@
       "status": "superseded",
       "source_path": "docs/global-decisions/005-nested-adr-config.md",
       "content_hash": "6c952368f1c13d18a8975624d833756187d6fb4cf8ebb8caed1c5563ded87097"
+    },
+    {
+      "id": "rec_c146ba784a29a4c1aa82",
+      "slug": "optional-jsonl-command-log-at-archivist-commands-log",
+      "type": "decision",
+      "scope": "global",
+      "title": "Optional JSONL command log at .archivist/commands.log",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/optional-jsonl-command-log-at-archivist-commands-log.md",
+      "applies_to": [
+        "internal/config/**",
+        "internal/cmdlog/**",
+        "internal/cmd/**",
+        "internal/mcp/**"
+      ],
+      "content_hash": "e6f87175d7fbcba4a3ae7dbbb4d81bcf88f1a4dac91832fc8c134637d3f48022"
     },
     {
       "id": "rec_ac188553efd793db61e5",
@@ -301,6 +332,25 @@
       "content_hash": "0e49b7c5b6eea16014fe37b9def957d446d6ee5685ded7a341d33f88935818c6"
     },
     {
+      "id": "rec_7d90d1d2186279928bb4",
+      "slug": "agent-rules-and-skills",
+      "type": "feature",
+      "scope": "global",
+      "title": "Agent rules and skills",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/agent-rules-and-skills.md",
+      "tags": [
+        "agents",
+        "skills"
+      ],
+      "applies_to": [
+        "rules/**",
+        "skills/**",
+        "internal/skills/**"
+      ],
+      "content_hash": "f2c5454585bd34698c4b818c911e67be4d639eb98fa59aac8ff0d3327358d17c"
+    },
+    {
       "id": "rec_9e0fa8636b4267f0d942",
       "slug": "archive-export",
       "type": "feature",
@@ -316,6 +366,22 @@
         "internal/cmd/export.go"
       ],
       "content_hash": "14793b12ed14863c5b404ae1f5b20b7947df98f9e40dc69ac6119bd4ea3a8751"
+    },
+    {
+      "id": "rec_c8adf16494471b04e19a",
+      "slug": "command-log",
+      "type": "feature",
+      "scope": "global",
+      "title": "Command log",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/command-log.md",
+      "applies_to": [
+        "internal/cmdlog/**",
+        "internal/cmd/**",
+        "internal/mcp/**",
+        "internal/config/**"
+      ],
+      "content_hash": "333eae7101c4172909e2cb613100ace29ddbe0c6163206e17c00b1a6637191c6"
     },
     {
       "id": "rec_423018b323939206d5cc",
@@ -358,6 +424,24 @@
       "content_hash": "3e3bf1b04c17833dfae760a780420d02954120f706814463d36bc843729e20ee"
     },
     {
+      "id": "rec_00d3d3d48b988c969105",
+      "slug": "mcp-server",
+      "type": "feature",
+      "scope": "global",
+      "title": "MCP server",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/mcp-server.md",
+      "tags": [
+        "mcp",
+        "agents"
+      ],
+      "applies_to": [
+        "internal/mcp/**",
+        "internal/cmd/mcp.go"
+      ],
+      "content_hash": "ddec7ed4543c6b0c82dc83b52f127579cd62fbfbc520b9e1c5cd685752101809"
+    },
+    {
       "id": "rec_179dbf51d8a090fef8d7",
       "slug": "typed-archive-records",
       "type": "feature",
@@ -372,7 +456,7 @@
         "internal/record/**",
         "internal/archive/**"
       ],
-      "content_hash": "af5ac43ca778afee6218f484cb0d9aeff5e13ef40ab79b8b28dafa987c4ac2ff"
+      "content_hash": "0bb7627e18e4231cd8a29a325ef16c0f7b345105d53eccdecfea182ef009ea8a"
     },
     {
       "id": "rec_184e12358de7c5b12414",
@@ -442,7 +526,7 @@
         "docs/decisions/**",
         "docs/global-decisions/**"
       ],
-      "content_hash": "a5782d882051b7cb751fcff5a23dacc5cdbf21e0cab34b785456fe7914269e6d"
+      "content_hash": "16b1e21cf2f1559d30001872356d2f178add5714b5eb0dae73b73b251fb6c8e5"
     },
     {
       "id": "rec_8240f8ac1fec1a19cb38",

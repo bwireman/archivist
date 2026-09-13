@@ -30,6 +30,20 @@
 - `pathsFromDiff` (function_declaration) line 95
 - `unique` (function_declaration) line 112
 
+## internal/cmd/cmdlog.go
+
+- `wrapArchiveCommandLogs` (function_declaration) line 11
+- `archiveCommand` (function_declaration) line 24
+- `wrapLoggedRunE` (function_declaration) line 35
+- `cliArgs` (function_declaration) line 50
+
+## internal/cmd/cmdlog_test.go
+
+- `TestCommandLogCLIRemember` (function_declaration) line 14
+- `TestCommandLogOffWritesNothing` (function_declaration) line 60
+- `TestCommandLogSkipsVersion` (function_declaration) line 82
+- `TestArchiveCommandSelection` (function_declaration) line 103
+
 ## internal/cmd/embed.go
 
 - `newEmbedCmd` (function_declaration) line 11
@@ -75,17 +89,17 @@
 ## internal/cmd/root.go
 
 - `NewRoot` (function_declaration) line 21
-- `newVersionCmd` (function_declaration) line 49
-- `repoRoot` (function_declaration) line 60
-- `loadEnv` (function_declaration) line 68
-- `openStore` (function_declaration) line 80
-- `openHomeStore` (function_declaration) line 84
-- `resolveHomeStorePath` (function_declaration) line 92
-- `openStores` (function_declaration) line 100
-- `appendGitignore` (function_declaration) line 113
-- `newSearchCmd` (function_declaration) line 140
-- `newStatusCmd` (function_declaration) line 190
-- `status` (type_spec) line 215
+- `newVersionCmd` (function_declaration) line 50
+- `repoRoot` (function_declaration) line 61
+- `loadEnv` (function_declaration) line 69
+- `openStore` (function_declaration) line 81
+- `openHomeStore` (function_declaration) line 85
+- `resolveHomeStorePath` (function_declaration) line 93
+- `openStores` (function_declaration) line 101
+- `appendGitignore` (function_declaration) line 114
+- `newSearchCmd` (function_declaration) line 141
+- `newStatusCmd` (function_declaration) line 191
+- `status` (type_spec) line 216
 
 ## internal/cmd/skills.go
 
@@ -94,6 +108,25 @@
 ## internal/cmd/version_test.go
 
 - `TestVersionFlagAndCommand` (function_declaration) line 11
+
+## internal/cmdlog/log.go
+
+- `Logger` (type_spec) line 15
+- `Entry` (type_spec) line 21
+- `Disabled` (function_declaration) line 32
+- `New` (function_declaration) line 36
+- `FromConfig` (function_declaration) line 43
+- `bool` (method_declaration) line 50
+- `clip` (function_declaration) line 102
+
+## internal/cmdlog/log_test.go
+
+- `TestDisabledWritesNothing` (function_declaration) line 14
+- `TestFromConfigOff` (function_declaration) line 23
+- `TestInOutJSONL` (function_declaration) line 32
+- `TestOutRecordsError` (function_declaration) line 62
+- `TestClipLargePayload` (function_declaration) line 80
+- `bytesTrimLine` (function_declaration) line 89
 
 ## internal/codemap/codemap.go
 
@@ -141,54 +174,55 @@
 
 ## internal/config/config.go
 
-- `Config` (type_spec) line 28
-- `PublishConfig` (type_spec) line 35
-- `PublishDestination` (type_spec) line 39
-- `OllamaConfig` (type_spec) line 43
-- `string` (method_declaration) line 54
-- `normalizeOllamaURL` (function_declaration) line 64
-- `parseTimeout` (function_declaration) line 76
-- `IndexConfig` (type_spec) line 87
-- `RecordsConfig` (type_spec) line 91
-- `RecordsConfig` (method_declaration) line 98
-- `expandHomePath` (function_declaration) line 116
-- `bool` (method_declaration) line 133
-- `string` (method_declaration) line 146
-- `PathUnder` (function_declaration) line 163
-- `Default` (function_declaration) line 172
-- `Load` (function_declaration) line 186
-- `Save` (function_declaration) line 212
-- `DataDir` (function_declaration) line 222
-- `StorePath` (function_declaration) line 226
-- `ArchivistHome` (function_declaration) line 230
-- `HomeStorePath` (function_declaration) line 238
-- `UserRecordsDir` (function_declaration) line 246
-- `string` (method_declaration) line 254
-- `VirtualUserADRPath` (function_declaration) line 270
-- `VirtualHomeGlobalPath` (function_declaration) line 274
-- `prefixedHomePath` (function_declaration) line 278
-- `IsUserGlobalPath` (function_declaration) line 286
-- `IsHomeGlobalPath` (function_declaration) line 290
-- `hasHomePrefix` (function_declaration) line 294
+- `Config` (type_spec) line 29
+- `PublishConfig` (type_spec) line 37
+- `PublishDestination` (type_spec) line 41
+- `OllamaConfig` (type_spec) line 45
+- `string` (method_declaration) line 56
+- `normalizeOllamaURL` (function_declaration) line 66
+- `parseTimeout` (function_declaration) line 78
+- `IndexConfig` (type_spec) line 89
+- `RecordsConfig` (type_spec) line 93
+- `RecordsConfig` (method_declaration) line 100
+- `expandHomePath` (function_declaration) line 118
+- `bool` (method_declaration) line 135
+- `string` (method_declaration) line 148
+- `PathUnder` (function_declaration) line 165
+- `Default` (function_declaration) line 174
+- `Load` (function_declaration) line 188
+- `Save` (function_declaration) line 214
+- `DataDir` (function_declaration) line 224
+- `StorePath` (function_declaration) line 228
+- `CommandsLogPath` (function_declaration) line 232
+- `ArchivistHome` (function_declaration) line 236
+- `HomeStorePath` (function_declaration) line 244
+- `UserRecordsDir` (function_declaration) line 252
+- `string` (method_declaration) line 260
+- `VirtualUserADRPath` (function_declaration) line 276
+- `VirtualHomeGlobalPath` (function_declaration) line 280
+- `prefixedHomePath` (function_declaration) line 284
+- `IsUserGlobalPath` (function_declaration) line 292
+- `IsHomeGlobalPath` (function_declaration) line 296
+- `hasHomePrefix` (function_declaration) line 300
 
 ## internal/config/config_test.go
 
 - `fullConfig` (function_declaration) line 13
-- `TestDefaultConfig` (function_declaration) line 37
-- `TestLoadFullConfigFromDisk` (function_declaration) line 65
-- `TestSaveLoadRoundTrip` (function_declaration) line 84
-- `TestLoadMissingConfigUsesDefaults` (function_declaration) line 112
-- `TestLoadInvalidJSON` (function_declaration) line 123
-- `TestLoadOmitsRecordsUsesDefaults` (function_declaration) line 133
-- `TestPathUnder` (function_declaration) line 154
-- `TestVirtualUserADRPath` (function_declaration) line 163
-- `TestIsUserGlobalPath` (function_declaration) line 169
-- `TestIsHomeGlobalPath` (function_declaration) line 178
-- `TestGlobalDirDefaultsToArchivistHome` (function_declaration) line 190
-- `TestStorePaths` (function_declaration) line 218
-- `TestResolvedBaseURLEnv` (function_declaration) line 234
-- `TestDataDir` (function_declaration) line 246
-- `TestNormalizeOllamaHostWithoutScheme` (function_declaration) line 253
+- `TestDefaultConfig` (function_declaration) line 38
+- `TestLoadFullConfigFromDisk` (function_declaration) line 69
+- `TestSaveLoadRoundTrip` (function_declaration) line 88
+- `TestLoadMissingConfigUsesDefaults` (function_declaration) line 116
+- `TestLoadInvalidJSON` (function_declaration) line 127
+- `TestLoadOmitsRecordsUsesDefaults` (function_declaration) line 137
+- `TestPathUnder` (function_declaration) line 158
+- `TestVirtualUserADRPath` (function_declaration) line 167
+- `TestIsUserGlobalPath` (function_declaration) line 173
+- `TestIsHomeGlobalPath` (function_declaration) line 182
+- `TestGlobalDirDefaultsToArchivistHome` (function_declaration) line 194
+- `TestStorePaths` (function_declaration) line 222
+- `TestResolvedBaseURLEnv` (function_declaration) line 241
+- `TestDataDir` (function_declaration) line 253
+- `TestNormalizeOllamaHostWithoutScheme` (function_declaration) line 260
 
 ## internal/embed/embedder.go
 
@@ -353,10 +387,20 @@
 
 ## internal/mcp/server.go
 
-- `Server` (type_spec) line 20
-- `New` (function_declaration) line 30
-- `jsonResult` (function_declaration) line 93
-- `ServeStdio` (function_declaration) line 222
+- `Server` (type_spec) line 24
+- `New` (function_declaration) line 34
+- `mcpLogResult` (function_declaration) line 115
+- `agentInstructions` (function_declaration) line 146
+- `mustRule` (function_declaration) line 150
+- `jsonResult` (function_declaration) line 158
+- `ServeStdio` (function_declaration) line 287
+
+## internal/mcp/server_test.go
+
+- `TestAgentInstructionsMatchRuleTemplates` (function_declaration) line 17
+- `TestToolDescriptionsPreferDistillOverGlut` (function_declaration) line 43
+- `TestCommandLogMiddlewareWritesJSONL` (function_declaration) line 65
+- `TestMcpLogResultParsesJSON` (function_declaration) line 102
 
 ## internal/migrate/migrate.go
 
@@ -433,14 +477,16 @@
 - `skillFS` (function_declaration) line 135
 - `dirWithSuffix` (function_declaration) line 152
 - `wrapCursorRule` (function_declaration) line 165
-- `writeFile` (function_declaration) line 169
+- `cursorRuleDescription` (function_declaration) line 169
+- `writeFile` (function_declaration) line 182
 
 ## internal/skills/install_test.go
 
 - `TestInstallCursor` (function_declaration) line 10
 - `TestInstallCursorEmbeddedTemplates` (function_declaration) line 30
-- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 53
-- `writeTree` (function_declaration) line 71
+- `TestInstallAgentsMDWritesRulesOnly` (function_declaration) line 75
+- `TestCursorRuleDescriptions` (function_declaration) line 93
+- `writeTree` (function_declaration) line 102
 
 ## internal/store/embedding.go
 

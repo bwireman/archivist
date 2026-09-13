@@ -22,5 +22,6 @@
         "command": ["./scripts/push.sh", "{{bundle}}"]
       }
     }
-  }
+  },
+  "log_commands": true
 }

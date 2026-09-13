@@ -1,14 +1,15 @@
 ---
 name: record-feature
-description: Record how a product capability works in the Archivist archive. Use when documenting a feature, subsystem, queue, CLI/MCP surface, or what it connects to; or when the user asks to remember a feature.
+description: Distill how a capability works into an Archivist feature record. Use when this conversation or a code change establishes behavior, connections, or entry points, or when the user asks to remember a feature. Do not use for why we chose it (record-decision) or for must/must-not constraints (record-rule).
 ---
 
 # Record a feature
 
-A `feature` record is living documentation of a capability: how it behaves, which packages and stores it uses, and how agents or humans invoke it. It is not a design decision (why we chose it) and not a rule (must/must-not).
+A `feature` is living documentation of a capability. It is not a design decision and not a rule. When behavior changes, `update` the feature; when the capability is removed, `retire` it. Search `--type feature` before creating a second document.
 
-1. Set `applies_to` path globs for the implementing packages so agents can tie the feature to the code. `archivist check` only matches `rule` records; look features up with `archivist search --type feature`.
-2. Capture Purpose, Behavior, Connects to, and Entry points:
+1. Search for an existing feature on this capability. Prefer `update`.
+2. Set `applies_to` path globs for the implementing packages. `archivist check` only matches `rule` records.
+3. Capture only what a later agent needs. Skip chat narration.
 
 ```markdown
 ## Purpose
@@ -28,14 +29,12 @@ Stores, other features, config keys, and record types.
 CLI, MCP, and the main Go types.
 ```
 
-3. Create the record:
+4. Create only if search shows a gap:
 
 ```bash
 archivist remember --type feature --scope global --title "..." --applies-to "internal/embed/**" --tags queue --body "..."
 ```
 
-Or MCP tool `remember` with `type=feature`.
+Or MCP `remember` with `type=feature`.
 
-4. Scope: `global` for product capabilities, `repo` for this checkout only, `dev` for personal notes.
-5. When behavior changes, `archivist update` the feature. When the capability is removed, `archivist retire` it.
-6. Refresh: `archivist index` then `archivist export`.
+5. Scope: `global` for product capabilities, `repo` for this checkout only, `dev` for personal notes. Then `archivist index` and `archivist export`.

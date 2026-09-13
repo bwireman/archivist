@@ -1,10 +1,18 @@
 ---
-description: Archivist rule record
+description: Distill lasting decisions, rules, and features from this conversation; skip chat glut
 alwaysApply: true
 ---
 
 # Record decisions, rules, and features
 
-When you choose between real alternatives, or a must/must-not constraint, write a typed archive record (`decision` or `rule`). When documenting how a capability works, what it connects to, or how to invoke it, write a `feature` record. Use `archivist remember` or the MCP `remember` tool. Do not leave the choice or the capability description only in chat.
+Scan this conversation for durable knowledge. When a lasting choice, constraint, or capability description appears, write it to the archive in this turn. Do not wait for "remember this." Do not leave it only in chat.
 
-Repo records go under the configured `records.repo` directory; product-wide under `records.global` (default `~/.archivist`); personal under `records.dev` (default `~/.archivist/records/`).
+- `decision` — a real choice among alternatives (Context, Decision, Consequences).
+- `rule` — must/must-not or should/should-not that future work should follow.
+- `feature` — how a capability works, what it connects to, and how to invoke it.
+
+Search first. Update or retire an existing record instead of adding a parallel note. One current document per topic. Keep bodies short: facts, not narration.
+
+Skip chat transcripts, restatements of records already on file, ephemeral session state (this chat's errors, "MCP is down"), unverified catalogs, and details that live only in code.
+
+Use MCP `remember` / `update` / `retire` or `archivist remember`. Scope: `repo` this checkout, `global` the product, `dev` personal. Directories: `records.repo` / `records.global` (default `~/.archivist`) / `records.dev`.

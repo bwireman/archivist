@@ -43,6 +43,7 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newCheckCmd())
 	root.AddCommand(newMigrateCmd())
 	root.AddCommand(newSkillsCmd())
+	wrapArchiveCommandLogs(root)
 	return root
 }
 

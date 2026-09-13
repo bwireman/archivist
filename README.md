@@ -128,14 +128,16 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 | Tool | Purpose |
 | --- | --- |
-| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `top_k`) |
+| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `top_k`). Use before implementing or writing a record. |
 | `get` | One record by id or slug |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Where code lives (symbols / files) |
-| `remember` | Create a record (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`) |
-| `update` | Amend title, body, or status |
-| `retire` | Mark superseded |
+| `remember` | Create a record after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Distill lasting facts; do not dump chat. |
+| `update` | Amend title, body, or status in place (prefer over a parallel `remember`) |
+| `retire` | Mark superseded when a later choice replaces it |
 | `status` | Counts, embed queue, Ollama health |
+
+Initialize `instructions` are the consult + record rule templates, so MCP-only hosts still look things up and distill from conversation.
 
 Tool output is JSON, the same shape as CLI `--json`. Agents without MCP should read `docs/archive/` instead.
 
@@ -224,7 +226,8 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
     "destinations": {
       "team-wiki": { "command": ["./scripts/push.sh", "{{bundle}}"] }
     }
-  }
+  },
+  "log_commands": true
 }
 ```
 
@@ -232,14 +235,15 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 - Empty `records.dev` is `~/.archivist/records`.
 - Empty `records.global` is `~/.archivist`. Set it to a checkout-relative directory (this repo uses `docs/global-decisions`) to keep product-wide records in git.
 - SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
+- `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the result or error. `init`, `version`, `skills`, and the `mcp` process itself are not logged (MCP tools still are). Logging never fails the command.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
 
 ## Agent rules and skills
 
 `archivist skills install --target cursor|claude|agents-md|copilot` writes:
 
-- **Rules** (always on): consult the archive, record decisions/rules/features, refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
-- **Skills** (on demand): `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. `record-feature` is for how a capability works and what it connects to (not a design choice). Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
+- **Rules** (always on): consult the archive, distill lasting decisions/rules/features from the conversation (skip chat glut), refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
+- **Skills** (on demand): `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Skills are the per-type procedure (search first, short body); the record rule is when to write. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
 

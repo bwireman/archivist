@@ -163,7 +163,20 @@ func dirWithSuffix(dir, suffix string) fs.FS {
 }
 
 func wrapCursorRule(body, name string) string {
-	return fmt.Sprintf("---\ndescription: Archivist rule %s\nalwaysApply: true\n---\n\n%s\n", name, body)
+	return fmt.Sprintf("---\ndescription: %s\nalwaysApply: true\n---\n\n%s\n", cursorRuleDescription(name), body)
+}
+
+func cursorRuleDescription(name string) string {
+	switch name {
+	case "consult":
+		return "Consult the Archivist archive before guessing APIs, defaults, or past decisions"
+	case "record":
+		return "Distill lasting decisions, rules, and features from this conversation; skip chat glut"
+	case "refresh":
+		return "Rebuild the Archivist index, embeddings, and export after record or code changes"
+	default:
+		return "Archivist rule " + name
+	}
 }
 
 func writeFile(path, content string) error {

@@ -8,5 +8,6 @@
     "repo": "docs/decisions",
     "global": "docs/global-decisions",
     "export": "docs/archive"
-  }
+  },
+  "log_commands": true
 }

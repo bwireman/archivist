@@ -40,9 +40,31 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(data), "Consult the archive") {
 		t.Fatalf("embedded consult rule missing: %s", data)
 	}
-	skill := filepath.Join(root, ".cursor", "skills", "record-decision", "SKILL.md")
-	if _, err := os.Stat(skill); err != nil {
+	if !strings.Contains(string(data), "do not trust chat memory") {
+		t.Fatalf("consult rule should search rather than trust chat: %s", data)
+	}
+	recordPath := filepath.Join(root, ".cursor", "rules", "archivist-record.mdc")
+	recordData, err := os.ReadFile(recordPath)
+	if err != nil {
 		t.Fatal(err)
+	}
+	got := string(recordData)
+	if !strings.Contains(got, "Distill lasting decisions") {
+		t.Fatalf("record rule description missing distill guidance: %s", got)
+	}
+	if !strings.Contains(got, "Scan this conversation") {
+		t.Fatalf("record rule missing conversation distill: %s", got)
+	}
+	if !strings.Contains(got, "Skip chat transcripts") {
+		t.Fatalf("record rule missing glut bar: %s", got)
+	}
+	skill := filepath.Join(root, ".cursor", "skills", "record-decision", "SKILL.md")
+	skillData, err := os.ReadFile(skill)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(skillData), "Search for the same topic") {
+		t.Fatalf("record-decision skill should search first: %s", skillData)
 	}
 	feature := filepath.Join(root, ".cursor", "skills", "record-feature", "SKILL.md")
 	if _, err := os.Stat(feature); err != nil {
@@ -65,6 +87,15 @@ func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, ".cursor", "skills")); !os.IsNotExist(err) {
 		t.Fatal("agents-md should not install cursor skills")
+	}
+}
+
+func TestCursorRuleDescriptions(t *testing.T) {
+	if !strings.Contains(cursorRuleDescription("record"), "Distill lasting") {
+		t.Fatal(cursorRuleDescription("record"))
+	}
+	if got := cursorRuleDescription("unknown"); got != "Archivist rule unknown" {
+		t.Fatalf("fallback: %s", got)
 	}
 }
 

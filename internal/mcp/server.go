@@ -3,18 +3,22 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"strings"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
 
 	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/check"
+	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/bwireman/archivist/internal/version"
+	ruletmpl "github.com/bwireman/archivist/rules"
 )
 
 type Server struct {
@@ -40,54 +44,115 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embed
 }
 
 func (s *Server) MCPServer() *mcpserver.MCPServer {
-	srv := mcpserver.NewMCPServer("archivist", version.Version)
+	opts := []mcpserver.ServerOption{mcpserver.WithInstructions(agentInstructions())}
+	if s != nil && s.Cfg != nil && s.Cfg.LogCommands {
+		opts = append(opts, mcpserver.WithToolHandlerMiddleware(s.commandLogMiddleware()))
+	}
+	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
-		mcp.WithDescription("Search the knowledge archive"),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("scope"),
 		mcp.WithNumber("top_k"),
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
-		mcp.WithDescription("Get a record by id or slug"),
+		mcp.WithDescription("Get one archive record by id or slug after search."),
 		mcp.WithString("id", mcp.Required()),
 	), s.toolGet)
 	srv.AddTool(mcp.NewTool("check",
-		mcp.WithDescription("Check rules against a change"),
+		mcp.WithDescription("Check rule records against a change (description, paths, diff)."),
 		mcp.WithString("description"),
 		mcp.WithString("paths"),
 		mcp.WithString("diff"),
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
-		mcp.WithDescription("Find where code lives"),
+		mcp.WithDescription("Find where code lives (symbols and files)."),
 		mcp.WithString("query", mcp.Required()),
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
-		mcp.WithDescription("Create a new archive record"),
+		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record."),
 		mcp.WithString("type", mcp.Required(), mcp.Description("decision, rule, feature, guide, map, or pitfall")),
-		mcp.WithString("scope", mcp.Required()),
+		mcp.WithString("scope", mcp.Required(), mcp.Description("repo, global, or dev")),
 		mcp.WithString("title", mcp.Required()),
-		mcp.WithString("body", mcp.Required()),
+		mcp.WithString("body", mcp.Required(), mcp.Description("short distilled markdown; not a chat log")),
 		mcp.WithString("severity"),
 		mcp.WithString("applies_to"),
 		mcp.WithString("tags"),
 	), s.toolRemember)
 	srv.AddTool(mcp.NewTool("update",
-		mcp.WithDescription("Update an existing record"),
+		mcp.WithDescription("Update an existing record in place when the same topic already has a current document. Prefer this over remember for refinements."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("title"),
 		mcp.WithString("body"),
 		mcp.WithString("status"),
 	), s.toolUpdate)
 	srv.AddTool(mcp.NewTool("retire",
-		mcp.WithDescription("Mark a record superseded"),
+		mcp.WithDescription("Mark a record superseded when a later choice replaces it. Leave a stub plus superseded_by; do not keep two accepted documents on the same topic."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("superseded_by"),
 	), s.toolRetire)
 	srv.AddTool(mcp.NewTool("status",
-		mcp.WithDescription("Archive and embedder status"),
+		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health)."),
 	), s.toolStatus)
 	return srv
+}
+
+func (s *Server) commandLogMiddleware() mcpserver.ToolHandlerMiddleware {
+	log := cmdlog.FromConfig(s.RepoRoot, s.Cfg)
+	return func(next mcpserver.ToolHandlerFunc) mcpserver.ToolHandlerFunc {
+		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			start := time.Now()
+			name := req.Params.Name
+			log.In("mcp", name, req.GetArguments())
+			res, err := next(ctx, req)
+			log.Out("mcp", name, mcpLogResult(res), err, start)
+			return res, err
+		}
+	}
+}
+
+func mcpLogResult(res *mcp.CallToolResult) any {
+	if res == nil {
+		return nil
+	}
+	var b strings.Builder
+	for _, c := range res.Content {
+		switch t := c.(type) {
+		case mcp.TextContent:
+			b.WriteString(t.Text)
+		case *mcp.TextContent:
+			if t != nil {
+				b.WriteString(t.Text)
+			}
+		}
+	}
+	text := b.String()
+	if res.IsError {
+		return map[string]any{"is_error": true, "text": text}
+	}
+	if text == "" {
+		return nil
+	}
+	var parsed any
+	if json.Unmarshal([]byte(text), &parsed) == nil {
+		return parsed
+	}
+	return text
+}
+
+// agentInstructions is returned on MCP initialize so hosts without skills
+// install still consult the archive and distill lasting facts from conversation.
+func agentInstructions() string {
+	return mustRule("consult.md") + "\n\n" + mustRule("record.md")
+}
+
+func mustRule(name string) string {
+	b, err := ruletmpl.FS.ReadFile(name)
+	if err != nil {
+		panic(err)
+	}
+	return strings.TrimSpace(string(b))
 }
 
 func jsonResult(v any) (*mcp.CallToolResult, error) {

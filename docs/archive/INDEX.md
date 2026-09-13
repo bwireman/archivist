@@ -19,12 +19,14 @@ Type digests: [Rules](rules.md) · [Decisions](decisions.md) · [Features](featu
 - [Default ADR globs are the product directories](records/global/decision/008-default-adr-globs.md) (superseded)
 - [Default embed model is qwen3-embedding:0.6b](records/global/decision/009-qwen3-embed-default.md) (accepted)
 - [Default records.global is ~/.archivist](records/global/decision/default-records-global-is-archivist.md) (accepted)
+- [Distill conversation into the archive without glut](records/global/decision/distill-conversation-into-the-archive-without-glut.md) (accepted)
 - [Drop interactive TUIs; CLI is always plain](records/global/decision/013-plain-cli.md) (accepted)
 - [Export archive grouped by record type with type digest files](records/global/decision/export-archive-grouped-by-record-type-with-type-digest-files.md) (accepted)
 - [Honor .gitignore when indexing](records/global/decision/007-honor-gitignore.md) (accepted)
 - [Language-agnostic code map backup with fixtures per language](records/global/decision/language-agnostic-code-map-backup-with-fixtures-per-language.md) (accepted)
 - [Line-based Gleam map and remapping on extractor version](records/global/decision/line-based-gleam-map-and-remapping-on-extractor-version.md) (accepted)
 - [Nest ADR globs under index.adr](records/global/decision/005-nested-adr-config.md) (superseded)
+- [Optional JSONL command log at .archivist/commands.log](records/global/decision/optional-jsonl-command-log-at-archivist-commands-log.md) (accepted)
 - [Pivot to knowledge archive with MCP primary surface](records/global/decision/012-knowledge-archive-pivot.md) (accepted)
 - [Record last search in index meta](records/global/decision/011-last-search-meta.md) (accepted)
 - [Record schema and CLI version](records/global/decision/004-schema-and-cli-version.md) (accepted)
@@ -42,8 +44,11 @@ Type digests: [Rules](rules.md) · [Decisions](decisions.md) · [Features](featu
 
 ## feature
 
+- [Agent rules and skills](records/global/feature/agent-rules-and-skills.md) (accepted)
 - [Archive export](records/global/feature/archive-export.md) (accepted)
+- [Command log](records/global/feature/command-log.md) (accepted)
 - [Embed queue and worker](records/global/feature/embed-queue-and-worker.md) (accepted)
 - [Hybrid search](records/global/feature/hybrid-search.md) (accepted)
+- [MCP server](records/global/feature/mcp-server.md) (accepted)
 - [Typed archive records](records/global/feature/typed-archive-records.md) (accepted)
 
