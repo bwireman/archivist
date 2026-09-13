@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"sync"
 	"unicode"
 	"unicode/utf8"
 
@@ -91,9 +92,25 @@ func withGenericBackup(path, content string, res Result, err error) (Result, err
 	return gen, nil
 }
 
+var (
+	parserMu sync.Mutex
+	parsers  = map[*sitter.Language]*sitter.Parser{}
+)
+
+func parserFor(lang *sitter.Language) *sitter.Parser {
+	parserMu.Lock()
+	defer parserMu.Unlock()
+	if p, ok := parsers[lang]; ok {
+		return p
+	}
+	p := sitter.NewParser()
+	p.SetLanguage(lang)
+	parsers[lang] = p
+	return p
+}
+
 func extractTreeSitter(path, content string, spec languageSpec, ext string) (Result, error) {
-	parser := sitter.NewParser()
-	parser.SetLanguage(spec.lang)
+	parser := parserFor(spec.lang)
 	tree, err := parser.ParseCtx(context.Background(), nil, []byte(content))
 	if err != nil || tree == nil {
 		return Result{}, fmt.Errorf("parse %s", path)

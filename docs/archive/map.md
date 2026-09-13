@@ -97,17 +97,18 @@
 
 ## internal/codemap/codemap.go
 
-- `languageSpec` (type_spec) line 26
-- `Result` (type_spec) line 57
-- `Extract` (function_declaration) line 66
-- `withGenericBackup` (function_declaration) line 79
-- `extractTreeSitter` (function_declaration) line 94
-- `findPackage` (function_declaration) line 154
-- `symbolName` (function_declaration) line 177
-- `isExported` (function_declaration) line 191
-- `firstDocLine` (function_declaration) line 199
-- `cleanImport` (function_declaration) line 219
-- `IsBinary` (function_declaration) line 228
+- `languageSpec` (type_spec) line 27
+- `Result` (type_spec) line 58
+- `Extract` (function_declaration) line 67
+- `withGenericBackup` (function_declaration) line 80
+- `parserFor` (function_declaration) line 100
+- `extractTreeSitter` (function_declaration) line 112
+- `findPackage` (function_declaration) line 171
+- `symbolName` (function_declaration) line 194
+- `isExported` (function_declaration) line 208
+- `firstDocLine` (function_declaration) line 216
+- `cleanImport` (function_declaration) line 236
+- `IsBinary` (function_declaration) line 245
 
 ## internal/codemap/codemap_test.go
 
@@ -408,25 +409,31 @@
 
 ## internal/retrieve/retrieve.go
 
-- `Options` (type_spec) line 17
-- `Result` (type_spec) line 24
-- `Engine` (type_spec) line 30
-- `matchFilters` (function_declaration) line 159
-- `rrfScore` (function_declaration) line 169
-- `FormatResults` (function_declaration) line 181
+- `Options` (type_spec) line 18
+- `Result` (type_spec) line 25
+- `Engine` (type_spec) line 31
+- `rrfScore` (function_declaration) line 172
+- `FormatResults` (function_declaration) line 184
+
+## internal/retrieve/retrieve_test.go
+
+- `fixedEmbedder` (type_spec) line 13
+- `int` (method_declaration) line 21
+- `TestSearchFiltersByType` (function_declaration) line 23
+- `TestSearchOverlayPrefersRepoScope` (function_declaration) line 67
 
 ## internal/skills/install.go
 
-- `Target` (type_spec) line 15
-- `ParseTarget` (function_declaration) line 24
-- `Install` (function_declaration) line 40
-- `installRules` (function_declaration) line 52
-- `installSkills` (function_declaration) line 94
-- `ruleFS` (function_declaration) line 124
-- `skillFS` (function_declaration) line 131
-- `dirWithSuffix` (function_declaration) line 148
-- `wrapCursorRule` (function_declaration) line 161
-- `writeFile` (function_declaration) line 165
+- `Target` (type_spec) line 16
+- `ParseTarget` (function_declaration) line 25
+- `Install` (function_declaration) line 41
+- `installRules` (function_declaration) line 53
+- `installSkills` (function_declaration) line 95
+- `ruleFS` (function_declaration) line 128
+- `skillFS` (function_declaration) line 135
+- `dirWithSuffix` (function_declaration) line 152
+- `wrapCursorRule` (function_declaration) line 165
+- `writeFile` (function_declaration) line 169
 
 ## internal/skills/install_test.go
 
@@ -440,6 +447,10 @@
 - `encodeEmbedding` (function_declaration) line 9
 - `decodeEmbedding` (function_declaration) line 21
 - `CosineSimilarity` (function_declaration) line 39
+
+## internal/store/embedding_test.go
+
+- `TestListEmbeddingsFiltersType` (function_declaration) line 10
 
 ## internal/store/fts.go
 
@@ -475,20 +486,21 @@
 - `nullString` (function_declaration) line 517
 - `error` (method_declaration) line 611
 - `error` (method_declaration) line 643
-- `VectorRecord` (type_spec) line 675
+- `RecordFilter` (type_spec) line 676
+- `EmbeddingRow` (type_spec) line 681
 - `QueueItem` (type_spec) line 723
 - `error` (method_declaration) line 765
 - `error` (method_declaration) line 770
 - `FTSResult` (type_spec) line 779
-- `FileRecord` (type_spec) line 816
-- `Symbol` (type_spec) line 823
-- `SymbolEdge` (type_spec) line 833
-- `error` (method_declaration) line 854
-- `boolToInt` (function_declaration) line 909
-- `error` (method_declaration) line 916
-- `collectSymbols` (function_declaration) line 986
-- `CommitRecord` (type_spec) line 1003
-- `error` (method_declaration) line 1029
+- `FileRecord` (type_spec) line 826
+- `Symbol` (type_spec) line 833
+- `SymbolEdge` (type_spec) line 843
+- `error` (method_declaration) line 864
+- `boolToInt` (function_declaration) line 919
+- `error` (method_declaration) line 926
+- `collectSymbols` (function_declaration) line 996
+- `CommitRecord` (type_spec) line 1013
+- `error` (method_declaration) line 1039
 
 ## internal/store/store_test.go
 

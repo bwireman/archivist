@@ -1,6 +1,7 @@
 package skills
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -102,8 +103,11 @@ func installSkills(repoRoot string, target Target) error {
 			continue
 		}
 		data, err := fs.ReadFile(fsys, path.Join(e.Name(), "SKILL.md"))
-		if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
 			continue
+		}
+		if err != nil {
+			return err
 		}
 		var dst string
 		switch target {

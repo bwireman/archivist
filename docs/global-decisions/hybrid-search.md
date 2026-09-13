@@ -16,7 +16,9 @@ Find archive records by meaning and by keywords. Agents query via MCP `search` o
 
 `retrieve.Engine.Search` queries FTS5 and, if an embedder is healthy, cosine similarity over `record_vectors`. Ranks are fused with RRF. Default `top_k` is 20. Optional filters: `type`, `scope`.
 
-User text is not FTS5 syntax. `fts5Query` splits on non-alphanumeric characters, quotes each token, and ANDs them, so paths (`docs/foo.md`) and dotted names (`records.global`) cannot produce `fts5: syntax error`. An empty token list or a leftover MATCH syntax error yields no FTS hits; vector search still uses the raw string. If Ollama is down, search is keyword-only.
+User text is not FTS5 syntax. `fts5Query` splits on non-alphanumeric characters, quotes each token, and ANDs them, so paths (`docs/foo.md`) and dotted names (`records.global`) cannot produce `fts5: syntax error`. An empty token list or a leftover MATCH syntax error yields no FTS hits; vector search still uses the raw string. If Ollama is down at startup, search is keyword-only. If embedding fails mid-query, search logs `search embed: ...; using keyword-only` to stderr and continues with FTS only.
+
+Vector search loads only `record_id` and embedding blobs (no record bodies). `type` and `scope` filters apply in SQL for both FTS and vector listing. Full records are hydrated only for the union of FTS hits and top `top_k*3` vector IDs before RRF and slug overlay.
 
 After a successful search, the repo store stamps `last_search` and `last_search_at`. Status currently prints last indexed time, not last search.
 
@@ -30,4 +32,4 @@ After a successful search, the repo store stamps `last_search` and `last_search_
 
 - CLI: `archivist search <query> [--type] [--scope] [--top]`
 - MCP: `search`
-- Types: `retrieve.Engine`, `store.SearchFTS`, `store.fts5Query`
+- Types: `retrieve.Engine`, `store.SearchFTS`, `store.ListEmbeddings`, `store.fts5Query`

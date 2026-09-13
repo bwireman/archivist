@@ -16,9 +16,6 @@ func newEmbedCmd() *cobra.Command {
 		Use:   "embed",
 		Short: "Embed queued records via Ollama",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !worker {
-				return fmt.Errorf("use --worker to drain the embed queue")
-			}
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err
@@ -44,7 +41,8 @@ func newEmbedCmd() *cobra.Command {
 			return err
 		},
 	}
-	cmd.Flags().BoolVar(&worker, "worker", false, "drain the embed queue")
+	cmd.Flags().BoolVar(&worker, "worker", false, "ignored; embed always drains the queue")
+	_ = cmd.Flags().MarkHidden("worker")
 	cmd.Flags().BoolVar(&once, "once", false, "process every queued item once, then exit")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 2, "parallel embed workers")
 	return cmd

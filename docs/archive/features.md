@@ -54,7 +54,7 @@ Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_i
 
 The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
 
-`archivist embed --worker --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`.
+`archivist embed --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`. `--worker` remains as a hidden no-op for older scripts.
 
 Keyword search works with a full queue. Hybrid ranking only includes records that already have vectors. `archivist status` and the MCP `status` tool report record count and queue depth as the sum of both stores.
 
@@ -67,7 +67,7 @@ Keyword search works with a full queue. Hybrid ranking only includes records tha
 
 ## Entry points
 
-- CLI: `archivist embed --worker [--once] [--concurrency N]`
+- CLI: `archivist embed [--once] [--concurrency N]`
 - MCP: `status`
 - Types: `embed.Worker`, `store.DequeueEmbed`, `store.SetRecordVector`, `store.FailQueueItem`, `store.DropQueueItem`
 
@@ -88,7 +88,9 @@ Find archive records by meaning and by keywords. Agents query via MCP `search` o
 
 `retrieve.Engine.Search` queries FTS5 and, if an embedder is healthy, cosine similarity over `record_vectors`. Ranks are fused with RRF. Default `top_k` is 20. Optional filters: `type`, `scope`.
 
-User text is not FTS5 syntax. `fts5Query` splits on non-alphanumeric characters, quotes each token, and ANDs them, so paths (`docs/foo.md`) and dotted names (`records.global`) cannot produce `fts5: syntax error`. An empty token list or a leftover MATCH syntax error yields no FTS hits; vector search still uses the raw string. If Ollama is down, search is keyword-only.
+User text is not FTS5 syntax. `fts5Query` splits on non-alphanumeric characters, quotes each token, and ANDs them, so paths (`docs/foo.md`) and dotted names (`records.global`) cannot produce `fts5: syntax error`. An empty token list or a leftover MATCH syntax error yields no FTS hits; vector search still uses the raw string. If Ollama is down at startup, search is keyword-only. If embedding fails mid-query, search logs `search embed: ...; using keyword-only` to stderr and continues with FTS only.
+
+Vector search loads only `record_id` and embedding blobs (no record bodies). `type` and `scope` filters apply in SQL for both FTS and vector listing. Full records are hydrated only for the union of FTS hits and top `top_k*3` vector IDs before RRF and slug overlay.
 
 After a successful search, the repo store stamps `last_search` and `last_search_at`. Status currently prints last indexed time, not last search.
 
@@ -102,7 +104,7 @@ After a successful search, the repo store stamps `last_search` and `last_search_
 
 - CLI: `archivist search <query> [--type] [--scope] [--top]`
 - MCP: `search`
-- Types: `retrieve.Engine`, `store.SearchFTS`, `store.fts5Query`
+- Types: `retrieve.Engine`, `store.SearchFTS`, `store.ListEmbeddings`, `store.fts5Query`
 
 ---
 

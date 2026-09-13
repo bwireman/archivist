@@ -43,7 +43,7 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create store dir: %w", err)
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -672,48 +672,48 @@ func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error
 	return emb, model, true, err
 }
 
-type VectorRecord struct {
-	Record    *record.Record
+// RecordFilter optionally constrains search and embedding listing.
+type RecordFilter struct {
+	Type  record.Type
+	Scope record.Scope
+}
+
+type EmbeddingRow struct {
+	RecordID  string
 	Embedding []float32
 }
 
-func (s *Store) AllVectorRecords() ([]VectorRecord, error) {
-	rows, err := s.db.Query(`
-SELECT ` + recordCols + `, rv.embedding
-FROM records r
-JOIN record_vectors rv ON r.id = rv.record_id
-`)
+func (s *Store) ListEmbeddings(filter RecordFilter) ([]EmbeddingRow, error) {
+	q := `SELECT rv.record_id, rv.embedding FROM record_vectors rv`
+	var args []any
+	if filter.Type != "" || filter.Scope != "" {
+		q += ` JOIN records r ON r.id = rv.record_id WHERE 1=1`
+		if filter.Type != "" {
+			q += ` AND r.type = ?`
+			args = append(args, string(filter.Type))
+		}
+		if filter.Scope != "" {
+			q += ` AND r.scope = ?`
+			args = append(args, string(filter.Scope))
+		}
+	}
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []VectorRecord
+	var out []EmbeddingRow
 	for rows.Next() {
-		var r record.Record
-		var tags, applies, supersedes sql.NullString
-		var severity, supersededBy, prov sql.NullString
-		var createdAt, updatedAt string
+		var id string
 		var blob []byte
-		err := rows.Scan(
-			&r.ID, &r.Slug, &r.Type, &r.Scope, &r.Title, &r.Status, &severity,
-			&r.Body, &r.SourcePath, &tags, &applies, &supersedes, &supersededBy, &prov,
-			&r.ContentHash, &createdAt, &updatedAt, &blob,
-		)
-		if err != nil {
+		if err := rows.Scan(&id, &blob); err != nil {
 			return nil, err
 		}
-		if severity.Valid {
-			r.Severity = record.Severity(severity.String)
-		}
-		r.Tags = decodeJSONList(tags.String)
-		r.AppliesTo = decodeJSONList(applies.String)
-		r.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		r.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 		emb, err := decodeEmbedding(blob)
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, VectorRecord{Record: &r, Embedding: emb})
+		out = append(out, EmbeddingRow{RecordID: id, Embedding: emb})
 	}
 	return out, rows.Err()
 }
@@ -781,18 +781,28 @@ type FTSResult struct {
 	Score    float64
 }
 
-func (s *Store) SearchFTS(query string, limit int) ([]FTSResult, error) {
+func (s *Store) SearchFTS(query string, limit int, filter RecordFilter) ([]FTSResult, error) {
 	query = fts5Query(query)
 	if query == "" {
 		return nil, nil
 	}
-	rows, err := s.db.Query(`
-SELECT record_id, bm25(records_fts) as score
-FROM records_fts
-WHERE records_fts MATCH ?
-ORDER BY score
-LIMIT ?
-`, query, limit)
+	q := `
+SELECT f.record_id, bm25(records_fts) as score
+FROM records_fts f
+JOIN records r ON r.id = f.record_id
+WHERE records_fts MATCH ?`
+	args := []any{query}
+	if filter.Type != "" {
+		q += ` AND r.type = ?`
+		args = append(args, string(filter.Type))
+	}
+	if filter.Scope != "" {
+		q += ` AND r.scope = ?`
+		args = append(args, string(filter.Scope))
+	}
+	q += ` ORDER BY score LIMIT ?`
+	args = append(args, limit)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "fts5: syntax error") {
 			return nil, nil

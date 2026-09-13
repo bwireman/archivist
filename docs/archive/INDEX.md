@@ -37,6 +37,7 @@ Type digests: [Rules](rules.md) · [Decisions](decisions.md) · [Features](featu
 - [Treat FTS MATCH input as natural language](records/global/decision/treat-fts-match-input-as-natural-language.md) (accepted)
 - [Use Bubble Tea for the index TUI](records/global/decision/001-bubbletea-index-tui.md) (superseded)
 - [Use Huh for the init TUI](records/global/decision/002-huh-init-tui.md) (superseded)
+- [Use WAL journal mode for SQLite stores](records/global/decision/sqlite-wal-journal.md) (accepted)
 - [Use qwen3-embedding:0.6b for this repository](records/repo/decision/001-use-qwen3-embedding.md) (superseded)
 
 ## feature

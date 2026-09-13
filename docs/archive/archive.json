@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-13T17:16:52Z",
+  "exported_at": "2026-09-13T17:24:47Z",
   "records": [
     {
       "id": "rec_cd668042d22370100627",
@@ -281,6 +281,16 @@
       "content_hash": "f8c78d440f2058834c916fa7b3aea4d0ef13696446716a2abaecb17cda221cb3"
     },
     {
+      "id": "rec_sqlite_wal_journal",
+      "slug": "sqlite-wal-journal",
+      "type": "decision",
+      "scope": "global",
+      "title": "Use WAL journal mode for SQLite stores",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/sqlite-wal-journal.md",
+      "content_hash": "1538302721acd907ca84c6af214eb79f84d1113c2ac3c03c483ea807141b78fc"
+    },
+    {
       "id": "rec_d517cd894e443ee0d4f2",
       "slug": "001-use-qwen3-embedding",
       "type": "decision",
@@ -326,7 +336,7 @@
         "internal/cmd/**",
         "internal/mcp/**"
       ],
-      "content_hash": "a78dc1e2d737c435026db6d6fb80c0827d3db3ce7459d298354e0e04e0b01390"
+      "content_hash": "b5a928018e74f13d850792d54570c8163e17fe5c4e87b090948e1d5e837a6e3b"
     },
     {
       "id": "rec_393fc5d328e835dae38b",
@@ -345,7 +355,7 @@
         "internal/retrieve/**",
         "internal/store/**"
       ],
-      "content_hash": "7ea5412f0368ff094ca9017aacda44eec091696a721f51a65049b725abc6bd21"
+      "content_hash": "3e3bf1b04c17833dfae760a780420d02954120f706814463d36bc843729e20ee"
     },
     {
       "id": "rec_179dbf51d8a090fef8d7",

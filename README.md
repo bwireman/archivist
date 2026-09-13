@@ -7,7 +7,7 @@ Archivist depends only on SQLite and Ollama HTTP — no vendor SDKs.
 ## Requirements
 
 - [Go](https://go.dev) 1.27+ to build or install the CLI
-- [Ollama](https://ollama.com) for embedding (optional for `index` / `search`; required for `embed --worker`)
+- [Ollama](https://ollama.com) for embedding (optional for `index` / `search`; required for `embed`)
 
 ## Install the CLI
 
@@ -53,7 +53,7 @@ make build          # ./archivist
 
    ```bash
    archivist index                  # records + code map; no Ollama
-   archivist embed --worker --once  # skip if Ollama is down
+   archivist embed --once  # skip if Ollama is down
    archivist export                 # writes docs/archive/
    ```
 
@@ -177,7 +177,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | --- | --- | --- |
 | `archivist init` | no | Config, data dirs, decision dirs |
 | `archivist index` | no | Index records + code map |
-| `archivist embed --worker` | yes | Drain embed queue (`--once` processes every item once, then exits) |
+| `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
 | `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs) |
 | `archivist check` | optional | Match rules to a change |
 | `archivist remember` | no | Create a record |
@@ -273,6 +273,6 @@ make refresh-archive
 archivist migrate records
 rm -f .archivist/index.db ~/.archivist/global.db   # schema v3 reset
 archivist index
-archivist embed --worker --once
+archivist embed --once
 archivist export
 ```

@@ -48,12 +48,12 @@ func TestSearchFTSAcceptsPunctuation(t *testing.T) {
 		"config.json:embed_model",
 	}
 	for _, q := range queries {
-		if _, err := st.SearchFTS(q, 10); err != nil {
+		if _, err := st.SearchFTS(q, 10, RecordFilter{}); err != nil {
 			t.Errorf("SearchFTS(%q): %v", q, err)
 		}
 	}
 
-	hits, err := st.SearchFTS("docs/decisions/billing.md", 10)
+	hits, err := st.SearchFTS("docs/decisions/billing.md", 10, RecordFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +61,7 @@ func TestSearchFTSAcceptsPunctuation(t *testing.T) {
 		t.Fatalf("path query hits = %+v, want %s", hits, rec.ID)
 	}
 
-	hits, err = st.SearchFTS("records.global", 10)
+	hits, err = st.SearchFTS("records.global", 10, RecordFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +69,7 @@ func TestSearchFTSAcceptsPunctuation(t *testing.T) {
 		t.Fatalf("dotted query hits = %+v, want %s", hits, rec.ID)
 	}
 
-	hits, err = st.SearchFTS("/", 10)
+	hits, err = st.SearchFTS("/", 10, RecordFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}

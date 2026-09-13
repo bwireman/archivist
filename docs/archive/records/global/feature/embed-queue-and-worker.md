@@ -18,7 +18,7 @@ Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_i
 
 The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
 
-`archivist embed --worker --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`.
+`archivist embed --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`. `--worker` remains as a hidden no-op for older scripts.
 
 Keyword search works with a full queue. Hybrid ranking only includes records that already have vectors. `archivist status` and the MCP `status` tool report record count and queue depth as the sum of both stores.
 
@@ -31,6 +31,6 @@ Keyword search works with a full queue. Hybrid ranking only includes records tha
 
 ## Entry points
 
-- CLI: `archivist embed --worker [--once] [--concurrency N]`
+- CLI: `archivist embed [--once] [--concurrency N]`
 - MCP: `status`
 - Types: `embed.Worker`, `store.DequeueEmbed`, `store.SetRecordVector`, `store.FailQueueItem`, `store.DropQueueItem`
