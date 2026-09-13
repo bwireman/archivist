@@ -24,7 +24,7 @@ const (
 	TypePitfall  Type = "pitfall"
 )
 
-// IndexOrder is the section order in docs/archive/INDEX.md.
+// IndexOrder is the section order in docs/archive/INDEX.md and type digest files.
 var IndexOrder = []Type{TypeRule, TypeDecision, TypeFeature, TypeGuide, TypeMap, TypePitfall}
 
 // ValidType reports whether t is a known record type.

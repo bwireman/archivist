@@ -298,17 +298,31 @@
 
 ## internal/export/export.go
 
-- `Options` (type_spec) line 18
-- `Manifest` (type_spec) line 23
-- `Entry` (type_spec) line 29
-- `Run` (function_declaration) line 43
-- `collectRecords` (function_declaration) line 67
-- `writeRecords` (function_declaration) line 87
-- `writeIndex` (function_declaration) line 100
-- `writeRules` (function_declaration) line 125
-- `writeMap` (function_declaration) line 146
-- `writeManifest` (function_declaration) line 171
-- `WriteBundle` (function_declaration) line 191
+- `Options` (type_spec) line 19
+- `Manifest` (type_spec) line 24
+- `Entry` (type_spec) line 30
+- `Run` (function_declaration) line 44
+- `collectRecords` (function_declaration) line 68
+- `writeRecords` (function_declaration) line 88
+- `writeIndex` (function_declaration) line 104
+- `writeTypeDigests` (function_declaration) line 138
+- `writeTypeDigest` (function_declaration) line 162
+- `groupByType` (function_declaration) line 185
+- `recordRel` (function_declaration) line 193
+- `DigestFile` (function_declaration) line 199
+- `typeHeading` (function_declaration) line 206
+- `writeMap` (function_declaration) line 225
+- `writeManifest` (function_declaration) line 250
+- `WriteBundle` (function_declaration) line 270
+
+## internal/export/export_test.go
+
+- `TestRunNestsRecordsScopeThenType` (function_declaration) line 13
+- `TestDigestFileKeepsCodeMapNameFree` (function_declaration) line 101
+- `TestRunWritesMapsDigestBesideCodeMap` (function_declaration) line 110
+- `TestRunAlwaysWritesRulesDigest` (function_declaration) line 137
+- `openStore` (function_declaration) line 152
+- `mustUpsert` (function_declaration) line 162
 
 ## internal/gitindex/git.go
 

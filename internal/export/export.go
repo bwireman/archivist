@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -21,9 +22,9 @@ type Options struct {
 }
 
 type Manifest struct {
-	SchemaVersion int       `json:"schema_version"`
-	ExportedAt    string    `json:"exported_at"`
-	Records       []Entry   `json:"records"`
+	SchemaVersion int     `json:"schema_version"`
+	ExportedAt    string  `json:"exported_at"`
+	Records       []Entry `json:"records"`
 }
 
 type Entry struct {
@@ -55,7 +56,7 @@ func Run(repo *store.Store, home *store.Store, opts Options) error {
 	if err := writeIndex(recs, filepath.Join(opts.OutDir, "INDEX.md")); err != nil {
 		return err
 	}
-	if err := writeRules(recs, filepath.Join(opts.OutDir, "rules.md")); err != nil {
+	if err := writeTypeDigests(recs, opts.OutDir); err != nil {
 		return err
 	}
 	if err := writeMap(repo, filepath.Join(opts.OutDir, "map.md")); err != nil {
@@ -85,24 +86,36 @@ func collectRecords(repo, home *store.Store) []*record.Record {
 }
 
 func writeRecords(recs []*record.Record, dir string) error {
+	if err := os.RemoveAll(dir); err != nil {
+		return err
+	}
 	for _, r := range recs {
-		path := filepath.Join(dir, string(r.Scope), r.Slug+".md")
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		p := filepath.Join(dir, string(r.Scope), string(r.Type), r.Slug+".md")
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, []byte(record.Serialize(r)), 0o644); err != nil {
+		if err := os.WriteFile(p, []byte(record.Serialize(r)), 0o644); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func writeIndex(recs []*record.Record, path string) error {
+func writeIndex(recs []*record.Record, dest string) error {
 	var b strings.Builder
 	b.WriteString("# Archive Index\n\n")
-	byType := map[record.Type][]*record.Record{}
-	for _, r := range recs {
-		byType[r.Type] = append(byType[r.Type], r)
+	byType := groupByType(recs)
+	var digests []string
+	for _, typ := range record.IndexOrder {
+		if len(byType[typ]) == 0 && typ != record.TypeRule {
+			continue
+		}
+		digests = append(digests, fmt.Sprintf("[%s](%s)", typeHeading(typ), DigestFile(typ)))
+	}
+	if len(digests) > 0 {
+		b.WriteString("Type digests: ")
+		b.WriteString(strings.Join(digests, " · "))
+		b.WriteString("\n\n")
 	}
 	for _, typ := range record.IndexOrder {
 		items := byType[typ]
@@ -115,32 +128,98 @@ func writeIndex(recs []*record.Record, path string) error {
 			if r.Severity != "" {
 				sev = fmt.Sprintf(" [%s]", r.Severity)
 			}
-			fmt.Fprintf(&b, "- [%s](records/%s/%s.md) (%s)%s\n", r.Title, r.Scope, r.Slug, r.Status, sev)
+			fmt.Fprintf(&b, "- [%s](%s) (%s)%s\n", r.Title, recordRel(r), r.Status, sev)
 		}
 		b.WriteByte('\n')
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(dest, []byte(b.String()), 0o644)
 }
 
-func writeRules(recs []*record.Record, path string) error {
-	var b strings.Builder
-	b.WriteString("# Rules\n\n")
-	for _, r := range recs {
-		if r.Type != record.TypeRule {
+func writeTypeDigests(recs []*record.Record, dir string) error {
+	byType := groupByType(recs)
+	for _, typ := range record.IndexOrder {
+		items := byType[typ]
+		dest := filepath.Join(dir, DigestFile(typ))
+		if len(items) == 0 {
+			if typ == record.TypeRule {
+				if err := writeTypeDigest(typ, nil, dest); err != nil {
+					return err
+				}
+				continue
+			}
+			if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+				return err
+			}
 			continue
 		}
+		if err := writeTypeDigest(typ, items, dest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeTypeDigest(typ record.Type, items []*record.Record, dest string) error {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# %s\n\n", typeHeading(typ))
+	for _, r := range items {
 		fmt.Fprintf(&b, "## %s\n\n", r.Title)
+		fmt.Fprintf(&b, "- Status: %s\n", r.Status)
+		fmt.Fprintf(&b, "- Scope: %s\n", r.Scope)
 		if r.Severity != "" {
 			fmt.Fprintf(&b, "- Severity: %s\n", r.Severity)
 		}
 		if len(r.AppliesTo) > 0 {
 			fmt.Fprintf(&b, "- Applies to: %s\n", strings.Join(r.AppliesTo, ", "))
 		}
+		if len(r.Tags) > 0 {
+			fmt.Fprintf(&b, "- Tags: %s\n", strings.Join(r.Tags, ", "))
+		}
 		b.WriteString("\n")
 		b.WriteString(r.Body)
 		b.WriteString("\n\n---\n\n")
 	}
-	return os.WriteFile(path, []byte(b.String()), 0o644)
+	return os.WriteFile(dest, []byte(b.String()), 0o644)
+}
+
+func groupByType(recs []*record.Record) map[record.Type][]*record.Record {
+	byType := map[record.Type][]*record.Record{}
+	for _, r := range recs {
+		byType[r.Type] = append(byType[r.Type], r)
+	}
+	return byType
+}
+
+func recordRel(r *record.Record) string {
+	return path.Join("records", string(r.Scope), string(r.Type), r.Slug+".md")
+}
+
+// DigestFile is the export-root markdown file for a record type.
+// Map-type records use maps.md so they do not collide with the code map at map.md.
+func DigestFile(t record.Type) string {
+	if t == record.TypeMap {
+		return "maps.md"
+	}
+	return string(t) + "s.md"
+}
+
+func typeHeading(t record.Type) string {
+	switch t {
+	case record.TypeRule:
+		return "Rules"
+	case record.TypeDecision:
+		return "Decisions"
+	case record.TypeFeature:
+		return "Features"
+	case record.TypeGuide:
+		return "Guides"
+	case record.TypeMap:
+		return "Maps"
+	case record.TypePitfall:
+		return "Pitfalls"
+	default:
+		return string(t)
+	}
 }
 
 func writeMap(repo *store.Store, path string) error {

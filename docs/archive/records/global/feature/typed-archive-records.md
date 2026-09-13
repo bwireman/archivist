@@ -24,7 +24,7 @@ In this product checkout, `records.global` is `docs/global-decisions` so product
 
 - Config: `records.repo`, `records.global`, `records.dev`, `records.export`.
 - Indexer walks those directories (and home global/dev) and prunes missing files.
-- Export writes `INDEX.md` by `record.IndexOrder`.
+- Export writes `INDEX.md` by `record.IndexOrder`, a full-text digest per type (`rules.md`, `features.md`, …), and copies under `records/<scope>/<type>/`.
 - Check only enforces `rule` records.
 - On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents when to write each type.
 

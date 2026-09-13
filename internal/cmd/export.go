@@ -12,7 +12,7 @@ func newExportCmd() *cobra.Command {
 	var bundle string
 	cmd := &cobra.Command{
 		Use:   "export",
-		Short: "Generate docs/archive/ for human and agent readers",
+		Short: "Generate docs/archive/ grouped by record type",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {

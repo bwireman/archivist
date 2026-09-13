@@ -193,10 +193,10 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 
 `archivist export` writes:
 
-- `docs/archive/INDEX.md` — catalog by type and scope
-- `docs/archive/rules.md` — must/must-not rules inline
+- `docs/archive/INDEX.md` — catalog by type, with links to type digests
+- `docs/archive/rules.md`, `decisions.md`, `features.md`, … — full-text digest per type (`maps.md` for map-type records so it does not collide with the code map)
 - `docs/archive/map.md` — code structure overview
-- `docs/archive/records/<scope>/<slug>.md` — one file per record
+- `docs/archive/records/<scope>/<type>/<slug>.md` — one file per record
 - `docs/archive/archive.json` — machine-readable manifest
 
 Do not hand-edit `docs/archive/`; regenerate with `archivist export`.

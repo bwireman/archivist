@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T23:54:12Z",
+  "exported_at": "2026-09-13T16:47:32Z",
   "records": [
     {
       "id": "rec_cd668042d22370100627",
@@ -90,6 +90,20 @@
       "status": "accepted",
       "source_path": "docs/global-decisions/013-plain-cli.md",
       "content_hash": "8dd69b69c584818b3f5abd7e82d452a16fefd0c26aa1be57ed3a5695b2715385"
+    },
+    {
+      "id": "rec_126bb406288fdea6a7c8",
+      "slug": "export-archive-grouped-by-record-type-with-type-digest-files",
+      "type": "decision",
+      "scope": "global",
+      "title": "Export archive grouped by record type with type digest files",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/export-archive-grouped-by-record-type-with-type-digest-files.md",
+      "tags": [
+        "export",
+        "records"
+      ],
+      "content_hash": "9d2e5856eeed0a325bf1c4271b39353e950a53f23cc20180f9b1339730b56182"
     },
     {
       "id": "rec_6e94d1190b59d6365335",
@@ -277,6 +291,23 @@
       "content_hash": "0e49b7c5b6eea16014fe37b9def957d446d6ee5685ded7a341d33f88935818c6"
     },
     {
+      "id": "rec_9e0fa8636b4267f0d942",
+      "slug": "archive-export",
+      "type": "feature",
+      "scope": "global",
+      "title": "Archive export",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/archive-export.md",
+      "tags": [
+        "export"
+      ],
+      "applies_to": [
+        "internal/export/**",
+        "internal/cmd/export.go"
+      ],
+      "content_hash": "0a1160440e03330f37dacb7b5ab1ec72e9db98d446993d5de1a504ffa3bb8caf"
+    },
+    {
       "id": "rec_423018b323939206d5cc",
       "slug": "embed-queue-and-worker",
       "type": "feature",
@@ -331,7 +362,7 @@
         "internal/record/**",
         "internal/archive/**"
       ],
-      "content_hash": "26c4e5a2c4c4312700f57e96346972170a7f17bebf117f09ce02957a39008959"
+      "content_hash": "af5ac43ca778afee6218f484cb0d9aeff5e13ef40ab79b8b28dafa987c4ac2ff"
     },
     {
       "id": "rec_184e12358de7c5b12414",
