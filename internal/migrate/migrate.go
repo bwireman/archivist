@@ -77,13 +77,7 @@ func migrateDir(repoRoot, dir string, scope record.Scope) error {
 }
 
 func legacyToRecord(repoRoot, path, content string, scope record.Scope) (*record.Record, error) {
-	title := ""
-	for _, line := range strings.Split(content, "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "# ") {
-			title = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "# "))
-			break
-		}
-	}
+	title := record.TitleFromBody(content)
 	status := record.StatusAccepted
 	if m := statusRe.FindStringSubmatch(content); len(m) > 1 {
 		status = record.Status(strings.ToLower(m[1]))

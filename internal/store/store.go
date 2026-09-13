@@ -574,6 +574,23 @@ func (s *Store) AllRecords() ([]*record.Record, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) RecordSourcePaths() ([]string, error) {
+	rows, err := s.db.Query(`SELECT source_path FROM records`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var paths []string
+	for rows.Next() {
+		var p string
+		if err := rows.Scan(&p); err != nil {
+			return nil, err
+		}
+		paths = append(paths, p)
+	}
+	return paths, rows.Err()
+}
+
 func (s *Store) RecordsByType(t record.Type) ([]*record.Record, error) {
 	rows, err := s.db.Query(`SELECT `+recordCols+` FROM records WHERE type = ?`, string(t))
 	if err != nil {
@@ -849,18 +866,33 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 	if err != nil {
 		return err
 	}
-	for _, sym := range symbols {
-		_, err = tx.Exec(`
-INSERT INTO symbols (file_path, name, kind, line, doc_line, exported) VALUES (?, ?, ?, ?, ?, ?)
-`, rec.Path, sym.Name, sym.Kind, sym.Line, sym.DocLine, boolToInt(sym.Exported))
+	if len(symbols) > 0 {
+		stmt, err := tx.Prepare(`INSERT INTO symbols (file_path, name, kind, line, doc_line, exported) VALUES (?, ?, ?, ?, ?, ?)`)
 		if err != nil {
 			return err
 		}
+		for _, sym := range symbols {
+			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, sym.DocLine, boolToInt(sym.Exported)); err != nil {
+				_ = stmt.Close()
+				return err
+			}
+		}
+		if err := stmt.Close(); err != nil {
+			return err
+		}
 	}
-	for _, e := range edges {
-		_, err = tx.Exec(`INSERT INTO symbol_edges (from_file, to_path, edge_type) VALUES (?, ?, ?)`,
-			rec.Path, e.ToPath, e.EdgeType)
+	if len(edges) > 0 {
+		stmt, err := tx.Prepare(`INSERT INTO symbol_edges (from_file, to_path, edge_type) VALUES (?, ?, ?)`)
 		if err != nil {
+			return err
+		}
+		for _, e := range edges {
+			if _, err = stmt.Exec(rec.Path, e.ToPath, e.EdgeType); err != nil {
+				_ = stmt.Close()
+				return err
+			}
+		}
+		if err := stmt.Close(); err != nil {
 			return err
 		}
 	}
@@ -928,18 +960,7 @@ LIMIT ?
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	var out []Symbol
-	for rows.Next() {
-		var sym Symbol
-		var exported int
-		if err := rows.Scan(&sym.ID, &sym.FilePath, &sym.Name, &sym.Kind, &sym.Line, &sym.DocLine, &exported); err != nil {
-			return nil, err
-		}
-		sym.Exported = exported == 1
-		out = append(out, sym)
-	}
-	return out, rows.Err()
+	return collectSymbols(rows)
 }
 
 func (s *Store) SymbolsForFile(path string) ([]Symbol, error) {
@@ -949,6 +970,20 @@ SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM sym
 	if err != nil {
 		return nil, err
 	}
+	return collectSymbols(rows)
+}
+
+func (s *Store) AllSymbols() ([]Symbol, error) {
+	rows, err := s.db.Query(`
+SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM symbols ORDER BY file_path, line
+`)
+	if err != nil {
+		return nil, err
+	}
+	return collectSymbols(rows)
+}
+
+func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
 	defer rows.Close()
 	var out []Symbol
 	for rows.Next() {
@@ -974,21 +1009,21 @@ type CommitRecord struct {
 	IndexedAt  time.Time
 }
 
-func (s *Store) GetCommit(hash string) (*CommitRecord, bool, error) {
-	var rec CommitRecord
-	var authoredAt, indexedAt string
-	err := s.db.QueryRow(`
-SELECT hash, subject, body, author, authored_at, indexed_at FROM commits WHERE hash = ?
-`, hash).Scan(&rec.Hash, &rec.Subject, &rec.Body, &rec.Author, &authoredAt, &indexedAt)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, false, nil
-	}
+func (s *Store) CommitHashes() (map[string]struct{}, error) {
+	rows, err := s.db.Query(`SELECT hash FROM commits`)
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	rec.AuthoredAt, _ = time.Parse(time.RFC3339, authoredAt)
-	rec.IndexedAt, _ = time.Parse(time.RFC3339, indexedAt)
-	return &rec, true, nil
+	defer rows.Close()
+	out := make(map[string]struct{})
+	for rows.Next() {
+		var h string
+		if err := rows.Scan(&h); err != nil {
+			return nil, err
+		}
+		out[h] = struct{}{}
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) UpsertCommit(rec CommitRecord) error {
@@ -1005,30 +1040,4 @@ ON CONFLICT(hash) DO UPDATE SET
 		rec.AuthoredAt.UTC().Format(time.RFC3339),
 		rec.IndexedAt.UTC().Format(time.RFC3339))
 	return err
-}
-
-func (s *Store) AllCommits() ([]CommitRecord, error) {
-	rows, err := s.db.Query(`SELECT hash, subject, body, author, authored_at, indexed_at FROM commits ORDER BY authored_at DESC`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []CommitRecord
-	for rows.Next() {
-		var rec CommitRecord
-		var authoredAt, indexedAt string
-		if err := rows.Scan(&rec.Hash, &rec.Subject, &rec.Body, &rec.Author, &authoredAt, &indexedAt); err != nil {
-			return nil, err
-		}
-		rec.AuthoredAt, _ = time.Parse(time.RFC3339, authoredAt)
-		rec.IndexedAt, _ = time.Parse(time.RFC3339, indexedAt)
-		out = append(out, rec)
-	}
-	return out, rows.Err()
-}
-
-func (s *Store) CommitCount() (int, error) {
-	var n int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM commits`).Scan(&n)
-	return n, err
 }

@@ -251,10 +251,6 @@ func UserRecordsDir() string {
 	return filepath.Join(home, "records")
 }
 
-func UserDecisionsDir() string {
-	return UserRecordsDir()
-}
-
 func (c *Config) DevRecordsDir() string {
 	if c != nil {
 		if p := strings.TrimSpace(c.Records.Dev); p != "" {

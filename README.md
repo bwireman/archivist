@@ -73,7 +73,7 @@ archivist --path /path/to/your/repo status
 
 ## MCP
 
-`archivist mcp` is the primary query surface. It speaks MCP over **stdio** (JSON-RPC on stdin/stdout). It does not take a port; `--http` is not implemented.
+`archivist mcp` is the primary query surface. It speaks MCP over **stdio** (JSON-RPC on stdin/stdout).
 
 The server opens the repo and home SQLite files, so the process cwd must be the repo, or you must pass `--path`. Search still works if Ollama is down (keyword-only). Writes (`remember`, `update`, `retire`) never need Ollama.
 

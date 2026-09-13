@@ -57,13 +57,6 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 	}
 	idx.remap = remap
 
-	n, err := idx.countFiles(root)
-	if err != nil {
-		return err
-	}
-	userN, _ := idx.countUserRecords()
-	homeN, _ := idx.countHomeGlobalRecords()
-	idx.progress.FilesTotal = n + userN + homeN
 	idx.progress.Phase = PhaseFiles
 	idx.report()
 
@@ -86,7 +79,6 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 		if err := idx.indexPath(ctx, rel, abs, dest); err != nil {
 			return err
 		}
-		idx.progress.FilesSeen++
 		idx.report()
 		return nil
 	})
@@ -170,11 +162,10 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 	if codemap.IsBinary(data) {
 		return dest.DeleteFile(rel)
 	}
-	content := string(data)
-	hash := fileHash(content)
+	hash := fileHash(data)
 
 	if idx.isRecordFile(rel) {
-		rec, err := record.ParseFile(rel, content)
+		rec, err := record.ParseFile(rel, string(data))
 		if err != nil {
 			return fmt.Errorf("%s: %w", rel, err)
 		}
@@ -183,7 +174,6 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 			return err
 		}
 		if ok && existing.ContentHash == rec.ContentHash {
-			idx.progress.FilesUnchanged++
 			return nil
 		}
 		if ok {
@@ -209,11 +199,10 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 		return err
 	}
 	if ok && existing.ContentHash == hash && !idx.remap {
-		idx.progress.FilesUnchanged++
 		return nil
 	}
 
-	result, err := codemap.Extract(rel, content)
+	result, err := codemap.Extract(rel, string(data))
 	if err != nil {
 		return err
 	}
@@ -236,14 +225,15 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	idx.progress.CommitsTotal = len(commits)
+	known, err := idx.Store.CommitHashes()
+	if err != nil {
+		return err
+	}
 	for _, c := range commits {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if _, ok, err := idx.Store.GetCommit(c.Hash); err != nil {
-			return err
-		} else if ok {
+		if _, ok := known[c.Hash]; ok {
 			continue
 		}
 		if err := idx.Store.UpsertCommit(store.CommitRecord{
@@ -257,6 +247,7 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 			return err
 		}
 		idx.progress.CommitsNew++
+		known[c.Hash] = struct{}{}
 	}
 	return nil
 }
@@ -339,49 +330,6 @@ func (idx *Indexer) indexHomeGlobalRecords(ctx context.Context, seen map[string]
 	})
 }
 
-func (idx *Indexer) countUserRecords() (int, error) {
-	dir := idx.userDir()
-	if dir == "" {
-		return 0, nil
-	}
-	n := 0
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() {
-			n++
-		}
-		return nil
-	})
-	return n, nil
-}
-
-func (idx *Indexer) countHomeGlobalRecords() (int, error) {
-	if idx.Cfg == nil || idx.Cfg.Records.GlobalInRepo() {
-		return 0, nil
-	}
-	dir := idx.Cfg.Records.GlobalDir(idx.RepoRoot)
-	if dir == "" {
-		return 0, nil
-	}
-	dev := idx.userDir()
-	n := 0
-	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		if d.IsDir() {
-			if dev != "" && samePath(path, dev) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if strings.ToLower(filepath.Ext(path)) == ".md" {
-			n++
-		}
-		return nil
-	})
-	return n, nil
-}
-
 func samePath(a, b string) bool {
 	a, err1 := filepath.Abs(a)
 	b, err2 := filepath.Abs(b)
@@ -389,15 +337,6 @@ func samePath(a, b string) bool {
 		return filepath.Clean(a) == filepath.Clean(b)
 	}
 	return a == b
-}
-
-func (idx *Indexer) countFiles(root string) (int, error) {
-	n := 0
-	err := idx.walkFiles(root, func(rel, abs string) error {
-		n++
-		return nil
-	})
-	return n, err
 }
 
 func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error {
@@ -535,16 +474,16 @@ func (idx *Indexer) pruneRecords(st *store.Store, seen map[string]struct{}, scop
 	if st == nil {
 		return nil
 	}
-	recs, err := st.AllRecords()
+	paths, err := st.RecordSourcePaths()
 	if err != nil {
 		return err
 	}
-	for _, r := range recs {
-		if !pathInScope(r.SourcePath, scopePath) {
+	for _, p := range paths {
+		if !pathInScope(p, scopePath) {
 			continue
 		}
-		if _, ok := seen[r.SourcePath]; !ok {
-			if err := st.DeleteRecordByPath(r.SourcePath); err != nil {
+		if _, ok := seen[p]; !ok {
+			if err := st.DeleteRecordByPath(p); err != nil {
 				return err
 			}
 		}
@@ -561,7 +500,7 @@ func pathInScope(path, scope string) bool {
 	return path == scope || strings.HasPrefix(path, scope+"/")
 }
 
-func fileHash(content string) string {
-	h := sha256.Sum256([]byte(content))
+func fileHash(data []byte) string {
+	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
 }

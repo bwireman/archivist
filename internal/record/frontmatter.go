@@ -64,7 +64,7 @@ func ParseFile(sourcePath, content string) (*Record, error) {
 		r.Type = TypeDecision
 	}
 	if r.Title == "" {
-		r.Title = titleFromBody(r.Body)
+		r.Title = TitleFromBody(r.Body)
 	}
 	r.ContentHash = ContentHash(r)
 	if err := r.Validate(); err != nil {
@@ -210,7 +210,7 @@ func formatInlineList(items []string) string {
 	return "[" + strings.Join(quoted, ", ") + "]"
 }
 
-func titleFromBody(body string) string {
+func TitleFromBody(body string) string {
 	for _, line := range strings.Split(body, "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "# ") {

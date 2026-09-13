@@ -3,7 +3,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	mcpserver "github.com/mark3labs/mcp-go/server"
@@ -222,8 +221,4 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 
 func ServeStdio(s *Server) error {
 	return mcpserver.ServeStdio(s.MCPServer())
-}
-
-func ServeHTTP(s *Server, addr string) error {
-	return fmt.Errorf("http transport: use stdio for now; addr was %s", addr)
 }

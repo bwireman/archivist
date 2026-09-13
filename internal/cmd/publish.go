@@ -15,7 +15,7 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}

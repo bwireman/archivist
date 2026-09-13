@@ -11,9 +11,12 @@ type Embedder interface {
 	Dimensions() int
 }
 
-type Client interface {
-	Embedder
-	Healthy(ctx context.Context) error
+func OptionalFromConfig(ctx context.Context, cfg config.OllamaConfig) Embedder {
+	client := NewOllamaClientFromConfig(cfg)
+	if err := client.Healthy(ctx); err != nil {
+		return nil
+	}
+	return client
 }
 
 type HealthStatus struct {

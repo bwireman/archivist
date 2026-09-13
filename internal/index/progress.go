@@ -32,24 +32,15 @@ func (p Phase) String() string {
 
 // Progress is a snapshot of an in-flight Index run.
 type Progress struct {
-	Phase  Phase
-	Path   string
-	Detail string
+	Phase Phase
+	Path  string
 
-	FilesTotal     int
-	FilesSeen      int
-	FilesIndexed   int
-	FilesUnchanged int
-	FilesRemoved   int
-
-	CommitsTotal int
+	FilesIndexed int
+	FilesRemoved int
 	CommitsNew   int
-
-	ChunksEmbedded int
 }
 
-// Reporter receives Progress snapshots. Calls may come from the indexer
-// goroutine; implementations must be safe for that.
+// Reporter receives Progress snapshots during Index.
 type Reporter func(Progress)
 
 // FormatSummary is the one-line result printed after indexing.

@@ -156,18 +156,7 @@ func (s *Service) absPath(sourcePath string) string {
 }
 
 func (s *Service) devDir() string {
-	p := strings.TrimSpace(s.Records.Dev)
-	if p == "" {
-		return config.UserRecordsDir()
-	}
-	if filepath.IsAbs(p) {
-		return p
-	}
-	home := config.ArchivistHome()
-	if home == "" {
-		return p
-	}
-	return filepath.Join(home, p)
+	return (&config.Config{Records: s.Records}).DevRecordsDir()
 }
 
 func slugify(title string) string {

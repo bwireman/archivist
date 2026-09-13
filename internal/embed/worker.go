@@ -23,10 +23,6 @@ type WorkerOptions struct {
 	Concurrency int
 }
 
-func DefaultWorkerOptions() WorkerOptions {
-	return WorkerOptions{Concurrency: 2}
-}
-
 func (w *Worker) Run(ctx context.Context, opts WorkerOptions) (int, error) {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 1
@@ -169,29 +165,4 @@ func (w *Worker) lookupRecord(id string, prefer *store.Store) (*record.Record, *
 		}
 	}
 	return nil, nil, nil
-}
-
-// OpenWorkerStores returns repo and home stores for embedding.
-func OpenWorkerStores(repoRoot string) ([]*store.Store, error) {
-	var out []*store.Store
-	repo, err := store.Open(config.StorePath(repoRoot))
-	if err != nil {
-		return nil, err
-	}
-	out = append(out, repo)
-	homePath := config.HomeStorePath()
-	if homePath != "" {
-		home, err := store.Open(homePath)
-		if err != nil {
-			_ = repo.Close()
-			return nil, err
-		}
-		out = append(out, home)
-	}
-	return out, nil
-}
-
-// EnqueueRecord upserts a record and queues embedding.
-func EnqueueRecord(st *store.Store, rec *record.Record) error {
-	return st.UpsertRecord(rec)
 }

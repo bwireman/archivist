@@ -77,11 +77,11 @@ func loadEnv() (string, *config.Config, error) {
 	return root, cfg, nil
 }
 
-func openStore(root string, _ *config.Config) (*store.Store, error) {
+func openStore(root string) (*store.Store, error) {
 	return store.Open(config.StorePath(root))
 }
 
-func openHomeStore(_ *config.Config) (*store.Store, error) {
+func openHomeStore() (*store.Store, error) {
 	path, err := resolveHomeStorePath()
 	if err != nil {
 		return nil, err
@@ -97,12 +97,12 @@ func resolveHomeStorePath() (string, error) {
 	return "", fmt.Errorf("cannot resolve home archive path (set $HOME)")
 }
 
-func openStores(root string, cfg *config.Config) (*store.Store, *store.Store, error) {
-	repo, err := openStore(root, cfg)
+func openStores(root string) (*store.Store, *store.Store, error) {
+	repo, err := openStore(root)
 	if err != nil {
 		return nil, nil, err
 	}
-	home, err := openHomeStore(cfg)
+	home, err := openHomeStore()
 	if err != nil {
 		_ = repo.Close()
 		return nil, nil, err
@@ -151,18 +151,14 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
 			defer home.Close()
 
-			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
-			var embedder embed.Embedder
-			if err := client.Healthy(cmd.Context()); err == nil {
-				embedder = client
-			}
+			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
 			engine := &retrieve.Engine{Repo: repo, Home: home}
 			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " ")}
 			if recType != "" {
@@ -201,7 +197,7 @@ func newStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
@@ -98,12 +99,37 @@ func TestRunNestsRecordsScopeThenType(t *testing.T) {
 	}
 }
 
-func TestDigestFileKeepsCodeMapNameFree(t *testing.T) {
-	if DigestFile(record.TypeMap) != "maps.md" {
-		t.Fatal(DigestFile(record.TypeMap))
+func TestRunWritesCodeMapFromSymbols(t *testing.T) {
+	st := openStore(t)
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Path: "internal/store/store.go", IndexedAt: mustNow(),
+	}, []store.Symbol{
+		{Name: "Open", Kind: "function_declaration", Line: 42},
+		{Name: "Store", Kind: "type_declaration", Line: 38},
+	}, nil); err != nil {
+		t.Fatal(err)
 	}
-	if DigestFile(record.TypeRule) != "rules.md" {
-		t.Fatal(DigestFile(record.TypeRule))
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Path: "cmd/archivist/main.go", IndexedAt: mustNow(),
+	}, []store.Symbol{
+		{Name: "main", Kind: "function_declaration", Line: 5},
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	out := t.TempDir()
+	if err := Run(st, nil, Options{OutDir: out}); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(filepath.Join(out, "map.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := string(data)
+	if !strings.Contains(got, "## cmd/archivist/main.go") || !strings.Contains(got, "## internal/store/store.go") {
+		t.Fatalf("code map missing files: %s", got)
+	}
+	if !strings.Contains(got, "- `Open` (function_declaration) line 42") {
+		t.Fatalf("code map missing symbol: %s", got)
 	}
 }
 
@@ -164,4 +190,8 @@ func mustUpsert(t *testing.T, st *store.Store, rec *record.Record) {
 	if err := st.UpsertRecord(rec); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func mustNow() time.Time {
+	return time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC)
 }

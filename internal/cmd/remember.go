@@ -26,7 +26,7 @@ func newRememberCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}
@@ -79,7 +79,7 @@ func newUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}
@@ -127,7 +127,7 @@ func newRetireCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}
@@ -162,17 +162,13 @@ func newCheckCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root, cfg)
+			repo, home, err := openStores(root)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
 			defer home.Close()
-			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
-			var embedder embed.Embedder
-			if err := client.Healthy(cmd.Context()); err == nil {
-				embedder = client
-			}
+			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
 			engine := &retrieve.Engine{Repo: repo, Home: home}
 			res, err := check.Run(cmd.Context(), engine, embedder, check.Options{
 				Description: strings.Join(args, " "),

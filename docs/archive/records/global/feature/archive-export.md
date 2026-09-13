@@ -34,4 +34,4 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. `--bundle`
 ## Entry points
 
 - CLI: `archivist export`, `archivist export --bundle <dir>`
-- Types: `export.Run`, `export.WriteBundle`, `export.DigestFile`
+- Types: `export.Run`, `export.WriteBundle`

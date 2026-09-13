@@ -13,7 +13,7 @@
 - `string` (method_declaration) line 127
 - `string` (method_declaration) line 146
 - `string` (method_declaration) line 158
-- `slugify` (function_declaration) line 173
+- `slugify` (function_declaration) line 162
 
 ## internal/archive/service_test.go
 
@@ -30,71 +30,9 @@
 - `pathsFromDiff` (function_declaration) line 95
 - `unique` (function_declaration) line 112
 
-## internal/chunk/chunk.go
-
-- `Type` (type_spec) line 13
-- `Chunk` (type_spec) line 32
-- `HashContent` (function_declaration) line 42
-- `annotateContent` (function_declaration) line 49
-- `NewChunk` (function_declaration) line 67
-- `ClassifyFile` (function_declaration) line 79
-- `Classify` (function_declaration) line 86
-- `StampADRScope` (function_declaration) line 103
-- `StampOrigin` (function_declaration) line 122
-- `MatchAnyPattern` (function_declaration) line 140
-
-## internal/chunk/chunk_test.go
-
-- `TestSplitGenericMarkdown` (function_declaration) line 10
-- `TestSplitGenericMarkdownSplitsWhenLarge` (function_declaration) line 27
-- `TestExtractCommentChunks` (function_declaration) line 39
-- `TestSplitGoFile` (function_declaration) line 56
-- `TestSplitGoMethodIncludesParentAndDoc` (function_declaration) line 88
-- `TestClassifyADR` (function_declaration) line 122
-- `TestClassifyADRDoesNotMatchSiblingPrefix` (function_declaration) line 129
-- `TestClassifyADRGlob` (function_declaration) line 139
-- `TestClassifyGlobalWins` (function_declaration) line 145
-- `TestClassifyRepoADR` (function_declaration) line 156
-- `TestSplitFileStampsADRScope` (function_declaration) line 167
-- `TestStampOrigin` (function_declaration) line 198
-- `TestClassifyMDCAsDoc` (function_declaration) line 209
-- `TestSplitADRStaysTogether` (function_declaration) line 215
-- `TestMatchAnyPatternSkipGlobs` (function_declaration) line 232
-- `TestExtractCommentChunksIgnoresAnnotation` (function_declaration) line 241
-
-## internal/chunk/generic.go
-
-- `SplitGeneric` (function_declaration) line 18
-- `splitMarkdown` (function_declaration) line 35
-- `splitBySize` (function_declaration) line 68
-- `copyMeta` (function_declaration) line 109
-- `tailBytes` (function_declaration) line 120
-- `ExtractCommentChunks` (function_declaration) line 139
-- `hasCommentTag` (function_declaration) line 165
-- `isTagChar` (function_declaration) line 195
-- `isLikelyComment` (function_declaration) line 199
-- `IsBinary` (function_declaration) line 210
-
-## internal/chunk/split.go
-
-- `SplitFile` (function_declaration) line 9
-
-## internal/chunk/treesitter.go
-
-- `languageSpec` (type_spec) line 17
-- `SplitWithTreeSitter` (function_declaration) line 37
-- `filePreamble` (function_declaration) line 111
-- `leadingCommentBlock` (function_declaration) line 145
-- `isDocCommentLine` (function_declaration) line 163
-- `semanticParent` (function_declaration) line 172
-- `nodeName` (function_declaration) line 193
-- `firstIdent` (function_declaration) line 203
-- `findNodeType` (function_declaration) line 216
-- `nodeText` (function_declaration) line 231
-
 ## internal/cmd/embed.go
 
-- `newEmbedCmd` (function_declaration) line 10
+- `newEmbedCmd` (function_declaration) line 11
 
 ## internal/cmd/export.go
 
@@ -146,8 +84,8 @@
 - `openStores` (function_declaration) line 100
 - `appendGitignore` (function_declaration) line 113
 - `newSearchCmd` (function_declaration) line 140
-- `newStatusCmd` (function_declaration) line 194
-- `status` (type_spec) line 219
+- `newStatusCmd` (function_declaration) line 190
+- `status` (type_spec) line 215
 
 ## internal/cmd/skills.go
 
@@ -224,14 +162,13 @@
 - `ArchivistHome` (function_declaration) line 230
 - `HomeStorePath` (function_declaration) line 238
 - `UserRecordsDir` (function_declaration) line 246
-- `UserDecisionsDir` (function_declaration) line 254
-- `string` (method_declaration) line 258
-- `VirtualUserADRPath` (function_declaration) line 274
-- `VirtualHomeGlobalPath` (function_declaration) line 278
-- `prefixedHomePath` (function_declaration) line 282
-- `IsUserGlobalPath` (function_declaration) line 290
-- `IsHomeGlobalPath` (function_declaration) line 294
-- `hasHomePrefix` (function_declaration) line 298
+- `string` (method_declaration) line 254
+- `VirtualUserADRPath` (function_declaration) line 270
+- `VirtualHomeGlobalPath` (function_declaration) line 274
+- `prefixedHomePath` (function_declaration) line 278
+- `IsUserGlobalPath` (function_declaration) line 286
+- `IsHomeGlobalPath` (function_declaration) line 290
+- `hasHomePrefix` (function_declaration) line 294
 
 ## internal/config/config_test.go
 
@@ -255,9 +192,9 @@
 ## internal/embed/embedder.go
 
 - `Embedder` (type_spec) line 9
-- `Client` (type_spec) line 14
-- `HealthStatus` (type_spec) line 19
-- `CheckHealth` (function_declaration) line 24
+- `OptionalFromConfig` (function_declaration) line 14
+- `HealthStatus` (type_spec) line 22
+- `CheckHealth` (function_declaration) line 27
 
 ## internal/embed/ollama.go
 
@@ -277,11 +214,8 @@
 
 - `Worker` (type_spec) line 15
 - `WorkerOptions` (type_spec) line 21
-- `DefaultWorkerOptions` (function_declaration) line 26
-- `int` (method_declaration) line 57
-- `job` (type_spec) line 72
-- `OpenWorkerStores` (function_declaration) line 175
-- `EnqueueRecord` (function_declaration) line 195
+- `int` (method_declaration) line 53
+- `job` (type_spec) line 68
 
 ## internal/embed/worker_test.go
 
@@ -302,46 +236,41 @@
 - `Manifest` (type_spec) line 24
 - `Entry` (type_spec) line 30
 - `Run` (function_declaration) line 44
-- `collectRecords` (function_declaration) line 68
-- `writeRecords` (function_declaration) line 88
-- `writeIndex` (function_declaration) line 104
-- `writeTypeDigests` (function_declaration) line 138
-- `writeTypeDigest` (function_declaration) line 162
-- `groupByType` (function_declaration) line 185
-- `recordRel` (function_declaration) line 193
-- `DigestFile` (function_declaration) line 199
-- `typeHeading` (function_declaration) line 206
-- `writeMap` (function_declaration) line 225
-- `writeManifest` (function_declaration) line 250
-- `WriteBundle` (function_declaration) line 270
+- `collectRecords` (function_declaration) line 70
+- `writeRecords` (function_declaration) line 91
+- `writeIndex` (function_declaration) line 107
+- `writeTypeDigests` (function_declaration) line 141
+- `writeTypeDigest` (function_declaration) line 159
+- `groupByType` (function_declaration) line 182
+- `recordRel` (function_declaration) line 190
+- `wantDigest` (function_declaration) line 194
+- `typeHeading` (function_declaration) line 198
+- `digestFile` (function_declaration) line 205
+- `writeMap` (function_declaration) line 209
+- `writeManifest` (function_declaration) line 236
+- `WriteBundle` (function_declaration) line 256
 
 ## internal/export/export_test.go
 
-- `TestRunNestsRecordsScopeThenType` (function_declaration) line 13
-- `TestDigestFileKeepsCodeMapNameFree` (function_declaration) line 101
-- `TestRunWritesMapsDigestBesideCodeMap` (function_declaration) line 110
-- `TestRunAlwaysWritesRulesDigest` (function_declaration) line 137
-- `openStore` (function_declaration) line 152
-- `mustUpsert` (function_declaration) line 162
+- `TestRunNestsRecordsScopeThenType` (function_declaration) line 14
+- `TestRunWritesCodeMapFromSymbols` (function_declaration) line 102
+- `TestRunWritesMapsDigestBesideCodeMap` (function_declaration) line 136
+- `TestRunAlwaysWritesRulesDigest` (function_declaration) line 163
+- `openStore` (function_declaration) line 178
+- `mustUpsert` (function_declaration) line 188
+- `mustNow` (function_declaration) line 195
 
 ## internal/gitindex/git.go
 
-- `Commit` (type_spec) line 13
-- `BlameInfo` (type_spec) line 22
-- `IsGitRepo` (function_declaration) line 28
-- `ListCommits` (function_declaration) line 34
-- `parseGitLog` (function_declaration) line 55
-- `CommitChunks` (function_declaration) line 93
-- `BlameFile` (function_declaration) line 112
-- `parseBlame` (function_declaration) line 124
-- `parseBlameSHA` (function_declaration) line 148
+- `Commit` (type_spec) line 10
+- `IsGitRepo` (function_declaration) line 19
+- `ListCommits` (function_declaration) line 25
+- `parseGitLog` (function_declaration) line 43
 
 ## internal/gitindex/git_test.go
 
-- `TestParseGitLogMultipleCommitsAndFiles` (function_declaration) line 9
-- `TestParseBlameExtractsCommitAndAuthor` (function_declaration) line 46
-- `TestParseBlameSHA` (function_declaration) line 78
-- `TestListCommitsThisRepo` (function_declaration) line 88
+- `TestParseGitLogMultipleCommits` (function_declaration) line 8
+- `TestListCommitsThisRepo` (function_declaration) line 38
 
 ## internal/gitindex/ignore.go
 
@@ -370,29 +299,33 @@
 - `matchDoubleStar` (function_declaration) line 31
 - `matchBaseGlob` (function_declaration) line 57
 
+## internal/glob/glob_test.go
+
+- `TestMatchAnyPatternSkipGlobs` (function_declaration) line 5
+
 ## internal/index/indexer.go
 
 - `Indexer` (type_spec) line 23
 - `error` (method_declaration) line 42
-- `bool` (method_declaration) line 136
-- `bool` (method_declaration) line 146
-- `error` (method_declaration) line 159
-- `error` (method_declaration) line 232
-- `string` (method_declaration) line 264
-- `error` (method_declaration) line 274
-- `error` (method_declaration) line 303
-- `samePath` (function_declaration) line 385
-- `error` (method_declaration) line 403
-- `bool` (method_declaration) line 426
-- `bool` (method_declaration) line 442
-- `bool` (method_declaration) line 460
-- `bool` (method_declaration) line 467
-- `error` (method_declaration) line 471
-- `bool` (method_declaration) line 499
-- `error` (method_declaration) line 514
-- `error` (method_declaration) line 534
-- `pathInScope` (function_declaration) line 555
-- `fileHash` (function_declaration) line 564
+- `bool` (method_declaration) line 128
+- `bool` (method_declaration) line 138
+- `error` (method_declaration) line 151
+- `error` (method_declaration) line 221
+- `string` (method_declaration) line 255
+- `error` (method_declaration) line 265
+- `error` (method_declaration) line 294
+- `samePath` (function_declaration) line 333
+- `error` (method_declaration) line 342
+- `bool` (method_declaration) line 365
+- `bool` (method_declaration) line 381
+- `bool` (method_declaration) line 399
+- `bool` (method_declaration) line 406
+- `error` (method_declaration) line 410
+- `bool` (method_declaration) line 438
+- `error` (method_declaration) line 453
+- `error` (method_declaration) line 473
+- `pathInScope` (function_declaration) line 494
+- `fileHash` (function_declaration) line 503
 
 ## internal/index/indexer_test.go
 
@@ -413,17 +346,16 @@
 - `Phase` (type_spec) line 6
 - `string` (method_declaration) line 16
 - `Progress` (type_spec) line 34
-- `Reporter` (type_spec) line 53
-- `FormatSummary` (function_declaration) line 56
-- `plural` (function_declaration) line 66
+- `Reporter` (type_spec) line 44
+- `FormatSummary` (function_declaration) line 47
+- `plural` (function_declaration) line 57
 
 ## internal/mcp/server.go
 
-- `Server` (type_spec) line 21
-- `New` (function_declaration) line 31
-- `jsonResult` (function_declaration) line 94
-- `ServeStdio` (function_declaration) line 223
-- `ServeHTTP` (function_declaration) line 227
+- `Server` (type_spec) line 20
+- `New` (function_declaration) line 30
+- `jsonResult` (function_declaration) line 93
+- `ServeStdio` (function_declaration) line 222
 
 ## internal/migrate/migrate.go
 
@@ -446,7 +378,7 @@
 - `yamlQuote` (function_declaration) line 171
 - `parseInlineList` (function_declaration) line 178
 - `formatInlineList` (function_declaration) line 202
-- `titleFromBody` (function_declaration) line 213
+- `TitleFromBody` (function_declaration) line 213
 
 ## internal/record/record.go
 
@@ -541,21 +473,22 @@
 - `scanner` (type_spec) line 443
 - `error` (method_declaration) line 449
 - `nullString` (function_declaration) line 517
-- `error` (method_declaration) line 594
-- `error` (method_declaration) line 626
-- `VectorRecord` (type_spec) line 658
-- `QueueItem` (type_spec) line 706
-- `error` (method_declaration) line 748
-- `error` (method_declaration) line 753
-- `FTSResult` (type_spec) line 762
-- `FileRecord` (type_spec) line 799
-- `Symbol` (type_spec) line 806
-- `SymbolEdge` (type_spec) line 816
-- `error` (method_declaration) line 837
-- `boolToInt` (function_declaration) line 877
-- `error` (method_declaration) line 884
-- `CommitRecord` (type_spec) line 968
-- `error` (method_declaration) line 994
+- `error` (method_declaration) line 611
+- `error` (method_declaration) line 643
+- `VectorRecord` (type_spec) line 675
+- `QueueItem` (type_spec) line 723
+- `error` (method_declaration) line 765
+- `error` (method_declaration) line 770
+- `FTSResult` (type_spec) line 779
+- `FileRecord` (type_spec) line 816
+- `Symbol` (type_spec) line 823
+- `SymbolEdge` (type_spec) line 833
+- `error` (method_declaration) line 854
+- `boolToInt` (function_declaration) line 909
+- `error` (method_declaration) line 916
+- `collectSymbols` (function_declaration) line 986
+- `CommitRecord` (type_spec) line 1003
+- `error` (method_declaration) line 1029
 
 ## internal/store/store_test.go
 
