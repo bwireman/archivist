@@ -43,6 +43,10 @@ func newIndexCmd() *cobra.Command {
 				return err
 			}
 			count, _ := repo.RecordCount()
+			if home != nil {
+				n, _ := home.RecordCount()
+				count += n
+			}
 			fmt.Fprintln(cmd.OutOrStdout(), index.FormatSummary(progress, count))
 			return nil
 		},

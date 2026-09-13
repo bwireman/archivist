@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -42,7 +43,7 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create store dir: %w", err)
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)")
+	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -50,6 +51,14 @@ func Open(path string) (*Store, error) {
 	if err := s.migrate(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("migrate store: %w", err)
+	}
+	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("enable foreign keys: %w", err)
+	}
+	if err := s.purgeOrphans(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("purge orphans: %w", err)
 	}
 	return s, nil
 }
@@ -169,6 +178,14 @@ CREATE TABLE IF NOT EXISTS commits (
 		return err
 	}
 	return s.ensureSchema(version.Schema)
+}
+
+func (s *Store) purgeOrphans() error {
+	if _, err := s.db.Exec(`DELETE FROM embed_queue WHERE record_id NOT IN (SELECT id FROM records)`); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM record_vectors WHERE record_id NOT IN (SELECT id FROM records)`)
+	return err
 }
 
 func (s *Store) ensureFTS() error {
@@ -297,7 +314,7 @@ CREATE TABLE IF NOT EXISTS symbol_edges (
 func (s *Store) GetMeta(key string) (string, bool, error) {
 	var value string
 	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", false, nil
 	}
 	if err != nil {
@@ -507,7 +524,7 @@ func nullString(s string) interface{} {
 func (s *Store) GetRecordByID(id string) (*record.Record, bool, error) {
 	row := s.db.QueryRow(`SELECT `+recordCols+` FROM records WHERE id = ?`, id)
 	r, err := scanRecord(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -519,7 +536,7 @@ func (s *Store) GetRecordByID(id string) (*record.Record, bool, error) {
 func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
 	row := s.db.QueryRow(`SELECT `+recordCols+` FROM records WHERE slug = ?`, slug)
 	r, err := scanRecord(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -531,7 +548,7 @@ func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
 func (s *Store) GetRecordByPath(path string) (*record.Record, bool, error) {
 	row := s.db.QueryRow(`SELECT `+recordCols+` FROM records WHERE source_path = ?`, path)
 	r, err := scanRecord(row)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -586,6 +603,14 @@ func (s *Store) DeleteRecordByPath(path string) error {
 	if err != nil {
 		return err
 	}
+	_, err = s.db.Exec(`DELETE FROM embed_queue WHERE record_id = ?`, rec.ID)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`DELETE FROM record_vectors WHERE record_id = ?`, rec.ID)
+	if err != nil {
+		return err
+	}
 	_, err = s.db.Exec(`DELETE FROM records WHERE source_path = ?`, path)
 	return err
 }
@@ -620,7 +645,7 @@ func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error
 	var dim int
 	err := s.db.QueryRow(`SELECT model, dim, embedding FROM record_vectors WHERE record_id = ?`, recordID).
 		Scan(&model, &dim, &blob)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, "", false, nil
 	}
 	if err != nil {
@@ -692,26 +717,37 @@ func (s *Store) QueueDepth() (int, error) {
 	return n, err
 }
 
+// DequeueEmbed peeks queued items oldest-first. limit <= 0 returns the whole queue.
 func (s *Store) DequeueEmbed(limit int) ([]QueueItem, error) {
-	rows, err := s.db.Query(`
-SELECT record_id, text_hash, enqueued_at, attempts, COALESCE(last_error,'')
-FROM embed_queue ORDER BY enqueued_at LIMIT ?
-`, limit)
+	q := `SELECT record_id, text_hash, enqueued_at, attempts, COALESCE(last_error,'')
+FROM embed_queue ORDER BY enqueued_at`
+	var rows *sql.Rows
+	var err error
+	if limit > 0 {
+		rows, err = s.db.Query(q+` LIMIT ?`, limit)
+	} else {
+		rows, err = s.db.Query(q)
+	}
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []QueueItem
 	for rows.Next() {
-		var q QueueItem
+		var item QueueItem
 		var at string
-		if err := rows.Scan(&q.RecordID, &q.TextHash, &at, &q.Attempts, &q.LastError); err != nil {
+		if err := rows.Scan(&item.RecordID, &item.TextHash, &at, &item.Attempts, &item.LastError); err != nil {
 			return nil, err
 		}
-		q.EnqueuedAt, _ = time.Parse(time.RFC3339, at)
-		out = append(out, q)
+		item.EnqueuedAt, _ = time.Parse(time.RFC3339, at)
+		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) DropQueueItem(recordID string) error {
+	_, err := s.db.Exec(`DELETE FROM embed_queue WHERE record_id = ?`, recordID)
+	return err
 }
 
 func (s *Store) FailQueueItem(recordID, errMsg string) error {
@@ -788,7 +824,7 @@ func (s *Store) GetFile(path string) (*FileRecord, bool, error) {
 	var indexedAt string
 	err := s.db.QueryRow(`SELECT path, content_hash, COALESCE(package_name,''), indexed_at FROM files WHERE path = ?`, path).
 		Scan(&rec.Path, &rec.ContentHash, &rec.PackageName, &indexedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {
@@ -944,7 +980,7 @@ func (s *Store) GetCommit(hash string) (*CommitRecord, bool, error) {
 	err := s.db.QueryRow(`
 SELECT hash, subject, body, author, authored_at, indexed_at FROM commits WHERE hash = ?
 `, hash).Scan(&rec.Hash, &rec.Subject, &rec.Body, &rec.Author, &authoredAt, &indexedAt)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
 	if err != nil {

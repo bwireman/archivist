@@ -147,7 +147,7 @@
 - `appendGitignore` (function_declaration) line 113
 - `newSearchCmd` (function_declaration) line 140
 - `newStatusCmd` (function_declaration) line 194
-- `status` (type_spec) line 218
+- `status` (type_spec) line 219
 
 ## internal/cmd/skills.go
 
@@ -275,12 +275,26 @@
 
 ## internal/embed/worker.go
 
-- `Worker` (type_spec) line 14
-- `WorkerOptions` (type_spec) line 20
+- `Worker` (type_spec) line 15
+- `WorkerOptions` (type_spec) line 21
 - `DefaultWorkerOptions` (function_declaration) line 26
-- `error` (method_declaration) line 99
-- `OpenWorkerStores` (function_declaration) line 127
-- `EnqueueRecord` (function_declaration) line 147
+- `int` (method_declaration) line 57
+- `job` (type_spec) line 72
+- `OpenWorkerStores` (function_declaration) line 175
+- `EnqueueRecord` (function_declaration) line 195
+
+## internal/embed/worker_test.go
+
+- `TestWorkerOnceDrainsWholeQueue` (function_declaration) line 16
+- `TestWorkerContinuesAfterOneFailure` (function_declaration) line 36
+- `TestWorkerDropsGhostQueueItems` (function_declaration) line 66
+- `TestWorkerEmbedsHomeStoreWhenRepoIsEmpty` (function_declaration) line 78
+- `TestWorkerFindsRecordOnOtherStore` (function_declaration) line 96
+- `TestWorkerWithoutOnceDrainsQueue` (function_declaration) line 114
+- `embedFunc` (type_spec) line 133
+- `int` (method_declaration) line 139
+- `openStore` (function_declaration) line 141
+- `upsertQueued` (function_declaration) line 151
 
 ## internal/export/export.go
 
@@ -377,7 +391,8 @@
 - `TestIndexRecord` (function_declaration) line 136
 - `TestIndexHomeGlobalRecord` (function_declaration) line 167
 - `TestIndexSkipsArchive` (function_declaration) line 211
-- `TestFormatSummary` (function_declaration) line 224
+- `TestIndexInRepoGlobalRecordNotPruned` (function_declaration) line 224
+- `TestFormatSummary` (function_declaration) line 276
 
 ## internal/index/progress.go
 
@@ -393,8 +408,8 @@
 - `Server` (type_spec) line 21
 - `New` (function_declaration) line 31
 - `jsonResult` (function_declaration) line 94
-- `ServeStdio` (function_declaration) line 217
-- `ServeHTTP` (function_declaration) line 221
+- `ServeStdio` (function_declaration) line 223
+- `ServeHTTP` (function_declaration) line 227
 
 ## internal/migrate/migrate.go
 
@@ -492,45 +507,50 @@
 
 ## internal/store/store.go
 
-- `SchemaError` (type_spec) line 28
-- `string` (method_declaration) line 33
-- `Store` (type_spec) line 37
-- `Open` (function_declaration) line 41
-- `OpenIfExists` (function_declaration) line 57
-- `error` (method_declaration) line 75
-- `error` (method_declaration) line 79
-- `error` (method_declaration) line 174
-- `error` (method_declaration) line 184
-- `error` (method_declaration) line 207
-- `error` (method_declaration) line 309
-- `error` (method_declaration) line 341
-- `error` (method_declaration) line 348
-- `encodeJSONList` (function_declaration) line 377
-- `decodeJSONList` (function_declaration) line 385
-- `scanRecord` (function_declaration) line 396
-- `scanner` (type_spec) line 426
-- `error` (method_declaration) line 432
-- `nullString` (function_declaration) line 500
-- `error` (method_declaration) line 577
-- `error` (method_declaration) line 601
-- `VectorRecord` (type_spec) line 633
-- `QueueItem` (type_spec) line 681
-- `error` (method_declaration) line 717
-- `FTSResult` (type_spec) line 726
-- `FileRecord` (type_spec) line 763
-- `Symbol` (type_spec) line 770
-- `SymbolEdge` (type_spec) line 780
-- `error` (method_declaration) line 801
-- `boolToInt` (function_declaration) line 841
-- `error` (method_declaration) line 848
-- `CommitRecord` (type_spec) line 932
-- `error` (method_declaration) line 958
+- `SchemaError` (type_spec) line 29
+- `string` (method_declaration) line 34
+- `Store` (type_spec) line 38
+- `Open` (function_declaration) line 42
+- `OpenIfExists` (function_declaration) line 66
+- `error` (method_declaration) line 84
+- `error` (method_declaration) line 88
+- `error` (method_declaration) line 183
+- `error` (method_declaration) line 191
+- `error` (method_declaration) line 201
+- `error` (method_declaration) line 224
+- `error` (method_declaration) line 326
+- `error` (method_declaration) line 358
+- `error` (method_declaration) line 365
+- `encodeJSONList` (function_declaration) line 394
+- `decodeJSONList` (function_declaration) line 402
+- `scanRecord` (function_declaration) line 413
+- `scanner` (type_spec) line 443
+- `error` (method_declaration) line 449
+- `nullString` (function_declaration) line 517
+- `error` (method_declaration) line 594
+- `error` (method_declaration) line 626
+- `VectorRecord` (type_spec) line 658
+- `QueueItem` (type_spec) line 706
+- `error` (method_declaration) line 748
+- `error` (method_declaration) line 753
+- `FTSResult` (type_spec) line 762
+- `FileRecord` (type_spec) line 799
+- `Symbol` (type_spec) line 806
+- `SymbolEdge` (type_spec) line 816
+- `error` (method_declaration) line 837
+- `boolToInt` (function_declaration) line 877
+- `error` (method_declaration) line 884
+- `CommitRecord` (type_spec) line 968
+- `error` (method_declaration) line 994
 
 ## internal/store/store_test.go
 
-- `TestRecordRoundTrip` (function_declaration) line 14
-- `TestSchemaNewerThanCLI` (function_declaration) line 57
-- `TestFileMapRoundTrip` (function_declaration) line 80
+- `TestRecordRoundTrip` (function_declaration) line 18
+- `TestSchemaNewerThanCLI` (function_declaration) line 61
+- `TestFileMapRoundTrip` (function_declaration) line 84
+- `TestDeleteRecordByPathDropsQueue` (function_declaration) line 110
+- `TestDequeueEmbedZeroLimitReturnsAll` (function_declaration) line 141
+- `TestOpenPurgesOrphanQueueAndVectors` (function_declaration) line 178
 
 ## internal/version/version.go
 

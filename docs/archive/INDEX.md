@@ -6,10 +6,12 @@
 - [Bump codemap.Version when extractors change](records/global/bump-codemap-version-when-extractors-change.md) (accepted) [must]
 - [Code map tests must fixture every registered language](records/global/code-map-tests-must-fixture-every-registered-language.md) (accepted) [must]
 - [Do not store session notes as accepted archive records](records/global/do-not-store-session-notes-as-accepted-archive-records.md) (accepted) [should-not]
+- [Embed --once must process every queued item](records/global/embed-once-must-process-every-queued-item.md) (accepted) [must]
 - [Never pass unsanitized text to FTS5 MATCH](records/global/never-pass-unsanitized-text-to-fts5-match.md) (accepted) [must]
 
 ## decision
 
+- [--once drains the whole embed queue](records/global/once-drains-the-whole-embed-queue.md) (accepted)
 - [Add feature as a record type for living capability docs](records/global/add-feature-as-a-record-type-for-living-capability-docs.md) (accepted)
 - [Archive hygiene: current facts, stubs for superseded, delete non-records](records/global/archive-hygiene-current-facts-stubs-for-superseded-delete-non-records.md) (accepted)
 - [Default ADR globs are the product directories](records/global/008-default-adr-globs.md) (superseded)

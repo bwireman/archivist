@@ -42,15 +42,12 @@ func newEmbedCmd() *cobra.Command {
 			}
 			opts := embed.WorkerOptions{Once: once, Concurrency: concurrency}
 			n, err := w.Run(cmd.Context(), opts)
-			if err != nil {
-				return err
-			}
 			fmt.Printf("Embedded %d records\n", n)
-			return nil
+			return err
 		},
 	}
 	cmd.Flags().BoolVar(&worker, "worker", false, "drain the embed queue")
-	cmd.Flags().BoolVar(&once, "once", false, "process one batch then exit")
+	cmd.Flags().BoolVar(&once, "once", false, "process every queued item once, then exit")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 2, "parallel embed workers")
 	return cmd
 }

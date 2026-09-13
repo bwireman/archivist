@@ -221,6 +221,58 @@ func TestIndexSkipsArchive(t *testing.T) {
 	}
 }
 
+func TestIndexInRepoGlobalRecordNotPruned(t *testing.T) {
+	root := t.TempDir()
+	t.Setenv("HOME", t.TempDir())
+	cfg := config.Default()
+	cfg.Records.Global = config.DefaultGlobalDecisionsDir
+	st, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = st.Close()
+		_ = home.Close()
+	})
+	content := `---
+id: rec_feat
+type: feature
+scope: global
+status: accepted
+title: Embed queue
+---
+
+## Purpose
+Drain it.
+`
+	writeFile(t, root, "docs/global-decisions/embed-queue.md", content)
+	idx := &index.Indexer{RepoRoot: root, Cfg: cfg, Store: st, Home: home}
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	rec, ok, err := home.GetRecordByID("rec_feat")
+	if err != nil || !ok {
+		t.Fatalf("first index: ok=%v err=%v", ok, err)
+	}
+	if rec.SourcePath != "docs/global-decisions/embed-queue.md" {
+		t.Fatalf("source_path %s", rec.SourcePath)
+	}
+	if err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := home.GetRecordByID("rec_feat"); err != nil || !ok {
+		t.Fatalf("reindex pruned in-repo global record: ok=%v err=%v", ok, err)
+	}
+	n, _ := home.RecordCount()
+	if n != 1 {
+		t.Fatalf("home records %d, want 1", n)
+	}
+}
+
 func TestFormatSummary(t *testing.T) {
 	upToDate := index.FormatSummary(index.Progress{}, 215)
 	if upToDate != "Index up to date (215 records)" {

@@ -1,7 +1,26 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-12T22:58:42Z",
+  "exported_at": "2026-09-12T23:54:12Z",
   "records": [
+    {
+      "id": "rec_cd668042d22370100627",
+      "slug": "once-drains-the-whole-embed-queue",
+      "type": "decision",
+      "scope": "global",
+      "title": "--once drains the whole embed queue",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/once-drains-the-whole-embed-queue.md",
+      "tags": [
+        "embed",
+        "queue",
+        "worker"
+      ],
+      "applies_to": [
+        "internal/embed/**",
+        "internal/store/**"
+      ],
+      "content_hash": "2a780ea2733ffbed9f088121c2d597c72c768971de67969aa572fa93103fc56c"
+    },
     {
       "id": "rec_7c4b40de9fa8f90f2ac8",
       "slug": "add-feature-as-a-record-type-for-living-capability-docs",
@@ -273,9 +292,10 @@
       "applies_to": [
         "internal/embed/**",
         "internal/store/**",
-        "internal/cmd/**"
+        "internal/cmd/**",
+        "internal/mcp/**"
       ],
-      "content_hash": "cfcd43dc03839871088e355ab4fa971930c9a4df44fb5ccb3d5b4a1adba40cb1"
+      "content_hash": "a78dc1e2d737c435026db6d6fb80c0827d3db3ce7459d298354e0e04e0b01390"
     },
     {
       "id": "rec_393fc5d328e835dae38b",
@@ -382,6 +402,25 @@
         "docs/global-decisions/**"
       ],
       "content_hash": "a5782d882051b7cb751fcff5a23dacc5cdbf21e0cab34b785456fe7914269e6d"
+    },
+    {
+      "id": "rec_8240f8ac1fec1a19cb38",
+      "slug": "embed-once-must-process-every-queued-item",
+      "type": "rule",
+      "scope": "global",
+      "title": "Embed --once must process every queued item",
+      "status": "accepted",
+      "severity": "must",
+      "source_path": "docs/global-decisions/embed-once-must-process-every-queued-item.md",
+      "tags": [
+        "embed",
+        "queue"
+      ],
+      "applies_to": [
+        "internal/embed/**",
+        "internal/store/**"
+      ],
+      "content_hash": "b21584b0449e6573f169192d23af07dedc06e434e4df0acfc9f8ff1089598d51"
     },
     {
       "id": "rec_a774cf613e4d5dd33694",

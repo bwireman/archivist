@@ -177,7 +177,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | --- | --- | --- |
 | `archivist init` | no | Config, data dirs, decision dirs |
 | `archivist index` | no | Index records + code map |
-| `archivist embed --worker` | yes | Drain embed queue |
+| `archivist embed --worker` | yes | Drain embed queue (`--once` processes every item once, then exits) |
 | `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs) |
 | `archivist check` | optional | Match rules to a change |
 | `archivist remember` | no | Create a record |

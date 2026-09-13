@@ -210,6 +210,7 @@ func newStatusCmd() *cobra.Command {
 
 			health := embed.CheckHealth(cmd.Context(), cfg)
 			recCount, _ := repo.RecordCount()
+			homeCount, _ := home.RecordCount()
 			fileCount, _ := repo.FileCount()
 			queue, _ := repo.QueueDepth()
 			homeQueue, _ := home.QueueDepth()
@@ -231,7 +232,7 @@ func newStatusCmd() *cobra.Command {
 				Schema:        version.Schema,
 				EmbedderOK:    health.EmbedderOK,
 				EmbedderError: health.EmbedderError,
-				RecordCount:   recCount,
+				RecordCount:   recCount + homeCount,
 				FileCount:     fileCount,
 				QueueDepth:    queue + homeQueue,
 				HomeQueue:     homeQueue,

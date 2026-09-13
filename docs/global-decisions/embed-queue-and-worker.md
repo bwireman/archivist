@@ -4,7 +4,7 @@ type: feature
 scope: global
 status: accepted
 title: Embed queue and worker
-applies_to: [internal/embed/**, internal/store/**, internal/cmd/**]
+applies_to: [internal/embed/**, internal/store/**, internal/cmd/**, internal/mcp/**]
 tags: [embed, queue, ollama]
 ---
 
@@ -14,13 +14,13 @@ Defer Ollama embedding so `index`, `remember`, and `update` never need the embed
 
 ## Behavior
 
-Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_id` (`text_hash`, `enqueued_at`, `attempts`, `last_error`). Unchanged records skip upsert, so they are not re-queued.
+Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_id` (`text_hash`, `enqueued_at`, `attempts`, `last_error`). Unchanged records skip upsert, so they are not re-queued. Deleting a record also deletes its queue row and vector.
 
-`DequeueEmbed` peeks `ORDER BY enqueued_at LIMIT n`; it does not claim or delete the row. Default batch is 16 per store. Success is `SetRecordVector`, which upserts `record_vectors` and deletes the queue row. Ollama failure calls `FailQueueItem` (increments `attempts`, stores `last_error`) and leaves the row; the worker then returns that error and stops.
+The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
 
-`archivist embed --worker` requires a healthy Ollama client. `--concurrency` (default 2) runs in-process goroutines. `--once` processes one concatenated batch from repo + home stores and exits. Without `--once`, the worker peeks again after 500ms until a batch is empty. Two worker processes can embed the same record because dequeue is not a lease. `text_hash` is stored but not used to skip stale in-flight work.
+`archivist embed --worker --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`.
 
-Keyword search works with a full queue. Hybrid ranking only includes records that already have vectors. `archivist status` reports queue depth as the sum of both stores.
+Keyword search works with a full queue. Hybrid ranking only includes records that already have vectors. `archivist status` and the MCP `status` tool report record count and queue depth as the sum of both stores.
 
 ## Connects to
 
@@ -32,4 +32,5 @@ Keyword search works with a full queue. Hybrid ranking only includes records tha
 ## Entry points
 
 - CLI: `archivist embed --worker [--once] [--concurrency N]`
-- Types: `embed.Worker`, `store.DequeueEmbed`, `store.SetRecordVector`, `store.FailQueueItem`
+- MCP: `status`
+- Types: `embed.Worker`, `store.DequeueEmbed`, `store.SetRecordVector`, `store.FailQueueItem`, `store.DropQueueItem`

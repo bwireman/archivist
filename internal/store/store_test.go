@@ -1,7 +1,9 @@
 package store_test
 
 import (
+	"database/sql"
 	"errors"
+	"fmt"
 	"path/filepath"
 	"testing"
 	"time"
@@ -9,6 +11,8 @@ import (
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/bwireman/archivist/internal/version"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestRecordRoundTrip(t *testing.T) {
@@ -100,5 +104,129 @@ func TestFileMapRoundTrip(t *testing.T) {
 	n, _ := st.FileCount()
 	if n != 0 {
 		t.Fatalf("expected 0 files, got %d", n)
+	}
+}
+
+func TestDeleteRecordByPathDropsQueue(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rec := &record.Record{
+		ID:         "rec_drop",
+		Slug:       "drop-me",
+		Type:       record.TypeDecision,
+		Scope:      record.ScopeRepo,
+		Title:      "Drop me",
+		Status:     record.StatusAccepted,
+		Body:       "gone",
+		SourcePath: "docs/decisions/drop-me.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DeleteRecordByPath(rec.SourcePath); err != nil {
+		t.Fatal(err)
+	}
+	depth, _ := st.QueueDepth()
+	if depth != 0 {
+		t.Fatalf("queue depth %d after delete", depth)
+	}
+	if _, ok, err := st.GetRecordByID(rec.ID); err != nil || ok {
+		t.Fatalf("record still present ok=%v err=%v", ok, err)
+	}
+}
+
+func TestDequeueEmbedZeroLimitReturnsAll(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for i := 0; i < 20; i++ {
+		rec := &record.Record{
+			ID:         fmt.Sprintf("rec_%02d", i),
+			Slug:       fmt.Sprintf("rec-%02d", i),
+			Type:       record.TypeDecision,
+			Scope:      record.ScopeRepo,
+			Title:      fmt.Sprintf("Title %d", i),
+			Status:     record.StatusAccepted,
+			Body:       "body",
+			SourcePath: fmt.Sprintf("docs/decisions/rec-%02d.md", i),
+		}
+		if err := st.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	limited, err := st.DequeueEmbed(16)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(limited) != 16 {
+		t.Fatalf("limit 16 returned %d", len(limited))
+	}
+	all, err := st.DequeueEmbed(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(all) != 20 {
+		t.Fatalf("limit 0 returned %d, want 20", len(all))
+	}
+}
+
+func TestOpenPurgesOrphanQueueAndVectors(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "test.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &record.Record{
+		ID:         "rec_ghost",
+		Slug:       "ghost",
+		Type:       record.TypeDecision,
+		Scope:      record.ScopeRepo,
+		Title:      "Ghost",
+		Status:     record.StatusAccepted,
+		Body:       "body",
+		SourcePath: "docs/decisions/ghost.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector(rec.ID, "test", []float32{1, 0, 0, 0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	db, err := sql.Open("sqlite", path+"?_pragma=foreign_keys(0)")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`INSERT INTO embed_queue(record_id, text_hash, enqueued_at, attempts) VALUES (?, 'x', '2026-01-01T00:00:00Z', 0)`, rec.ID); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DELETE FROM records WHERE id = ?`, rec.ID); err != nil {
+		_ = db.Close()
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	depth, _ := st.QueueDepth()
+	if depth != 0 {
+		t.Fatalf("queue depth %d after open, want 0", depth)
+	}
+	if _, _, ok, err := st.GetRecordVector(rec.ID); err != nil || ok {
+		t.Fatalf("orphan vector still present ok=%v err=%v", ok, err)
 	}
 }

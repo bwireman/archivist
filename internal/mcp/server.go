@@ -202,6 +202,12 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	health := embed.CheckHealth(context.Background(), s.Cfg)
 	count, _ := s.RepoDB.RecordCount()
 	queue, _ := s.RepoDB.QueueDepth()
+	if s.HomeDB != nil {
+		homeCount, _ := s.HomeDB.RecordCount()
+		homeQueue, _ := s.HomeDB.QueueDepth()
+		count += homeCount
+		queue += homeQueue
+	}
 	status := map[string]any{
 		"version":      version.String(),
 		"record_count": count,

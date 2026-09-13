@@ -36,6 +36,15 @@ Ephemeral session observations (MCP down this chat, config currently unset, unve
 
 ---
 
+## Embed --once must process every queued item
+
+- Severity: must
+- Applies to: internal/embed/**, internal/store/**
+
+`archivist embed --worker --once` must process every row currently in `embed_queue` (repo and home). It must not stop after a batch size, and it must not skip remaining items because one sibling failed. Queue rows with no matching record must be deleted, not counted as successfully embedded.
+
+---
+
 ## Never pass unsanitized text to FTS5 MATCH
 
 - Severity: must
