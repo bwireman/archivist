@@ -91,11 +91,11 @@ type IndexConfig struct {
 }
 
 type RecordsConfig struct {
-	Repo      string `json:"repo,omitempty"`
-	Global    string `json:"global,omitempty"`
-	Dev       string `json:"dev,omitempty"`
-	Export    string `json:"export,omitempty"`
-	WriteDocs bool   `json:"write_docs,omitempty"`
+	Repo      string `json:"repo,omitempty"`       // import drop folder + logical source_path prefix (default docs/decisions)
+	Global    string `json:"global,omitempty"`     // empty => ~/.archivist; checkout-relative is an in-repo import folder
+	Dev       string `json:"dev,omitempty"`        // import drop folder for dev scope (default ~/.archivist/records)
+	Export    string `json:"export,omitempty"`     // generated tree when WriteDocs (default docs/archive)
+	WriteDocs bool   `json:"write_docs,omitempty"` // if true, archivist export writes Export
 }
 
 func (r RecordsConfig) withDefaults() RecordsConfig {

@@ -1,13 +1,14 @@
 # Refresh the archive
 
-After a turn that changed records, Go sources, or docs under the record directories, run:
+After a turn that changed records (via MCP/CLI), Go sources, or markdown you want in SQLite, run:
 
 ```bash
+archivist import
 archivist index
 archivist embed --worker --once
 archivist export
 ```
 
-Index does not need Ollama. Skip embed if Ollama is down. `export` is a no-op unless `records.write_docs` is true (`--bundle` and publish still write). Skip all of this if you only touched `docs/archive/` or `.archivist/`.
+SQLite is the source of truth for records; `remember`/`update`/`retire` write the DB only. `import` upserts typed markdown from `records.repo`, `records.global`, dev records, and export copies — it never prunes DB-only rows. Skip `import` when no markdown record dirs exist. `index` is code map + git only (no Ollama). Skip embed if Ollama is down. `export` is a no-op unless `records.write_docs` is true (`--bundle` and publish still write). Skip the whole sequence if you only touched `docs/archive/` or `.archivist/`.
 
-If the turn changed how a capability behaves, update (or create) its `feature` record first so the archive stays the source of truth.
+If the turn changed how a capability behaves, update (or create) its `feature` record first.

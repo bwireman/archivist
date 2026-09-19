@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -16,7 +15,6 @@ import (
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/gitindex"
 	"github.com/bwireman/archivist/internal/glob"
-	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
 )
 
@@ -61,7 +59,6 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 	idx.report()
 
 	seenRepo := make(map[string]struct{})
-	seenHome := make(map[string]struct{})
 
 	err = idx.walkFiles(root, func(rel, abs string) error {
 		if err := ctx.Err(); err != nil {
@@ -69,14 +66,8 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 		}
 		idx.progress.Path = rel
 		idx.report()
-		dest := idx.Store
-		if idx.isGlobalRecord(rel) {
-			dest = idx.Home
-			seenHome[rel] = struct{}{}
-		} else {
-			seenRepo[rel] = struct{}{}
-		}
-		if err := idx.indexPath(ctx, rel, abs, dest); err != nil {
+		seenRepo[rel] = struct{}{}
+		if err := idx.indexPath(ctx, rel, abs, idx.Store); err != nil {
 			return err
 		}
 		idx.report()
@@ -86,19 +77,7 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 		return err
 	}
 
-	if err := idx.indexUserRecords(ctx, seenHome); err != nil {
-		return err
-	}
-	if err := idx.indexHomeGlobalRecords(ctx, seenHome); err != nil {
-		return err
-	}
 	if err := idx.pruneFiles(seenRepo, scopePath); err != nil {
-		return err
-	}
-	if err := idx.pruneRecords(idx.Store, seenRepo, scopePath); err != nil {
-		return err
-	}
-	if err := idx.pruneRecords(idx.Home, seenHome, scopePath); err != nil {
 		return err
 	}
 	if err := idx.indexGit(ctx); err != nil {
@@ -123,16 +102,6 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
 	idx.progress.Path = ""
 	idx.report()
 	return nil
-}
-
-func (idx *Indexer) isGlobalRecord(rel string) bool {
-	if config.IsHomeGlobalPath(rel) {
-		return true
-	}
-	if idx.Cfg == nil || !idx.Cfg.Records.GlobalInRepo() {
-		return false
-	}
-	return config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
 func (idx *Indexer) isRecordFile(rel string) bool {
@@ -165,32 +134,6 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 	hash := fileHash(data)
 
 	if idx.isRecordFile(rel) {
-		rec, err := record.ParseFile(rel, string(data))
-		if err != nil {
-			return fmt.Errorf("%s: %w", rel, err)
-		}
-		existing, ok, err := dest.GetRecordByPath(rel)
-		if err != nil {
-			return err
-		}
-		if ok && existing.ContentHash == rec.ContentHash {
-			return nil
-		}
-		if ok {
-			rec.ID = existing.ID
-			rec.CreatedAt = existing.CreatedAt
-		}
-		if config.IsUserGlobalPath(rel) {
-			rec.Scope = record.ScopeDev
-		} else if idx.isGlobalRecord(rel) {
-			rec.Scope = record.ScopeGlobal
-		} else {
-			rec.Scope = record.ScopeRepo
-		}
-		if err := dest.UpsertRecord(rec); err != nil {
-			return err
-		}
-		idx.progress.FilesIndexed++
 		return nil
 	}
 
@@ -250,93 +193,6 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 		known[c.Hash] = struct{}{}
 	}
 	return nil
-}
-
-func (idx *Indexer) userDir() string {
-	if idx.UserDir != "" {
-		return idx.UserDir
-	}
-	if idx.Cfg != nil {
-		return idx.Cfg.DevRecordsDir()
-	}
-	return config.UserRecordsDir()
-}
-
-func (idx *Indexer) indexUserRecords(ctx context.Context, seen map[string]struct{}) error {
-	if idx.Home == nil {
-		return nil
-	}
-	dir := idx.userDir()
-	if dir == "" {
-		return nil
-	}
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil
-	}
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		virt := config.VirtualUserADRPath(rel)
-		seen[virt] = struct{}{}
-		return idx.indexPath(ctx, virt, path, idx.Home)
-	})
-}
-
-func (idx *Indexer) indexHomeGlobalRecords(ctx context.Context, seen map[string]struct{}) error {
-	if idx.Home == nil || idx.Cfg == nil || idx.Cfg.Records.GlobalInRepo() {
-		return nil
-	}
-	dir := idx.Cfg.Records.GlobalDir(idx.RepoRoot)
-	if dir == "" {
-		return nil
-	}
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return nil
-	}
-	dev := idx.userDir()
-	return filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
-			if dev != "" && samePath(path, dev) {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		if strings.ToLower(filepath.Ext(path)) != ".md" {
-			return nil
-		}
-		if idx.shouldSkipFile(filepath.Base(path)) {
-			return nil
-		}
-		rel, err := filepath.Rel(dir, path)
-		if err != nil {
-			return err
-		}
-		rel = filepath.ToSlash(rel)
-		virt := config.VirtualHomeGlobalPath(rel)
-		seen[virt] = struct{}{}
-		return idx.indexPath(ctx, virt, path, idx.Home)
-	})
-}
-
-func samePath(a, b string) bool {
-	a, err1 := filepath.Abs(a)
-	b, err2 := filepath.Abs(b)
-	if err1 != nil || err2 != nil {
-		return filepath.Clean(a) == filepath.Clean(b)
-	}
-	return a == b
 }
 
 func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error {
@@ -465,27 +321,6 @@ func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error
 				return err
 			}
 			idx.progress.FilesRemoved++
-		}
-	}
-	return nil
-}
-
-func (idx *Indexer) pruneRecords(st *store.Store, seen map[string]struct{}, scopePath string) error {
-	if st == nil {
-		return nil
-	}
-	paths, err := st.RecordSourcePaths()
-	if err != nil {
-		return err
-	}
-	for _, p := range paths {
-		if !pathInScope(p, scopePath) {
-			continue
-		}
-		if _, ok := seen[p]; !ok {
-			if err := st.DeleteRecordByPath(p); err != nil {
-				return err
-			}
 		}
 	}
 	return nil

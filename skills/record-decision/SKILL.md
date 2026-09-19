@@ -17,6 +17,4 @@ archivist remember --type decision --scope repo --title "..." --body "..."
 
 Or MCP `remember` with the same fields.
 
-4. Scope: `repo` this checkout, `global` the product, `dev` personal. Then `archivist index` and `archivist export`.
-
-Directories come from `.archivist.json` `records.repo` / `records.global` (default `~/.archivist`) / `records.dev`.
+4. Scope: `repo` this checkout, `global` the product, `dev` personal. Then `archivist embed --once`. Records live in SQLite; `remember` does not write markdown. Use `archivist export` only when `records.write_docs` is true. `records.repo` / `records.global` / `records.dev` are optional import drop folders.

@@ -20,7 +20,7 @@ func newRememberCmd() *cobra.Command {
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "remember",
-		Short: "Create a new archive record",
+		Short: "Create a new archive record in SQLite",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {

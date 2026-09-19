@@ -37,4 +37,4 @@ archivist remember --type feature --scope global --title "..." --applies-to "int
 
 Or MCP `remember` with `type=feature`.
 
-5. Scope: `global` for product capabilities, `repo` for this checkout only, `dev` for personal notes. Then `archivist index` and `archivist export`.
+5. Scope: `global` for product capabilities, `repo` for this checkout only, `dev` for personal notes. Then `archivist embed --once` if the body changed. Records live in SQLite; `remember` does not write markdown.

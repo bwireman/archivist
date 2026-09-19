@@ -8,6 +8,7 @@ import (
 
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/index"
+	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
 )
 
@@ -133,7 +134,7 @@ func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
 	}
 }
 
-func TestIndexRecord(t *testing.T) {
+func TestIndexSkipsRecordMarkdown(t *testing.T) {
 	root := t.TempDir()
 	content := `---
 id: rec_abc
@@ -151,60 +152,8 @@ Yes.
 	if err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	rec, ok, err := st.GetRecordByID("rec_abc")
-	if err != nil || !ok {
-		t.Fatalf("record: ok=%v err=%v", ok, err)
-	}
-	if rec.Title != "Use SQLite" {
-		t.Fatalf("title: %s", rec.Title)
-	}
-	depth, _ := st.QueueDepth()
-	if depth != 1 {
-		t.Fatalf("expected queue item, got %d", depth)
-	}
-}
-
-func TestIndexHomeGlobalRecord(t *testing.T) {
-	root := t.TempDir()
-	idx, _, home := newIndexer(t, root)
-	dir := config.ArchivistHome()
-	content := `---
-id: rec_home
-type: decision
-scope: global
-status: accepted
-title: Machine wide
----
-
-Body.
-`
-	writeFile(t, dir, "machine.md", content)
-	writeFile(t, dir, "records/personal.md", `---
-id: rec_dev
-type: decision
-scope: dev
-status: accepted
-title: Personal
----
-
-Note.
-`)
-	if err := idx.Index(context.Background(), ""); err != nil {
-		t.Fatal(err)
-	}
-	rec, ok, err := home.GetRecordByID("rec_home")
-	if err != nil || !ok {
-		t.Fatalf("home global: ok=%v err=%v", ok, err)
-	}
-	if rec.Scope != "global" || rec.SourcePath != "global/machine.md" {
-		t.Fatalf("got scope=%s path=%s", rec.Scope, rec.SourcePath)
-	}
-	dev, ok, err := home.GetRecordByID("rec_dev")
-	if err != nil || !ok {
-		t.Fatalf("dev: ok=%v err=%v", ok, err)
-	}
-	if dev.Scope != "dev" || dev.SourcePath != "user/personal.md" {
-		t.Fatalf("dev got scope=%s path=%s", dev.Scope, dev.SourcePath)
+	if _, ok, err := st.GetRecordByID("rec_abc"); err != nil || ok {
+		t.Fatalf("index should not ingest records: ok=%v err=%v", ok, err)
 	}
 }
 
@@ -221,55 +170,32 @@ func TestIndexSkipsArchive(t *testing.T) {
 	}
 }
 
-func TestIndexInRepoGlobalRecordNotPruned(t *testing.T) {
+func TestIndexDoesNotPruneDBOnlyRecord(t *testing.T) {
 	root := t.TempDir()
-	t.Setenv("HOME", t.TempDir())
-	cfg := config.Default()
-	cfg.Records.Global = config.DefaultGlobalDecisionsDir
-	st, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
-	if err != nil {
+	idx, st, _ := newIndexer(t, root)
+	rec := &record.Record{
+		ID:         "rec_dbonly",
+		Slug:       "db-only",
+		Type:       record.TypeDecision,
+		Scope:      record.ScopeRepo,
+		Title:      "DB only",
+		Status:     record.StatusAccepted,
+		Body:       "Still here.",
+		SourcePath: "docs/decisions/db-only.md",
+	}
+	rec.ContentHash = record.ContentHash(rec)
+	if err := st.UpsertRecord(rec); err != nil {
 		t.Fatal(err)
 	}
-	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = st.Close()
-		_ = home.Close()
-	})
-	content := `---
-id: rec_feat
-type: feature
-scope: global
-status: accepted
-title: Embed queue
----
-
-## Purpose
-Drain it.
-`
-	writeFile(t, root, "docs/global-decisions/embed-queue.md", content)
-	idx := &index.Indexer{RepoRoot: root, Cfg: cfg, Store: st, Home: home}
 	if err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	rec, ok, err := home.GetRecordByID("rec_feat")
+	got, ok, err := st.GetRecordByID("rec_dbonly")
 	if err != nil || !ok {
-		t.Fatalf("first index: ok=%v err=%v", ok, err)
+		t.Fatalf("record pruned: ok=%v err=%v", ok, err)
 	}
-	if rec.SourcePath != "docs/global-decisions/embed-queue.md" {
-		t.Fatalf("source_path %s", rec.SourcePath)
-	}
-	if err := idx.Index(context.Background(), ""); err != nil {
-		t.Fatal(err)
-	}
-	if _, ok, err := home.GetRecordByID("rec_feat"); err != nil || !ok {
-		t.Fatalf("reindex pruned in-repo global record: ok=%v err=%v", ok, err)
-	}
-	n, _ := home.RecordCount()
-	if n != 1 {
-		t.Fatalf("home records %d, want 1", n)
+	if got.Body != "Still here." {
+		t.Fatalf("body %q", got.Body)
 	}
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
-func TestRememberGlobalWritesHome(t *testing.T) {
+func TestRememberGlobalStoresInHomeDB(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	repo := t.TempDir()
@@ -37,12 +37,15 @@ func TestRememberGlobalWritesHome(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(home, ".archivist", "home-global.md")
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected %s: %v", path, err)
+	if _, err := os.Stat(filepath.Join(home, ".archivist", "home-global.md")); !os.IsNotExist(err) {
+		t.Fatal("remember should not write markdown under ~/.archivist")
 	}
 	if _, err := os.Stat(filepath.Join(repo, "docs/global-decisions/home-global.md")); !os.IsNotExist(err) {
-		t.Fatal("default global should not write in-repo")
+		t.Fatal("default global should not write in-repo markdown")
+	}
+	n, err := homeDB.RecordCount()
+	if err != nil || n != 1 {
+		t.Fatalf("home record count %d err=%v", n, err)
 	}
 	rec, err := svc.Get(id)
 	if err != nil {
@@ -104,7 +107,7 @@ func TestRememberSamePathReusesID(t *testing.T) {
 	}
 }
 
-func TestRememberGlobalInRepoWhenConfigured(t *testing.T) {
+func TestRememberGlobalInRepoUsesLogicalPath(t *testing.T) {
 	repo := t.TempDir()
 	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
 	if err != nil {
@@ -131,8 +134,14 @@ func TestRememberGlobalInRepoWhenConfigured(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	path := filepath.Join(repo, config.DefaultGlobalDecisionsDir, "in-repo.md")
-	if _, err := os.Stat(path); err != nil {
-		t.Fatalf("expected %s: %v", path, err)
+	if _, err := os.Stat(filepath.Join(repo, config.DefaultGlobalDecisionsDir, "in-repo.md")); !os.IsNotExist(err) {
+		t.Fatal("remember should not write in-repo markdown")
+	}
+	got, err := svc.Get("in-repo")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SourcePath != filepath.ToSlash(filepath.Join(config.DefaultGlobalDecisionsDir, "in-repo.md")) {
+		t.Fatalf("source %q", got.SourcePath)
 	}
 }

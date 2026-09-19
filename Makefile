@@ -4,7 +4,7 @@ ARGS     ?=
 VERSION  ?=
 LDFLAGS  := $(if $(VERSION),-ldflags "-X github.com/bwireman/archivist/internal/version.Version=$(VERSION)")
 
-.PHONY: all build test vet fmt tidy check install run index embed export refresh-archive clean help
+.PHONY: all build test vet fmt tidy check install run import index embed export refresh-archive clean help
 
 all: build
 
@@ -31,7 +31,7 @@ install: ## Install archivist to GOPATH/bin
 run: ## Run archivist (e.g. make run ARGS='search --help')
 	go run $(LDFLAGS) $(PKG) $(ARGS)
 
-index: build ## Index records and code map (no Ollama)
+index: build ## Index code map and git (no Ollama)
 	./$(BIN) index
 
 embed: build ## Drain embed queue (needs Ollama)
@@ -40,7 +40,10 @@ embed: build ## Drain embed queue (needs Ollama)
 export: build ## Generate docs/archive/ (no-op unless records.write_docs)
 	./$(BIN) export
 
-refresh-archive: index embed export ## Index, embed, then export
+import: build ## Upsert typed markdown into SQLite (no prune)
+	./$(BIN) import
+
+refresh-archive: import index embed export ## Import, index, embed, then export
 
 clean: ## Remove the local binary
 	rm -f $(BIN)

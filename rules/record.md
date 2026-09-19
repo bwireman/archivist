@@ -10,4 +10,4 @@ Search first. Update or retire an existing record instead of adding a parallel n
 
 Skip chat transcripts, restatements of records already on file, ephemeral session state (this chat's errors, "MCP is down"), unverified catalogs, and details that live only in code.
 
-Use MCP `remember` / `update` / `retire` or `archivist remember`. Scope: `repo` this checkout, `global` the product, `dev` personal. Directories: `records.repo` / `records.global` (default `~/.archivist`) / `records.dev`.
+Use MCP `remember` / `update` / `retire` or `archivist remember`. These write SQLite only. Scope: `repo` this checkout, `global` the product, `dev` personal. Markdown under `records.repo` / `records.global` (default `~/.archivist`) / `records.dev` is optional import input, not the live archive.

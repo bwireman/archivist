@@ -14,7 +14,7 @@ func newIndexCmd() *cobra.Command {
 	var plain bool
 	cmd := &cobra.Command{
 		Use:   "index",
-		Short: "Index records and code structure (no Ollama required)",
+		Short: "Index code structure and git history (no Ollama required)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {

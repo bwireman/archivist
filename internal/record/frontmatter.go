@@ -5,6 +5,19 @@ import (
 	"strings"
 )
 
+// HasFrontMatterID reports whether content has typed-record front matter with an id field.
+func HasFrontMatterID(content string) bool {
+	fm, _, err := splitFrontMatter(content)
+	if err != nil || fm == "" {
+		return false
+	}
+	fields, err := parseYAMLMap(fm)
+	if err != nil {
+		return false
+	}
+	return strings.TrimSpace(fields["id"]) != ""
+}
+
 // ParseFile parses a markdown file with YAML front matter into a Record.
 func ParseFile(sourcePath, content string) (*Record, error) {
 	fm, body, err := splitFrontMatter(content)

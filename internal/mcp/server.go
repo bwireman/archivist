@@ -71,7 +71,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("query", mcp.Required()),
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
-		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record."),
+		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record. Writes SQLite only; does not create a markdown file."),
 		mcp.WithString("type", mcp.Required(), mcp.Description("decision, rule, feature, guide, map, or pitfall")),
 		mcp.WithString("scope", mcp.Required(), mcp.Description("repo, global, or dev")),
 		mcp.WithString("title", mcp.Required()),
@@ -95,6 +95,9 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv.AddTool(mcp.NewTool("status",
 		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health)."),
 	), s.toolStatus)
+	srv.AddTool(mcp.NewTool("import",
+		mcp.WithDescription("Import typed markdown from record directories and export copies into SQLite. Does not delete DB-only records."),
+	), s.toolImport)
 	return srv
 }
 
@@ -263,6 +266,18 @@ func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return mcp.NewToolResultText("ok"), nil
+}
+
+func (s *Server) toolImport(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	res, err := s.Archive.Import()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]int{
+		"imported": res.Imported,
+		"updated":  res.Updated,
+		"skipped":  res.Skipped,
+	})
 }
 
 func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {

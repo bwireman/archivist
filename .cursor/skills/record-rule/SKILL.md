@@ -19,4 +19,4 @@ archivist remember --type rule --scope repo --severity must-not --title "..." --
 
 Or MCP `remember`.
 
-6. Verify with `archivist check --paths <touched files>` (add `--strict` in CI). Then `archivist index` and `archivist export`.
+6. Verify with `archivist check --paths <touched files>` (add `--strict` in CI). Then `archivist embed --once` if the body changed. Records live in SQLite; `remember` does not write markdown.
