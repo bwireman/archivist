@@ -15,10 +15,11 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	if err := applyInit(root, config.Default()); err != nil {
 		t.Fatal(err)
 	}
-	for _, dir := range []string{config.DefaultDecisionsDir, config.DefaultArchiveDir} {
-		if _, err := os.Stat(filepath.Join(root, dir)); err != nil {
-			t.Fatalf("%s: %v", dir, err)
-		}
+	if _, err := os.Stat(filepath.Join(root, config.DefaultDecisionsDir)); err != nil {
+		t.Fatalf("%s: %v", config.DefaultDecisionsDir, err)
+	}
+	if _, err := os.Stat(filepath.Join(root, config.DefaultArchiveDir)); !os.IsNotExist(err) {
+		t.Fatal("init should not create docs/archive unless records.write_docs is true")
 	}
 	if _, err := os.Stat(filepath.Join(root, config.DefaultGlobalDecisionsDir)); !os.IsNotExist(err) {
 		t.Fatal("init should not create in-repo global docs by default")
@@ -28,6 +29,20 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(root, config.DefaultConfigName)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestApplyInitWriteDocsCreatesArchiveDir(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	cfg := config.Default()
+	cfg.Records.WriteDocs = true
+	if err := applyInit(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(root, config.DefaultArchiveDir)); err != nil {
+		t.Fatalf("docs/archive: %v", err)
 	}
 }
 

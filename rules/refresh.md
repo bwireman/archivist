@@ -8,6 +8,6 @@ archivist embed --worker --once
 archivist export
 ```
 
-Index does not need Ollama. Skip embed if Ollama is down. Skip all of this if you only touched `docs/archive/` or `.archivist/`.
+Index does not need Ollama. Skip embed if Ollama is down. `export` is a no-op unless `records.write_docs` is true (`--bundle` and publish still write). Skip all of this if you only touched `docs/archive/` or `.archivist/`.
 
 If the turn changed how a capability behaves, update (or create) its `feature` record first so the archive stays the source of truth.

@@ -7,7 +7,8 @@
   "records": {
     "repo": "docs/decisions",
     "global": "docs/global-decisions",
-    "export": "docs/archive"
+    "export": "docs/archive",
+    "write_docs": false
   },
   "log_commands": true
 }

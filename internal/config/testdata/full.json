@@ -14,7 +14,8 @@
     "repo": "docs/decisions",
     "global": "docs/global-decisions",
     "dev": "notes",
-    "export": "docs/archive"
+    "export": "docs/archive",
+    "write_docs": true
   },
   "publish": {
     "destinations": {

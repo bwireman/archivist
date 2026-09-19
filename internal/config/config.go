@@ -91,10 +91,11 @@ type IndexConfig struct {
 }
 
 type RecordsConfig struct {
-	Repo   string `json:"repo,omitempty"`
-	Global string `json:"global,omitempty"`
-	Dev    string `json:"dev,omitempty"`
-	Export string `json:"export,omitempty"`
+	Repo      string `json:"repo,omitempty"`
+	Global    string `json:"global,omitempty"`
+	Dev       string `json:"dev,omitempty"`
+	Export    string `json:"export,omitempty"`
+	WriteDocs bool   `json:"write_docs,omitempty"`
 }
 
 func (r RecordsConfig) withDefaults() RecordsConfig {

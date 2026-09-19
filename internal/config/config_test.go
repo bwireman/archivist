@@ -21,10 +21,11 @@ func fullConfig() *config.Config {
 			SkipGlobs: []string{"*.min.js", "*.pb.go"},
 		},
 		Records: config.RecordsConfig{
-			Repo:   "docs/decisions",
-			Global: "docs/global-decisions",
-			Dev:    "notes",
-			Export: "docs/archive",
+			Repo:      "docs/decisions",
+			Global:    "docs/global-decisions",
+			Dev:       "notes",
+			Export:    "docs/archive",
+			WriteDocs: true,
 		},
 		Publish: config.PublishConfig{
 			Destinations: map[string]config.PublishDestination{
@@ -60,6 +61,9 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	if cfg.Records.Export != config.DefaultArchiveDir {
 		t.Fatalf("records.export: %q", cfg.Records.Export)
+	}
+	if cfg.Records.WriteDocs {
+		t.Fatal("records.write_docs should default off")
 	}
 	if cfg.LogCommands {
 		t.Fatal("log_commands should default off")
@@ -150,8 +154,29 @@ func TestLoadOmitsRecordsUsesDefaults(t *testing.T) {
 	if loaded.Records.Global != "" {
 		t.Fatalf("global: %q want empty home default", loaded.Records.Global)
 	}
+	if loaded.Records.WriteDocs {
+		t.Fatal("omitted write_docs should stay off")
+	}
 	if loaded.Ollama.EmbedModel != "nomic-embed-text" {
 		t.Fatalf("model: %q", loaded.Ollama.EmbedModel)
+	}
+}
+
+func TestLoadWriteDocsTrue(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(`{"records": {"write_docs": true}}`)
+	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !loaded.Records.WriteDocs {
+		t.Fatal("expected write_docs true")
+	}
+	if loaded.Records.Export != config.DefaultArchiveDir {
+		t.Fatalf("export path: %q", loaded.Records.Export)
 	}
 }
 

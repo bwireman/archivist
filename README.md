@@ -1,6 +1,6 @@
 # Archivist
 
-A local knowledge archive for design decisions, rules, features, guides, and code structure. Records live as markdown with front matter; SQLite indexes them for hybrid search; MCP is the primary agent surface. A generated `docs/archive/` tree serves humans and tools without MCP.
+A local knowledge archive for design decisions, rules, features, guides, and code structure. Records live as markdown with front matter; SQLite indexes them for hybrid search; MCP is the primary agent surface. An optional generated `docs/archive/` tree serves humans and tools without MCP (`records.write_docs`).
 
 Archivist depends only on SQLite and Ollama HTTP — no vendor SDKs.
 
@@ -47,14 +47,14 @@ make build          # ./archivist
    archivist init
    ```
 
-   That writes `.archivist.json`, creates `docs/decisions/` and `docs/archive/`, appends `.archivist/` to `.gitignore`, and uses `~/.archivist` for global records (plus `~/.archivist/records/` for dev-scoped notes).
+   That writes `.archivist.json`, creates `docs/decisions/`, appends `.archivist/` to `.gitignore`, and uses `~/.archivist` for global records (plus `~/.archivist/records/` for dev-scoped notes). It does not create `docs/archive/` unless `records.write_docs` is true.
 
 3. **Index, embed, export:**
 
    ```bash
    archivist index                  # records + code map; no Ollama
    archivist embed --once  # skip if Ollama is down
-   archivist export                 # writes docs/archive/
+   archivist export                 # no-op unless records.write_docs is true
    ```
 
 4. **Install agent rules/skills** (optional):
@@ -184,7 +184,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist check` | optional | Match rules to a change |
 | `archivist remember` | no | Create a record |
 | `archivist update` / `retire` | no | Amend or supersede |
-| `archivist export` | no | Generate `docs/archive/` |
+| `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |
 | `archivist publish <name>` | no | Bundle + configured shell command |
 | `archivist mcp` | optional | MCP server (primary agent API) |
 | `archivist migrate records` | no | Convert legacy ADRs |
@@ -193,7 +193,9 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 
 ## Generated archive
 
-`archivist export` writes:
+`archivist export` writes `records.export` (default `docs/archive/`) only when `records.write_docs` is true. `--bundle` and `publish` still write a portable tree when the flag is off.
+
+When enabled:
 
 - `docs/archive/INDEX.md` — catalog by type, with links to type digests
 - `docs/archive/rules.md`, `decisions.md`, `features.md`, … — full-text digest per type (`maps.md` for map-type records so it does not collide with the code map)
@@ -201,7 +203,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 - `docs/archive/records/<scope>/<type>/<slug>.md` — one file per record
 - `docs/archive/archive.json` — machine-readable manifest
 
-Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
+Do not hand-edit `docs/archive/`; regenerate with `archivist export`. This checkout sets `"write_docs": true`.
 
 ## Configuration
 
@@ -220,7 +222,8 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
   "records": {
     "repo": "docs/decisions",
     "dev": "",
-    "export": "docs/archive"
+    "export": "docs/archive",
+    "write_docs": false
   },
   "publish": {
     "destinations": {
@@ -234,6 +237,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`.
 - Empty `ollama.base_url` uses `$OLLAMA_HOST` (scheme optional) or `http://localhost:11434`.
 - Empty `records.dev` is `~/.archivist/records`.
 - Empty `records.global` is `~/.archivist`. Set it to a checkout-relative directory (this repo uses `docs/global-decisions`) to keep product-wide records in git.
+- `records.write_docs` (default false) controls whether `archivist export` writes `records.export`. `--bundle` and publish ignore the flag.
 - SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
 - `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the result or error. `init`, `version`, `skills`, and the `mcp` process itself are not logged (MCP tools still are). Logging never fails the command.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.

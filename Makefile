@@ -37,7 +37,7 @@ index: build ## Index records and code map (no Ollama)
 embed: build ## Drain embed queue (needs Ollama)
 	./$(BIN) embed --worker --once
 
-export: build ## Generate docs/archive/
+export: build ## Generate docs/archive/ (no-op unless records.write_docs)
 	./$(BIN) export
 
 refresh-archive: index embed export ## Index, embed, then export

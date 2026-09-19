@@ -65,8 +65,10 @@ func applyInit(root string, cfg *config.Config) error {
 	} else if dir := cfg.Records.GlobalDir(root); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
 	}
-	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Export), 0o755); err != nil {
-		return err
+	if cfg.Records.WriteDocs {
+		if err := os.MkdirAll(filepath.Join(root, cfg.Records.Export), 0o755); err != nil {
+			return err
+		}
 	}
 	if dir := cfg.DevRecordsDir(); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
