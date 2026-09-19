@@ -192,7 +192,6 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |
 | `archivist publish <name>` | no | Bundle + configured shell command |
 | `archivist mcp` | optional | MCP server (primary agent API) |
-| `archivist migrate records` | no | Convert legacy ADRs |
 | `archivist skills install --target cursor` | no | Always-on rules + on-demand skills |
 | `archivist status` | no | Archive + queue status |
 
@@ -281,13 +280,10 @@ make export           # no-op unless records.write_docs
 make refresh-archive  # import, index, embed, export
 ```
 
-## Migration from v2
+## CI archives
 
-```bash
-archivist migrate records
-rm -f .archivist/index.db ~/.archivist/global.db   # schema v3 reset
-archivist import
-archivist index
-archivist embed --once
-archivist export
-```
+Pull requests and pushes to `main` run the Go test suite and `go vet`. Each
+successful commit to `main` also uploads a source archive plus compiled CLI
+artifacts for Linux amd64, macOS amd64/arm64, and Windows amd64. Every binary
+artifact includes a SHA-256 checksum and a `build-info.txt` manifest with the
+CLI version and full commit SHA.

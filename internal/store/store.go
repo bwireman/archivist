@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
@@ -20,21 +19,11 @@ import (
 
 const (
 	MetaLastIndexedAt    = "last_indexed_at"
-	MetaSchemaVersion    = "schema_version"
 	MetaArchivistVersion = "archivist_version"
 	MetaLastSearch       = "last_search"
 	MetaLastSearchAt     = "last_search_at"
 	MetaCodemapVersion   = "codemap_version"
 )
-
-type SchemaError struct {
-	Have int
-	Want int
-}
-
-func (e *SchemaError) Error() string {
-	return fmt.Sprintf("index schema %d is newer than this archivist (schema %d); upgrade the CLI", e.Have, e.Want)
-}
 
 type Store struct {
 	db *sql.DB
@@ -49,9 +38,9 @@ func Open(path string) (*Store, error) {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
 	s := &Store{db: db}
-	if err := s.migrate(); err != nil {
+	if err := s.initialize(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("migrate store: %w", err)
+		return nil, fmt.Errorf("initialize store: %w", err)
 	}
 	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
 		_ = db.Close()
@@ -86,7 +75,7 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
-func (s *Store) migrate() error {
+func (s *Store) initialize() error {
 	schema := `
 CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
@@ -178,7 +167,7 @@ CREATE TABLE IF NOT EXISTS commits (
 	if err := s.ensureFTS(); err != nil {
 		return err
 	}
-	return s.ensureSchema(version.Schema)
+	return nil
 }
 
 func (s *Store) purgeOrphans() error {
@@ -202,119 +191,6 @@ CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
 	return err
 }
 
-func (s *Store) ensureSchema(want int) error {
-	raw, ok, err := s.GetMeta(MetaSchemaVersion)
-	if err != nil {
-		return err
-	}
-	have := 0
-	if ok {
-		have, err = strconv.Atoi(raw)
-		if err != nil {
-			return fmt.Errorf("meta %s %q: %w", MetaSchemaVersion, raw, err)
-		}
-	}
-	if have > want {
-		return &SchemaError{Have: have, Want: want}
-	}
-	if have < want {
-		if err := s.applyMigrations(have, want); err != nil {
-			return err
-		}
-	}
-	return s.SetMeta(MetaSchemaVersion, strconv.Itoa(want))
-}
-
-func (s *Store) applyMigrations(have, want int) error {
-	for v := have + 1; v <= want; v++ {
-		switch v {
-		case 1, 2:
-			// legacy schemas; drop old tables if present
-			_, _ = s.db.Exec(`DROP TABLE IF EXISTS chunks`)
-		case 3:
-			for _, stmt := range []string{
-				`DROP TABLE IF EXISTS chunks`,
-				`DROP TABLE IF EXISTS files`,
-				`DROP TABLE IF EXISTS symbols`,
-				`DROP TABLE IF EXISTS symbol_edges`,
-				`DROP TABLE IF EXISTS record_vectors`,
-				`DROP TABLE IF EXISTS embed_queue`,
-				`DROP TABLE IF EXISTS records_fts`,
-				`DROP TABLE IF EXISTS records`,
-			} {
-				if _, err := s.db.Exec(stmt); err != nil {
-					return err
-				}
-			}
-			if _, err := s.db.Exec(`
-CREATE TABLE IF NOT EXISTS records (
-    id TEXT PRIMARY KEY,
-    slug TEXT NOT NULL,
-    type TEXT NOT NULL,
-    scope TEXT NOT NULL,
-    title TEXT NOT NULL,
-    status TEXT NOT NULL,
-    severity TEXT,
-    body TEXT NOT NULL,
-    source_path TEXT NOT NULL UNIQUE,
-    tags TEXT,
-    applies_to TEXT,
-    supersedes TEXT,
-    superseded_by TEXT,
-    provenance_commit TEXT,
-    content_hash TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS record_vectors (
-    record_id TEXT PRIMARY KEY,
-    model TEXT NOT NULL,
-    dim INTEGER NOT NULL,
-    embedding BLOB NOT NULL,
-    FOREIGN KEY(record_id) REFERENCES records(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS embed_queue (
-    record_id TEXT PRIMARY KEY,
-    text_hash TEXT NOT NULL,
-    enqueued_at TEXT NOT NULL,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    last_error TEXT,
-    FOREIGN KEY(record_id) REFERENCES records(id) ON DELETE CASCADE
-);
-CREATE TABLE IF NOT EXISTS files (
-    path TEXT PRIMARY KEY,
-    content_hash TEXT NOT NULL,
-    package_name TEXT,
-    indexed_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS symbols (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    file_path TEXT NOT NULL,
-    name TEXT NOT NULL,
-    kind TEXT NOT NULL,
-    line INTEGER NOT NULL,
-    doc_line TEXT,
-    exported INTEGER NOT NULL DEFAULT 0
-);
-CREATE TABLE IF NOT EXISTS symbol_edges (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    from_file TEXT NOT NULL,
-    to_path TEXT NOT NULL,
-    edge_type TEXT NOT NULL
-);
-`); err != nil {
-				return err
-			}
-			if err := s.ensureFTS(); err != nil {
-				return err
-			}
-		default:
-			return fmt.Errorf("no migration for schema %d", v)
-		}
-	}
-	return nil
-}
-
 func (s *Store) GetMeta(key string) (string, bool, error) {
 	var value string
 	err := s.db.QueryRow(`SELECT value FROM meta WHERE key = ?`, key).Scan(&value)
@@ -333,17 +209,6 @@ INSERT INTO meta (key, value) VALUES (?, ?)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value
 `, key, value)
 	return err
-}
-
-func (s *Store) SchemaVersion() (int, error) {
-	raw, ok, err := s.GetMeta(MetaSchemaVersion)
-	if err != nil {
-		return 0, err
-	}
-	if !ok {
-		return 0, nil
-	}
-	return strconv.Atoi(raw)
 }
 
 func (s *Store) ArchivistVersion() (string, bool, error) {

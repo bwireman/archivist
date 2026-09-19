@@ -13,7 +13,6 @@ import (
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
-	"github.com/bwireman/archivist/internal/version"
 )
 
 type Options struct {
@@ -22,9 +21,8 @@ type Options struct {
 }
 
 type Manifest struct {
-	SchemaVersion int     `json:"schema_version"`
-	ExportedAt    string  `json:"exported_at"`
-	Records       []Entry `json:"records"`
+	ExportedAt string  `json:"exported_at"`
+	Records    []Entry `json:"records"`
 }
 
 type Entry struct {
@@ -235,8 +233,7 @@ func writeMap(repo *store.Store, path string) error {
 
 func writeManifest(recs []*record.Record, path string) error {
 	m := Manifest{
-		SchemaVersion: version.Schema,
-		ExportedAt:    time.Now().UTC().Format(time.RFC3339),
+		ExportedAt: time.Now().UTC().Format(time.RFC3339),
 	}
 	for _, r := range recs {
 		m.Records = append(m.Records, Entry{

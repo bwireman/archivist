@@ -42,7 +42,6 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newRetireCmd())
 	root.AddCommand(newCheckCmd())
-	root.AddCommand(newMigrateCmd())
 	root.AddCommand(newSkillsCmd())
 	wrapArchiveCommandLogs(root)
 	return root
@@ -216,7 +215,6 @@ func newStatusCmd() *cobra.Command {
 
 			type status struct {
 				Version       string `json:"version"`
-				Schema        int    `json:"schema"`
 				EmbedderOK    bool   `json:"embedder_ok"`
 				EmbedderError string `json:"embedder_error,omitempty"`
 				RecordCount   int    `json:"record_count"`
@@ -227,7 +225,6 @@ func newStatusCmd() *cobra.Command {
 			}
 			s := status{
 				Version:       version.Version,
-				Schema:        version.Schema,
 				EmbedderOK:    health.EmbedderOK,
 				EmbedderError: health.EmbedderError,
 				RecordCount:   recCount + homeCount,

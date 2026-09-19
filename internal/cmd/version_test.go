@@ -22,8 +22,5 @@ func TestVersionFlagAndCommand(t *testing.T) {
 		if !strings.Contains(out, version.Version) {
 			t.Fatalf("%v missing version in %q", args, out)
 		}
-		if !strings.Contains(out, "schema") {
-			t.Fatalf("%v missing schema in %q", args, out)
-		}
 	}
 }

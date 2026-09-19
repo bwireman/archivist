@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  archive:
+    name: Archive source
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - id: build
+        shell: bash
+        run: |
+          version="$(go run ./cmd/archivist version | awk '{print $3}')"
+          short_sha="${GITHUB_SHA::12}"
+          archive="archivist-${version}-${short_sha}.tar.gz"
+          git archive --format=tar.gz --output="$archive" "$GITHUB_SHA"
+          {
+            printf 'version=%s\n' "$version"
+            printf 'commit_sha=%s\n' "$GITHUB_SHA"
+          } > build-info.txt
+          printf 'artifact_name=archivist-%s-%s\n' "$version" "$short_sha" >> "$GITHUB_OUTPUT"
+          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}-source
+          path: |
+            ${{ steps.build.outputs.archive }}
+            build-info.txt
+          if-no-files-found: error
+
+  binaries:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            runner: ubuntu-latest
+          - goos: darwin
+            goarch: amd64
+            runner: macos-13
+          - goos: darwin
+            goarch: arm64
+            runner: macos-14
+          - goos: windows
+            goarch: amd64
+            runner: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+      - id: build
+        shell: bash
+        run: |
+          version="$(go run ./cmd/archivist version | awk '{print $3}')"
+          short_sha="${GITHUB_SHA::12}"
+          extension=""
+          if [[ "${{ matrix.goos }}" == "windows" ]]; then
+            extension=".exe"
+          fi
+          mkdir -p dist
+          binary="archivist_${{ matrix.goos }}_${{ matrix.goarch }}${extension}"
+          go build -trimpath -ldflags "-s -w -X github.com/bwireman/archivist/internal/version.Version=${version}" \
+            -o "dist/${binary}" ./cmd/archivist
+          shasum -a 256 "dist/${binary}" > "dist/${binary}.sha256"
+          {
+            printf 'version=%s\n' "$version"
+            printf 'commit_sha=%s\n' "$GITHUB_SHA"
+            printf 'goos=%s\n' "${{ matrix.goos }}"
+            printf 'goarch=%s\n' "${{ matrix.goarch }}"
+          } > dist/build-info.txt
+          printf 'artifact_name=archivist-%s-%s-%s-%s\n' "$version" "$short_sha" "${{ matrix.goos }}" "${{ matrix.goarch }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.build.outputs.artifact_name }}
+          path: dist/
+          if-no-files-found: error

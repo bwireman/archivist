@@ -2,7 +2,6 @@ package store_test
 
 import (
 	"database/sql"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"testing"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
-	"github.com/bwireman/archivist/internal/version"
 
 	_ "modernc.org/sqlite"
 )
@@ -55,29 +53,6 @@ func TestRecordRoundTrip(t *testing.T) {
 	depth, _ = st.QueueDepth()
 	if depth != 0 {
 		t.Fatalf("expected empty queue, got %d", depth)
-	}
-}
-
-func TestSchemaNewerThanCLI(t *testing.T) {
-	dir := t.TempDir()
-	st, err := store.Open(filepath.Join(dir, "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer st.Close()
-	if err := st.SetMeta(store.MetaSchemaVersion, "999"); err != nil {
-		t.Fatal(err)
-	}
-	_, err = store.Open(filepath.Join(dir, "test.db"))
-	if err == nil {
-		t.Fatal("expected schema error")
-	}
-	var schemaErr *store.SchemaError
-	if !errors.As(err, &schemaErr) {
-		t.Fatalf("expected SchemaError, got %v", err)
-	}
-	if schemaErr.Have != 999 || schemaErr.Want != version.Schema {
-		t.Fatalf("schema error: %+v", schemaErr)
 	}
 }
 

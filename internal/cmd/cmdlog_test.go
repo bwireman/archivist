@@ -111,19 +111,4 @@ func TestArchiveCommandSelection(t *testing.T) {
 			t.Fatalf("%s archiveCommand=%v want %v", c.Name(), archiveCommand(c), expect)
 		}
 	}
-	migrate := root.Commands()
-	var records bool
-	for _, c := range migrate {
-		if c.Name() != "migrate" {
-			continue
-		}
-		for _, child := range c.Commands() {
-			if child.Name() == "records" {
-				records = archiveCommand(child)
-			}
-		}
-	}
-	if !records {
-		t.Fatal("migrate records should be logged")
-	}
 }
