@@ -284,6 +284,6 @@ make refresh-archive  # import, index, embed, export
 
 Pull requests and pushes to `main` run the Go test suite and `go vet`. Each
 successful commit to `main` also uploads a source archive plus compiled CLI
-artifacts for Linux amd64, macOS amd64/arm64, and Windows amd64. Every binary
-artifact includes a SHA-256 checksum and a `build-info.txt` manifest with the
-CLI version and full commit SHA.
+artifacts for Linux amd64 and Apple Silicon macOS. Every binary artifact
+includes a SHA-256 checksum and a `build-info.txt` manifest with the CLI
+version and full commit SHA.

@@ -66,14 +66,8 @@ jobs:
             goarch: amd64
             runner: ubuntu-latest
           - goos: darwin
-            goarch: amd64
-            runner: macos-13
-          - goos: darwin
             goarch: arm64
             runner: macos-14
-          - goos: windows
-            goarch: amd64
-            runner: windows-latest
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-go@v6
@@ -84,12 +78,8 @@ jobs:
         run: |
           version="$(go run ./cmd/archivist version | awk '{print $3}')"
           short_sha="${GITHUB_SHA::12}"
-          extension=""
-          if [[ "${{ matrix.goos }}" == "windows" ]]; then
-            extension=".exe"
-          fi
           mkdir -p dist
-          binary="archivist_${{ matrix.goos }}_${{ matrix.goarch }}${extension}"
+          binary="archivist_${{ matrix.goos }}_${{ matrix.goarch }}"
           go build -trimpath -ldflags "-s -w -X github.com/bwireman/archivist/internal/version.Version=${version}" \
             -o "dist/${binary}" ./cmd/archivist
           shasum -a 256 "dist/${binary}" > "dist/${binary}.sha256"
