@@ -25,10 +25,12 @@ jobs:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.build.outputs.version }}
+      short_sha: ${{ steps.build.outputs.short_sha }}
+      tag: ${{ steps.build.outputs.tag }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
@@ -37,19 +39,26 @@ jobs:
         run: |
           version="$(go run ./cmd/archivist version | awk '{print $3}')"
           short_sha="${GITHUB_SHA::12}"
+          tag="v${version}-${short_sha}"
           archive="archivist-${version}-${short_sha}.tar.gz"
           git archive --format=tar.gz --output="$archive" "$GITHUB_SHA"
+          shasum -a 256 "$archive" > "${archive}.sha256"
           {
             printf 'version=%s\n' "$version"
             printf 'commit_sha=%s\n' "$GITHUB_SHA"
           } > build-info.txt
-          printf 'artifact_name=archivist-%s-%s\n' "$version" "$short_sha" >> "$GITHUB_OUTPUT"
-          printf 'archive=%s\n' "$archive" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+          {
+            printf 'version=%s\n' "$version"
+            printf 'short_sha=%s\n' "$short_sha"
+            printf 'tag=%s\n' "$tag"
+            printf 'archive=%s\n' "$archive"
+          } >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.build.outputs.artifact_name }}-source
+          name: source
           path: |
             ${{ steps.build.outputs.archive }}
+            ${{ steps.build.outputs.archive }}.sha256
             build-info.txt
           if-no-files-found: error
 
@@ -73,11 +82,9 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - id: build
-        shell: bash
+      - shell: bash
         run: |
           version="$(go run ./cmd/archivist version | awk '{print $3}')"
-          short_sha="${GITHUB_SHA::12}"
           mkdir -p dist
           binary="archivist_${{ matrix.goos }}_${{ matrix.goarch }}"
           go build -trimpath -ldflags "-s -w -X github.com/bwireman/archivist/internal/version.Version=${version}" \
@@ -88,10 +95,32 @@ jobs:
             printf 'commit_sha=%s\n' "$GITHUB_SHA"
             printf 'goos=%s\n' "${{ matrix.goos }}"
             printf 'goarch=%s\n' "${{ matrix.goarch }}"
-          } > dist/build-info.txt
-          printf 'artifact_name=archivist-%s-%s-%s-%s\n' "$version" "$short_sha" "${{ matrix.goos }}" "${{ matrix.goarch }}" >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v4
+          } > "dist/${binary}.build-info.txt"
+      - uses: actions/upload-artifact@v6
         with:
-          name: ${{ steps.build.outputs.artifact_name }}
+          name: archivist-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
           if-no-files-found: error
+
+  release:
+    name: Prerelease
+    needs: [archive, binaries]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: dist
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ needs.archive.outputs.tag }}" \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "archivist ${{ needs.archive.outputs.version }} (${{ needs.archive.outputs.short_sha }})" \
+            --notes "Pre-release built from \`${{ github.sha }}\`. Linux amd64 and macOS arm64 binaries, source archive, and SHA-256 checksums." \
+            --prerelease \
+            dist/*
