@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -29,7 +30,11 @@ func Open(path string) (*Store, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, fmt.Errorf("create store dir: %w", err)
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)")
+	dsn, err := sqliteDSN(path)
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
@@ -47,6 +52,30 @@ func Open(path string) (*Store, error) {
 
 func (s *Store) Close() error {
 	return s.db.Close()
+}
+
+// sqliteDSN builds a modernc DSN whose query keys are driver-validated
+// (ints/bools/enums). Do not use _pragma: those values are executed as raw
+// PRAGMA SQL. '?' and '#' would start a DSN query string, so they are rejected
+// in the filesystem path.
+func sqliteDSN(path string) (string, error) {
+	if strings.ContainsAny(path, "?#") {
+		return "", fmt.Errorf("sqlite path must not contain ? or #")
+	}
+	q := url.Values{}
+	q.Set("_busy_timeout", "5000")
+	q.Set("_foreign_keys", "on")
+	q.Set("_journal_mode", "WAL")
+	return path + "?" + q.Encode(), nil
+}
+
+// placeholders returns n bound-parameter markers. Concatenate only this into
+// SQL (for IN lists), never the values themselves.
+func placeholders(n int) string {
+	if n < 1 {
+		return ""
+	}
+	return strings.Repeat("?,", n-1) + "?"
 }
 
 func (s *Store) initialize() error {
@@ -365,8 +394,7 @@ func (s *Store) GetRecordsByIDs(ids []string) (map[string]*record.Record, error)
 	const chunk = 400
 	for i := 0; i < len(ids); i += chunk {
 		part := ids[i:min(i+chunk, len(ids))]
-		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(part)), ",")
-		rows, err := s.db.Query(`SELECT `+recordCols+` FROM records WHERE id IN (`+placeholders+`)`, anyArgs(part)...)
+		rows, err := s.db.Query(`SELECT `+recordCols+` FROM records WHERE id IN (`+placeholders(len(part))+`)`, anyArgs(part)...)
 		if err != nil {
 			return nil, err
 		}
@@ -880,11 +908,10 @@ func (s *Store) ImportsFrom(files []string, limit int) ([]SymbolEdge, error) {
 	if len(files) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(files)), ",")
 	args := append(anyArgs(files), limit)
 	rows, err := s.db.Query(`
 SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
-WHERE from_file IN (`+placeholders+`)
+WHERE from_file IN (`+placeholders(len(files))+`)
 ORDER BY from_file, to_path
 LIMIT ?
 `, args...)

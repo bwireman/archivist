@@ -77,11 +77,40 @@ func TestSearchTreatsWildcardsAsLiterals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SearchSymbols("%", 10)
+	for _, q := range []string{"%", "_", `\` } {
+		syms, err := st.SearchSymbols(q, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(syms) != 0 {
+			t.Fatalf("query %q must not match every symbol: %+v", q, syms)
+		}
+	}
+
+	if err := st.ReplaceFileMap(
+		FileRecord{Path: "wild.go", ContentHash: "h2", IndexedAt: time.Now().UTC()},
+		[]Symbol{{Name: "has_underscore", Kind: "function_declaration", Line: 1}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SearchSymbols("_", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(syms) != 0 {
-		t.Fatalf("a bare %% must not match every symbol: %+v", syms)
+	if len(syms) != 1 || syms[0].Name != "has_underscore" {
+		t.Fatalf("literal underscore: %+v", syms)
+	}
+}
+
+func TestLikeContainsEscapesWildcards(t *testing.T) {
+	if got, want := likeContains("%"), `%\%%`; got != want {
+		t.Fatalf("percent: %q want %q", got, want)
+	}
+	if got, want := likeContains("_"), `%\_%`; got != want {
+		t.Fatalf("underscore: %q want %q", got, want)
+	}
+	if got, want := likeContains(`a\b`), `%a\\b%`; got != want {
+		t.Fatalf("backslash: %q want %q", got, want)
 	}
 }

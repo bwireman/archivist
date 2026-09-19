@@ -78,6 +78,29 @@ func TestSearchFTSAcceptsPunctuation(t *testing.T) {
 	}
 }
 
+func TestSearchFTSDoesNotTreatSQLAsStatements(t *testing.T) {
+	st, rec := openFTSStore(t)
+	payloads := []string{
+		"'; DROP TABLE records; --",
+		"foo OR bar",
+		`title:Billing`,
+		"NOT gitignore",
+	}
+	for _, q := range payloads {
+		if _, err := st.SearchFTS(q, 10, RecordFilter{}); err != nil {
+			t.Errorf("SearchFTS(%q): %v", q, err)
+		}
+	}
+	n, err := st.RecordCount()
+	if err != nil || n != 1 {
+		t.Fatalf("fts payload dropped records count=%d err=%v", n, err)
+	}
+	got, ok, err := st.GetRecordByID(rec.ID)
+	if err != nil || !ok || got.ID != rec.ID {
+		t.Fatalf("fixture lost after fts payloads")
+	}
+}
+
 func openFTSStore(t *testing.T) (*Store, *record.Record) {
 	t.Helper()
 	st, err := Open(filepath.Join(t.TempDir(), "test.db"))

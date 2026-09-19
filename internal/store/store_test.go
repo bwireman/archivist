@@ -311,3 +311,89 @@ func TestGetRecordsByIDs(t *testing.T) {
 		t.Fatalf("got %+v", got)
 	}
 }
+
+func TestBoundQueriesIgnoreSQLMetacharacters(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	rec := &record.Record{
+		ID: "rec_ok", Slug: "ok", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Harmless title", Status: record.StatusAccepted, Body: "harmless body",
+		SourcePath: "docs/decisions/ok.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	payloads := []string{
+		"rec_ok' OR '1'='1",
+		"'; DROP TABLE records; --",
+		`rec_ok"; DROP TABLE records; --`,
+		"1; DROP TABLE records; --",
+		`" OR ""="`,
+		"rec_ok' UNION SELECT * FROM records --",
+	}
+	for _, p := range payloads {
+		got, ok, err := st.GetRecordByID(p)
+		if err != nil {
+			t.Fatalf("GetRecordByID(%q): %v", p, err)
+		}
+		if ok {
+			t.Fatalf("GetRecordByID(%q) matched %s", p, got.ID)
+		}
+		found, err := st.GetRecordsByIDs([]string{p})
+		if err != nil {
+			t.Fatalf("GetRecordsByIDs(%q): %v", p, err)
+		}
+		if len(found) != 0 {
+			t.Fatalf("GetRecordsByIDs(%q) matched %+v", p, found)
+		}
+		if _, err := st.SearchFTS(p, 10, store.RecordFilter{}); err != nil {
+			t.Fatalf("SearchFTS(%q): %v", p, err)
+		}
+		if _, err := st.SearchSymbols(p, 10); err != nil {
+			t.Fatalf("SearchSymbols(%q): %v", p, err)
+		}
+	}
+
+	n, err := st.RecordCount()
+	if err != nil || n != 1 {
+		t.Fatalf("records still present count=%d err=%v", n, err)
+	}
+	got, ok, err := st.GetRecordByID("rec_ok")
+	if err != nil || !ok || got.ID != "rec_ok" {
+		t.Fatalf("legitimate id lost: ok=%v err=%v", ok, err)
+	}
+}
+
+func TestQuotedRecordIDRoundTrips(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	id := `rec_'";--`
+	rec := &record.Record{
+		ID: id, Slug: "quoted", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: `it's a "title"`, Status: record.StatusAccepted, Body: "body",
+		SourcePath: `docs/decisions/it's.md`,
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	got, ok, err := st.GetRecordByID(id)
+	if err != nil || !ok {
+		t.Fatalf("get quoted id: ok=%v err=%v", ok, err)
+	}
+	if got.Title != rec.Title || got.SourcePath != rec.SourcePath {
+		t.Fatalf("round trip: %+v", got)
+	}
+	found, err := st.GetRecordsByIDs([]string{id})
+	if err != nil || found[id] == nil {
+		t.Fatalf("GetRecordsByIDs quoted id: %+v err=%v", found, err)
+	}
+}
