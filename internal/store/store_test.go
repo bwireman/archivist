@@ -230,3 +230,109 @@ func TestOpenPurgesOrphanQueueAndVectors(t *testing.T) {
 		t.Fatalf("orphan vector still present ok=%v err=%v", ok, err)
 	}
 }
+
+func TestUpsertRecordSamePathKeepsID(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	first := &record.Record{
+		ID: "rec_orig", Slug: "same-path", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Original", Status: record.StatusAccepted, Body: "first",
+		SourcePath: "docs/decisions/same-path.md",
+	}
+	if err := st.UpsertRecord(first); err != nil {
+		t.Fatal(err)
+	}
+	second := &record.Record{
+		ID: "rec_new", Slug: "same-path", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Updated", Status: record.StatusAccepted, Body: "second",
+		SourcePath: "docs/decisions/same-path.md",
+	}
+	if err := st.UpsertRecord(second); err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != "rec_orig" {
+		t.Fatalf("adopted id %s", second.ID)
+	}
+	got, ok, err := st.GetRecordByID("rec_orig")
+	if err != nil || !ok {
+		t.Fatalf("original id missing ok=%v err=%v", ok, err)
+	}
+	if got.Body != "second" {
+		t.Fatalf("body %q", got.Body)
+	}
+	if _, ok, err := st.GetRecordByID("rec_new"); err != nil || ok {
+		t.Fatalf("new id should not exist ok=%v err=%v", ok, err)
+	}
+	hits, err := st.SearchFTS("Updated", 5, store.RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].RecordID != "rec_orig" {
+		t.Fatalf("fts hits %+v", hits)
+	}
+	depth, _ := st.QueueDepth()
+	if depth != 1 {
+		t.Fatalf("queue depth %d", depth)
+	}
+	items, err := st.DequeueEmbed(0)
+	if err != nil || len(items) != 1 || items[0].RecordID != "rec_orig" {
+		t.Fatalf("queue %+v err=%v", items, err)
+	}
+}
+
+func TestUpsertUnchangedDoesNotRequeue(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rec := &record.Record{
+		ID: "rec_stable", Slug: "stable", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Stable", Status: record.StatusAccepted, Body: "same",
+		SourcePath: "docs/decisions/stable.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector(rec.ID, "test", []float32{1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	again := *rec
+	again.ContentHash = rec.ContentHash
+	if err := st.UpsertRecord(&again); err != nil {
+		t.Fatal(err)
+	}
+	depth, _ := st.QueueDepth()
+	if depth != 0 {
+		t.Fatalf("unchanged upsert requeued, depth %d", depth)
+	}
+}
+
+func TestGetRecordsByIDs(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	for i, id := range []string{"rec_a", "rec_b"} {
+		rec := &record.Record{
+			ID: id, Slug: id, Type: record.TypeDecision, Scope: record.ScopeRepo,
+			Title: id, Status: record.StatusAccepted, Body: "body",
+			SourcePath: fmt.Sprintf("docs/decisions/%s.md", id),
+		}
+		if err := st.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
+		_ = i
+	}
+	got, err := st.GetRecordsByIDs([]string{"rec_a", "rec_missing", "rec_b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got["rec_a"] == nil || got["rec_b"] == nil {
+		t.Fatalf("got %+v", got)
+	}
+}

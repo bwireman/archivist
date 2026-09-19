@@ -72,46 +72,37 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			if st == nil {
 				continue
 			}
-			rows, err := st.ListEmbeddings(filter)
+			ranked, err := st.RankEmbeddings(qEmb, filter, rankLimit)
 			if err != nil {
 				return nil, err
 			}
-			var scored []struct {
-				id    string
-				score float64
-			}
-			for _, row := range rows {
-				scored = append(scored, struct {
-					id    string
-					score float64
-				}{row.RecordID, store.CosineSimilarity(qEmb, row.Embedding)})
-			}
-			sort.Slice(scored, func(i, j int) bool { return scored[i].score > scored[j].score })
-			for i, s := range scored {
-				if i >= rankLimit {
-					break
-				}
-				if _, ok := vectorRank[s.id]; !ok {
-					vectorRank[s.id] = i + 1
+			for i, row := range ranked {
+				if _, ok := vectorRank[row.RecordID]; !ok {
+					vectorRank[row.RecordID] = i + 1
 				}
 			}
 		}
 	}
 
-	allIDs := map[string]struct{}{}
+	idSet := map[string]struct{}{}
 	for id := range ftsRank {
-		allIDs[id] = struct{}{}
+		idSet[id] = struct{}{}
 	}
 	for id := range vectorRank {
-		allIDs[id] = struct{}{}
+		idSet[id] = struct{}{}
+	}
+	ids := make([]string, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	recs, err := e.lookupRecords(ids)
+	if err != nil {
+		return nil, err
 	}
 
 	merged := map[string]Result{}
-	for id := range allIDs {
-		rec, ok, err := e.lookupRecord(id)
-		if err != nil {
-			return nil, err
-		}
+	for id := range idSet {
+		rec, ok := recs[id]
 		if !ok {
 			continue
 		}
@@ -156,17 +147,34 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	return results, nil
 }
 
-func (e *Engine) lookupRecord(id string) (*record.Record, bool, error) {
+func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, error) {
+	out := make(map[string]*record.Record, len(ids))
+	remaining := ids
 	if e.Repo != nil {
-		rec, ok, err := e.Repo.GetRecordByID(id)
-		if err != nil || ok {
-			return rec, ok, err
+		found, err := e.Repo.GetRecordsByIDs(remaining)
+		if err != nil {
+			return nil, err
+		}
+		next := make([]string, 0, len(remaining))
+		for _, id := range remaining {
+			if rec, ok := found[id]; ok {
+				out[id] = rec
+			} else {
+				next = append(next, id)
+			}
+		}
+		remaining = next
+	}
+	if e.Home != nil && len(remaining) > 0 {
+		found, err := e.Home.GetRecordsByIDs(remaining)
+		if err != nil {
+			return nil, err
+		}
+		for id, rec := range found {
+			out[id] = rec
 		}
 	}
-	if e.Home != nil {
-		return e.Home.GetRecordByID(id)
-	}
-	return nil, false, nil
+	return out, nil
 }
 
 func rrfScore(ftsRank, vectorRank int) float64 {

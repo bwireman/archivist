@@ -193,7 +193,7 @@ func newCheckCmd() *cobra.Command {
 	}
 	cmd.Flags().StringSliceVar(&paths, "paths", nil, "touched file paths")
 	cmd.Flags().StringVar(&diff, "diff", "", "git diff text")
-	cmd.Flags().BoolVar(&strict, "strict", false, "exit nonzero on must/must-not matches")
+	cmd.Flags().BoolVar(&strict, "strict", false, "exit nonzero when a must/must-not rule's applies_to matches the changed paths")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }

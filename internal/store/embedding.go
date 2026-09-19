@@ -51,3 +51,32 @@ func CosineSimilarity(a, b []float32) float64 {
 	}
 	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
 }
+
+func vectorNorm(v []float32) float64 {
+	var n float64
+	for _, x := range v {
+		n += float64(x) * float64(x)
+	}
+	return n
+}
+
+func cosineSimilarityEncoded(query []float32, queryNorm float64, buf []byte) float64 {
+	if len(query) == 0 || queryNorm == 0 || len(buf) < 4 {
+		return 0
+	}
+	n := int(binary.LittleEndian.Uint32(buf[:4]))
+	if n != len(query) || 4+n*4 != len(buf) {
+		return 0
+	}
+	var dot, normB float64
+	for i, q := range query {
+		qv := float64(q)
+		bv := float64(math.Float32frombits(binary.LittleEndian.Uint32(buf[4+i*4:])))
+		dot += qv * bv
+		normB += bv * bv
+	}
+	if normB == 0 {
+		return 0
+	}
+	return dot / (math.Sqrt(queryNorm) * math.Sqrt(normB))
+}

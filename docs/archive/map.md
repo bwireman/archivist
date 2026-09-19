@@ -10,25 +10,42 @@
 - `New` (function_declaration) line 22
 - `error` (method_declaration) line 62
 - `error` (method_declaration) line 82
-- `string` (method_declaration) line 127
-- `string` (method_declaration) line 146
-- `string` (method_declaration) line 158
-- `slugify` (function_declaration) line 162
+- `writeFileAtomic` (function_declaration) line 113
+- `error` (method_declaration) line 128
+- `string` (method_declaration) line 173
+- `string` (method_declaration) line 192
+- `string` (method_declaration) line 204
+- `slugify` (function_declaration) line 208
 
 ## internal/archive/service_test.go
 
 - `TestRememberGlobalWritesHome` (function_declaration) line 13
-- `TestRememberGlobalInRepoWhenConfigured` (function_declaration) line 56
+- `TestRememberSamePathReusesID` (function_declaration) line 56
+- `TestRememberGlobalInRepoWhenConfigured` (function_declaration) line 107
 
 ## internal/check/check.go
 
-- `Options` (type_spec) line 14
-- `Match` (type_spec) line 22
-- `Result` (type_spec) line 28
-- `Run` (function_declaration) line 33
-- `addMatch` (function_declaration) line 81
-- `pathsFromDiff` (function_declaration) line 95
-- `unique` (function_declaration) line 112
+- `Options` (type_spec) line 18
+- `Match` (type_spec) line 26
+- `Result` (type_spec) line 32
+- `Run` (function_declaration) line 37
+- `addMatch` (function_declaration) line 85
+- `SplitPathList` (function_declaration) line 98
+- `pathsFromDiff` (function_declaration) line 111
+- `pathFromDiffFileLine` (function_declaration) line 127
+- `pathsFromGitDiffHeader` (function_declaration) line 141
+- `splitGitDiffPaths` (function_declaration) line 157
+- `splitQuotedGitDiffPaths` (function_declaration) line 171
+- `splitQuoted` (function_declaration) line 184
+- `unique` (function_declaration) line 209
+
+## internal/check/check_test.go
+
+- `TestStrictViolationOnlyOnAppliesTo` (function_declaration) line 13
+- `TestPathsFromDiffSkipsDevNullAndReadsGitHeader` (function_declaration) line 72
+- `TestSplitPathList` (function_declaration) line 108
+- `openStore` (function_declaration) line 115
+- `mustRule` (function_declaration) line 125
 
 ## internal/cmd/cmdlog.go
 
@@ -245,6 +262,11 @@
 - `int` (method_declaration) line 122
 - `error` (method_declaration) line 129
 
+## internal/embed/ollama_test.go
+
+- `TestOllamaClientEmbedAndHealth` (function_declaration) line 13
+- `TestOllamaClientEmptyVector` (function_declaration) line 52
+
 ## internal/embed/worker.go
 
 - `Worker` (type_spec) line 15
@@ -393,24 +415,36 @@
 - `agentInstructions` (function_declaration) line 146
 - `mustRule` (function_declaration) line 150
 - `jsonResult` (function_declaration) line 158
-- `ServeStdio` (function_declaration) line 287
+- `ServeStdio` (function_declaration) line 290
 
 ## internal/mcp/server_test.go
 
-- `TestAgentInstructionsMatchRuleTemplates` (function_declaration) line 17
-- `TestToolDescriptionsPreferDistillOverGlut` (function_declaration) line 43
-- `TestCommandLogMiddlewareWritesJSONL` (function_declaration) line 65
-- `TestMcpLogResultParsesJSON` (function_declaration) line 102
+- `TestAgentInstructionsMatchRuleTemplates` (function_declaration) line 19
+- `TestToolDescriptionsPreferDistillOverGlut` (function_declaration) line 45
+- `TestCommandLogMiddlewareWritesJSONL` (function_declaration) line 67
+- `TestMcpLogResultParsesJSON` (function_declaration) line 104
+- `TestToolRememberSplitsAppliesToAndTags` (function_declaration) line 118
 
 ## internal/migrate/migrate.go
 
-- `Records` (function_declaration) line 18
-- `migrateDir` (function_declaration) line 40
-- `legacyToRecord` (function_declaration) line 79
+- `Records` (function_declaration) line 17
+- `migrateDir` (function_declaration) line 39
+- `legacyToRecord` (function_declaration) line 78
+
+## internal/migrate/migrate_test.go
+
+- `TestLegacyToRecord` (function_declaration) line 12
+- `TestMigrateDirConvertsLegacyAndSkipsFrontMatter` (function_declaration) line 35
 
 ## internal/publish/publish.go
 
 - `Publish` (function_declaration) line 15
+
+## internal/publish/publish_test.go
+
+- `TestPublishUnknownDestination` (function_declaration) line 13
+- `TestPublishRunsDestinationCommand` (function_declaration) line 20
+- `TestPublishEmptyCommand` (function_declaration) line 51
 
 ## internal/record/frontmatter.go
 
@@ -456,8 +490,8 @@
 - `Options` (type_spec) line 18
 - `Result` (type_spec) line 25
 - `Engine` (type_spec) line 31
-- `rrfScore` (function_declaration) line 172
-- `FormatResults` (function_declaration) line 184
+- `rrfScore` (function_declaration) line 180
+- `FormatResults` (function_declaration) line 192
 
 ## internal/retrieve/retrieve_test.go
 
@@ -493,10 +527,13 @@
 - `encodeEmbedding` (function_declaration) line 9
 - `decodeEmbedding` (function_declaration) line 21
 - `CosineSimilarity` (function_declaration) line 39
+- `vectorNorm` (function_declaration) line 55
+- `cosineSimilarityEncoded` (function_declaration) line 63
 
 ## internal/store/embedding_test.go
 
 - `TestListEmbeddingsFiltersType` (function_declaration) line 10
+- `TestRankEmbeddingsDoesNotNeedDecodedRows` (function_declaration) line 57
 
 ## internal/store/fts.go
 
@@ -510,43 +547,46 @@
 
 ## internal/store/store.go
 
-- `SchemaError` (type_spec) line 29
-- `string` (method_declaration) line 34
-- `Store` (type_spec) line 38
-- `Open` (function_declaration) line 42
-- `OpenIfExists` (function_declaration) line 66
-- `error` (method_declaration) line 84
-- `error` (method_declaration) line 88
-- `error` (method_declaration) line 183
-- `error` (method_declaration) line 191
-- `error` (method_declaration) line 201
-- `error` (method_declaration) line 224
-- `error` (method_declaration) line 326
-- `error` (method_declaration) line 358
-- `error` (method_declaration) line 365
-- `encodeJSONList` (function_declaration) line 394
-- `decodeJSONList` (function_declaration) line 402
-- `scanRecord` (function_declaration) line 413
-- `scanner` (type_spec) line 443
-- `error` (method_declaration) line 449
-- `nullString` (function_declaration) line 517
-- `error` (method_declaration) line 611
-- `error` (method_declaration) line 643
-- `RecordFilter` (type_spec) line 676
-- `EmbeddingRow` (type_spec) line 681
-- `QueueItem` (type_spec) line 723
-- `error` (method_declaration) line 765
-- `error` (method_declaration) line 770
-- `FTSResult` (type_spec) line 779
-- `FileRecord` (type_spec) line 826
-- `Symbol` (type_spec) line 833
-- `SymbolEdge` (type_spec) line 843
-- `error` (method_declaration) line 864
-- `boolToInt` (function_declaration) line 919
-- `error` (method_declaration) line 926
-- `collectSymbols` (function_declaration) line 996
-- `CommitRecord` (type_spec) line 1013
-- `error` (method_declaration) line 1039
+- `SchemaError` (type_spec) line 30
+- `string` (method_declaration) line 35
+- `Store` (type_spec) line 39
+- `Open` (function_declaration) line 43
+- `OpenIfExists` (function_declaration) line 67
+- `error` (method_declaration) line 85
+- `error` (method_declaration) line 89
+- `error` (method_declaration) line 184
+- `error` (method_declaration) line 195
+- `error` (method_declaration) line 205
+- `error` (method_declaration) line 228
+- `error` (method_declaration) line 330
+- `error` (method_declaration) line 362
+- `error` (method_declaration) line 369
+- `encodeJSONList` (function_declaration) line 398
+- `decodeJSONList` (function_declaration) line 406
+- `scanRecord` (function_declaration) line 417
+- `scanner` (type_spec) line 447
+- `error` (method_declaration) line 453
+- `nullString` (function_declaration) line 539
+- `anyArgs` (function_declaration) line 593
+- `error` (method_declaration) line 676
+- `error` (method_declaration) line 708
+- `RecordFilter` (type_spec) line 741
+- `EmbeddingRow` (type_spec) line 746
+- `embeddingSelect` (function_declaration) line 751
+- `scored` (type_spec) line 804
+- `QueueItem` (type_spec) line 833
+- `error` (method_declaration) line 875
+- `error` (method_declaration) line 880
+- `FTSResult` (type_spec) line 889
+- `FileRecord` (type_spec) line 936
+- `Symbol` (type_spec) line 943
+- `SymbolEdge` (type_spec) line 953
+- `error` (method_declaration) line 974
+- `boolToInt` (function_declaration) line 1029
+- `error` (method_declaration) line 1036
+- `collectSymbols` (function_declaration) line 1106
+- `CommitRecord` (type_spec) line 1123
+- `error` (method_declaration) line 1149
 
 ## internal/store/store_test.go
 
@@ -556,6 +596,9 @@
 - `TestDeleteRecordByPathDropsQueue` (function_declaration) line 110
 - `TestDequeueEmbedZeroLimitReturnsAll` (function_declaration) line 141
 - `TestOpenPurgesOrphanQueueAndVectors` (function_declaration) line 178
+- `TestUpsertRecordSamePathKeepsID` (function_declaration) line 234
+- `TestUpsertUnchangedDoesNotRequeue` (function_declaration) line 286
+- `TestGetRecordsByIDs` (function_declaration) line 314
 
 ## internal/version/version.go
 

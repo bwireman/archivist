@@ -24,6 +24,18 @@ When adding or changing a code-map extractor (tree-sitter specs, line-based lang
 
 ---
 
+## Check --strict only fails on applies_to glob matches
+
+- Status: accepted
+- Scope: global
+- Severity: must
+- Applies to: internal/check/**, internal/cmd/remember.go
+- Tags: check, strict
+
+`archivist check --strict` and `Result.HasViolation` must be true only when a must/must-not rule's `applies_to` glob matches the supplied paths or diff paths. Semantic search hits are advisory and must not fail CI.
+
+---
+
 ## Code map tests must fixture every registered language
 
 - Status: accepted

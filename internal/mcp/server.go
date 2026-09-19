@@ -191,7 +191,7 @@ func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var paths []string
 	if p := req.GetString("paths", ""); p != "" {
-		paths = []string{p}
+		paths = check.SplitPathList(p)
 	}
 	res, err := check.Run(ctx, s.Engine, s.Embedder, check.Options{
 		Description: req.GetString("description", ""),
@@ -225,7 +225,10 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 		rec.Severity = record.Severity(sev)
 	}
 	if a := req.GetString("applies_to", ""); a != "" {
-		rec.AppliesTo = []string{a}
+		rec.AppliesTo = check.SplitPathList(a)
+	}
+	if tags := req.GetString("tags", ""); tags != "" {
+		rec.Tags = check.SplitPathList(tags)
 	}
 	id, err := s.Archive.Remember(rec)
 	if err != nil {

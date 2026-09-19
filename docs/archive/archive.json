@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "exported_at": "2026-09-13T19:01:51Z",
+  "exported_at": "2026-09-19T15:03:56Z",
   "records": [
     {
       "id": "rec_cd668042d22370100627",
@@ -402,7 +402,7 @@
         "internal/cmd/**",
         "internal/mcp/**"
       ],
-      "content_hash": "b5a928018e74f13d850792d54570c8163e17fe5c4e87b090948e1d5e837a6e3b"
+      "content_hash": "638fa87bd368011fc597da165af0879adac52d49ba3f7423f87c14f81e008865"
     },
     {
       "id": "rec_393fc5d328e835dae38b",
@@ -421,7 +421,7 @@
         "internal/retrieve/**",
         "internal/store/**"
       ],
-      "content_hash": "3e3bf1b04c17833dfae760a780420d02954120f706814463d36bc843729e20ee"
+      "content_hash": "1e3bcb458b0fc1c8767c28c15159a386897e0fb0b86bedc32b474002427976f2"
     },
     {
       "id": "rec_00d3d3d48b988c969105",
@@ -439,7 +439,26 @@
         "internal/mcp/**",
         "internal/cmd/mcp.go"
       ],
-      "content_hash": "ddec7ed4543c6b0c82dc83b52f127579cd62fbfbc520b9e1c5cd685752101809"
+      "content_hash": "8c742dc9ff0abb42059e5de26287de1c4537dded5c8ebdd9fbd9ae91bada72d5"
+    },
+    {
+      "id": "rec_4ffd6c7ec10e0f187739",
+      "slug": "rule-check",
+      "type": "feature",
+      "scope": "global",
+      "title": "Rule check",
+      "status": "accepted",
+      "source_path": "docs/global-decisions/rule-check.md",
+      "tags": [
+        "check",
+        "rules"
+      ],
+      "applies_to": [
+        "internal/check/**",
+        "internal/cmd/remember.go",
+        "internal/mcp/**"
+      ],
+      "content_hash": "141cd8a03be95d56ffa13e427649ab78a918d199368516d772da5d9a2171707e"
     },
     {
       "id": "rec_179dbf51d8a090fef8d7",
@@ -456,7 +475,7 @@
         "internal/record/**",
         "internal/archive/**"
       ],
-      "content_hash": "0bb7627e18e4231cd8a29a325ef16c0f7b345105d53eccdecfea182ef009ea8a"
+      "content_hash": "842e34a3153df740888a6a36842a01cf8e22bf85fb01f94a77861812037ba699"
     },
     {
       "id": "rec_184e12358de7c5b12414",
@@ -492,6 +511,25 @@
         "internal/codemap/**"
       ],
       "content_hash": "99289ee53f75392a61d356880fecab76453a8f006271153f918bc63374a95644"
+    },
+    {
+      "id": "rec_6551943a15f76eed1f64",
+      "slug": "check-strict-only-fails-on-applies-to-glob-matches",
+      "type": "rule",
+      "scope": "global",
+      "title": "Check --strict only fails on applies_to glob matches",
+      "status": "accepted",
+      "severity": "must",
+      "source_path": "docs/global-decisions/check-strict-only-fails-on-applies-to-glob-matches.md",
+      "tags": [
+        "check",
+        "strict"
+      ],
+      "applies_to": [
+        "internal/check/**",
+        "internal/cmd/remember.go"
+      ],
+      "content_hash": "2346ed171267be6a91fe76604ccc939ff3bf51bb4a13fca5567d557c27946c6a"
     },
     {
       "id": "rec_6b33fa3dd9c4fec4fd8e",

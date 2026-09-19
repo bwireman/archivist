@@ -53,6 +53,57 @@ func TestRememberGlobalWritesHome(t *testing.T) {
 	}
 }
 
+func TestRememberSamePathReusesID(t *testing.T) {
+	repo := t.TempDir()
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	svc := New(repo, config.Default(), repoDB, homeDB)
+	id1, err := svc.Remember(&record.Record{
+		Type:   record.TypeDecision,
+		Scope:  record.ScopeRepo,
+		Title:  "Shared title",
+		Body:   "First body.",
+		Status: record.StatusAccepted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id2, err := svc.Remember(&record.Record{
+		Type:   record.TypeDecision,
+		Scope:  record.ScopeRepo,
+		Title:  "Shared title",
+		Body:   "Second body.",
+		Status: record.StatusAccepted,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if id1 != id2 {
+		t.Fatalf("expected reused id, got %s then %s", id1, id2)
+	}
+	got, err := svc.Get(id1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Body != "Second body." {
+		t.Fatalf("body %q", got.Body)
+	}
+	n, err := repoDB.RecordCount()
+	if err != nil || n != 1 {
+		t.Fatalf("record count %d err=%v", n, err)
+	}
+}
+
 func TestRememberGlobalInRepoWhenConfigured(t *testing.T) {
 	repo := t.TempDir()
 	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))

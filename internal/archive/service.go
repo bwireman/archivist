@@ -28,14 +28,17 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store) *Serv
 }
 
 func (s *Service) Remember(rec *record.Record) (string, error) {
-	if rec.ID == "" {
-		rec.ID = record.NewID()
-	}
 	if rec.Slug == "" {
 		rec.Slug = slugify(rec.Title)
 	}
 	if rec.SourcePath == "" {
 		rec.SourcePath = s.defaultPath(rec)
+	}
+	if err := s.adoptExistingIdentity(rec); err != nil {
+		return "", err
+	}
+	if rec.ID == "" {
+		rec.ID = record.NewID()
 	}
 	if err := rec.Validate(); err != nil {
 		return "", err
@@ -43,10 +46,7 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 	rec.ContentHash = record.ContentHash(rec)
 
 	abs := s.absPath(rec.SourcePath)
-	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
-		return "", err
-	}
-	if err := os.WriteFile(abs, []byte(record.Serialize(rec)), 0o644); err != nil {
+	if err := writeFileAtomic(abs, []byte(record.Serialize(rec))); err != nil {
 		return "", err
 	}
 	st := s.storeFor(rec.Scope)
@@ -73,10 +73,56 @@ func (s *Service) Update(id string, fn func(*record.Record) error) error {
 		return err
 	}
 	abs := s.absPath(rec.SourcePath)
-	if err := os.WriteFile(abs, []byte(record.Serialize(rec)), 0o644); err != nil {
+	if err := writeFileAtomic(abs, []byte(record.Serialize(rec))); err != nil {
 		return err
 	}
 	return st.UpsertRecord(rec)
+}
+
+func (s *Service) adoptExistingIdentity(rec *record.Record) error {
+	st := s.storeFor(rec.Scope)
+	if st != nil {
+		existing, ok, err := st.GetRecordByPath(rec.SourcePath)
+		if err != nil {
+			return err
+		}
+		if ok {
+			rec.ID = existing.ID
+			rec.CreatedAt = existing.CreatedAt
+			return nil
+		}
+	}
+	data, err := os.ReadFile(s.absPath(rec.SourcePath))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	parsed, err := record.ParseFile(rec.SourcePath, string(data))
+	if err != nil {
+		return nil
+	}
+	if parsed.ID != "" {
+		rec.ID = parsed.ID
+		rec.CreatedAt = parsed.CreatedAt
+	}
+	return nil
+}
+
+func writeFileAtomic(path string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, data, 0o644); err != nil {
+		return err
+	}
+	if err := os.Rename(tmp, path); err != nil {
+		_ = os.Remove(tmp)
+		return err
+	}
+	return nil
 }
 
 func (s *Service) Retire(id, supersededBy string) error {

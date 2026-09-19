@@ -18,6 +18,8 @@ Primary agent API over stdio. Clients consult and curate the archive without a s
 
 Search works if Ollama is down (keyword-only). Writes never need Ollama. The process cwd must be the repo, or the client must pass `--path`.
 
+`remember` splits `applies_to` and `tags` on commas or newlines (same as CLI `--applies-to` / `--tags`). `check` splits `paths` the same way. `check` `HasViolation` follows the rule-check feature (glob matches only).
+
 When `log_commands` is true, each tool call is appended to `.archivist/commands.log` (`dir=in` then `dir=out`) via tool-handler middleware. The `mcp` process itself is not logged as a CLI command. Stdio JSON-RPC is never written to the log.
 
 ## Connects to

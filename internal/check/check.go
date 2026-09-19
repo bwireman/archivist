@@ -2,13 +2,17 @@ package check
 
 import (
 	"context"
-	"regexp"
 	"strings"
 
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/store"
+)
+
+const (
+	ReasonAppliesTo = "applies_to glob match"
+	ReasonSemantic  = "semantic match"
 )
 
 type Options struct {
@@ -50,7 +54,7 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 		}
 		for _, r := range rules {
 			if len(paths) > 0 && r.MatchesPaths(paths) {
-				addMatch(&matches, seen, r, "applies_to glob match")
+				addMatch(&matches, seen, r, ReasonAppliesTo)
 			}
 		}
 	}
@@ -65,13 +69,13 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 			return nil, err
 		}
 		for _, r := range results {
-			addMatch(&matches, seen, r.Record, "semantic match")
+			addMatch(&matches, seen, r.Record, ReasonSemantic)
 		}
 	}
 
 	res := &Result{Matches: matches}
 	for _, m := range matches {
-		if m.Record.IsEnforceable() {
+		if m.Reason == ReasonAppliesTo && m.Record.IsEnforceable() {
 			res.HasViolation = true
 		}
 	}
@@ -90,23 +94,116 @@ func addMatch(matches *[]Match, seen map[string]struct{}, r *record.Record, reas
 	})
 }
 
-var diffPathRe = regexp.MustCompile(`^\+\+\+ [ab]/(.*)$|^\+\+\+ (.*)$|^diff --git a/(.*) b/`)
+// SplitPathList splits a comma- or newline-separated path list (MCP check.paths).
+func SplitPathList(s string) []string {
+	var out []string
+	for _, part := range strings.FieldsFunc(s, func(r rune) bool {
+		return r == ',' || r == '\n' || r == '\r'
+	}) {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out = append(out, part)
+		}
+	}
+	return out
+}
 
 func pathsFromDiff(diff string) []string {
 	var paths []string
 	for _, line := range strings.Split(diff, "\n") {
-		if m := diffPathRe.FindStringSubmatch(line); len(m) > 1 {
-			p := m[1]
-			if p == "" && len(m) > 2 {
-				p = m[2]
-			}
-			p = strings.TrimSpace(p)
-			if p != "" && p != "dev/null" {
+		line = strings.TrimRight(line, "\r")
+		switch {
+		case strings.HasPrefix(line, "diff --git "):
+			paths = append(paths, pathsFromGitDiffHeader(line)...)
+		case strings.HasPrefix(line, "+++ "), strings.HasPrefix(line, "--- "):
+			if p := pathFromDiffFileLine(line[4:]); p != "" {
 				paths = append(paths, p)
 			}
 		}
 	}
-	return paths
+	return unique(paths)
+}
+
+func pathFromDiffFileLine(rest string) string {
+	rest = strings.TrimSpace(rest)
+	if i := strings.IndexByte(rest, '\t'); i >= 0 {
+		rest = rest[:i]
+	}
+	if rest == "/dev/null" || rest == "dev/null" {
+		return ""
+	}
+	if strings.HasPrefix(rest, "a/") || strings.HasPrefix(rest, "b/") {
+		return rest[2:]
+	}
+	return rest
+}
+
+func pathsFromGitDiffHeader(line string) []string {
+	rest := strings.TrimPrefix(line, "diff --git ")
+	a, b, ok := splitGitDiffPaths(rest)
+	if !ok {
+		return nil
+	}
+	var out []string
+	if a != "" {
+		out = append(out, a)
+	}
+	if b != "" && b != a {
+		out = append(out, b)
+	}
+	return out
+}
+
+func splitGitDiffPaths(rest string) (string, string, bool) {
+	rest = strings.TrimSpace(rest)
+	if strings.HasPrefix(rest, "\"") {
+		return splitQuotedGitDiffPaths(rest)
+	}
+	idx := strings.Index(rest, " b/")
+	if idx < 0 {
+		return "", "", false
+	}
+	a := strings.TrimPrefix(rest[:idx], "a/")
+	b := strings.TrimPrefix(rest[idx+1:], "b/")
+	return a, b, true
+}
+
+func splitQuotedGitDiffPaths(rest string) (string, string, bool) {
+	first, rest, ok := splitQuoted(rest)
+	if !ok {
+		return "", "", false
+	}
+	rest = strings.TrimSpace(rest)
+	second, _, ok := splitQuoted(rest)
+	if !ok {
+		return "", "", false
+	}
+	return strings.TrimPrefix(first, "a/"), strings.TrimPrefix(second, "b/"), true
+}
+
+func splitQuoted(s string) (string, string, bool) {
+	if !strings.HasPrefix(s, "\"") {
+		return "", s, false
+	}
+	var b strings.Builder
+	escaped := false
+	for i := 1; i < len(s); i++ {
+		c := s[i]
+		if escaped {
+			b.WriteByte(c)
+			escaped = false
+			continue
+		}
+		if c == '\\' {
+			escaped = true
+			continue
+		}
+		if c == '"' {
+			return b.String(), s[i+1:], true
+		}
+		b.WriteByte(c)
+	}
+	return "", s, false
 }
 
 func unique(items []string) []string {

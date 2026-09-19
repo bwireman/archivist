@@ -25,7 +25,7 @@ type WorkerOptions struct {
 
 func (w *Worker) Run(ctx context.Context, opts WorkerOptions) (int, error) {
 	if opts.Concurrency <= 0 {
-		opts.Concurrency = 1
+		opts.Concurrency = 2
 	}
 	total := 0
 	for {

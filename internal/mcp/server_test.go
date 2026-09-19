@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -11,6 +12,7 @@ import (
 
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/store"
 	ruletmpl "github.com/bwireman/archivist/rules"
 )
 
@@ -110,5 +112,49 @@ func TestMcpLogResultParsesJSON(t *testing.T) {
 	m, ok = got.(map[string]any)
 	if !ok || m["is_error"] != true {
 		t.Fatalf("error result: %#v", got)
+	}
+}
+
+func TestToolRememberSplitsAppliesToAndTags(t *testing.T) {
+	repo := t.TempDir()
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	s := New(repo, config.Default(), repoDB, homeDB, nil)
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"type":       "rule",
+		"scope":      "repo",
+		"title":      "Split fields",
+		"body":       "Keep lists as lists.",
+		"severity":   "must",
+		"applies_to": "internal/check/**, internal/cmd/**",
+		"tags":       "check,strict",
+	}
+	res, err := s.toolRemember(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.IsError {
+		t.Fatalf("remember error: %+v", res)
+	}
+	rec, err := s.Archive.Get("split-fields")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rec.AppliesTo) != 2 || rec.AppliesTo[0] != "internal/check/**" || rec.AppliesTo[1] != "internal/cmd/**" {
+		t.Fatalf("applies_to %v", rec.AppliesTo)
+	}
+	if len(rec.Tags) != 2 || rec.Tags[0] != "check" || rec.Tags[1] != "strict" {
+		t.Fatalf("tags %v", rec.Tags)
 	}
 }

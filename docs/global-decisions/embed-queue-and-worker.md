@@ -14,9 +14,11 @@ Defer Ollama embedding so `index`, `remember`, and `update` never need the embed
 
 ## Behavior
 
-Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_id` (`text_hash`, `enqueued_at`, `attempts`, `last_error`). Unchanged records skip upsert, so they are not re-queued. Deleting a record also deletes its queue row and vector.
+Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_id` (`text_hash`, `enqueued_at`, `attempts`, `last_error`). Unchanged records (same `content_hash` and `source_path`) skip upsert, so they are not re-queued. Deleting a record also deletes its queue row and vector. Opening a store also deletes FTS rows whose `record_id` is gone.
 
-The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
+`UpsertRecord` adopts the id already stored at `source_path` before writing FTS and the queue, then upserts on `id`. A second remember at the same path cannot enqueue an id that is not in `records`.
+
+The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2, including when `Worker.Run` is called with concurrency ≤ 0). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
 
 `archivist embed --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`. `--worker` remains as a hidden no-op for older scripts.
 

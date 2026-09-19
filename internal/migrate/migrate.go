@@ -12,7 +12,6 @@ import (
 )
 
 var statusRe = regexp.MustCompile(`(?m)^- Status:\s*(\S+)`)
-var dateRe = regexp.MustCompile(`(?m)^- Date:\s*(.+)$`)
 
 // Records converts legacy ADR markdown files to typed records with front matter.
 func Records(repoRoot string) error {

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -184,7 +185,10 @@ func (s *Store) purgeOrphans() error {
 	if _, err := s.db.Exec(`DELETE FROM embed_queue WHERE record_id NOT IN (SELECT id FROM records)`); err != nil {
 		return err
 	}
-	_, err := s.db.Exec(`DELETE FROM record_vectors WHERE record_id NOT IN (SELECT id FROM records)`)
+	if _, err := s.db.Exec(`DELETE FROM record_vectors WHERE record_id NOT IN (SELECT id FROM records)`); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM records_fts WHERE record_id NOT IN (SELECT id FROM records)`)
 	return err
 }
 
@@ -447,14 +451,31 @@ type scanner interface {
 const recordCols = `id, slug, type, scope, title, status, severity, body, source_path, tags, applies_to, supersedes, superseded_by, provenance_commit, content_hash, created_at, updated_at`
 
 func (s *Store) UpsertRecord(r *record.Record) error {
+	if existing, ok, err := s.GetRecordByPath(r.SourcePath); err != nil {
+		return err
+	} else if ok {
+		r.ID = existing.ID
+		if r.CreatedAt.IsZero() {
+			r.CreatedAt = existing.CreatedAt
+		}
+	}
+	if r.ID == "" {
+		return fmt.Errorf("record id is required")
+	}
+	if r.ContentHash == "" {
+		r.ContentHash = record.ContentHash(r)
+	}
+	if existing, ok, err := s.GetRecordByID(r.ID); err != nil {
+		return err
+	} else if ok && existing.ContentHash == r.ContentHash && existing.SourcePath == r.SourcePath {
+		return nil
+	}
+
 	now := time.Now().UTC()
 	if r.CreatedAt.IsZero() {
 		r.CreatedAt = now
 	}
 	r.UpdatedAt = now
-	if r.ContentHash == "" {
-		r.ContentHash = record.ContentHash(r)
-	}
 	tx, err := s.db.Begin()
 	if err != nil {
 		return err
@@ -464,7 +485,7 @@ func (s *Store) UpsertRecord(r *record.Record) error {
 	_, err = tx.Exec(`
 INSERT INTO records (id, slug, type, scope, title, status, severity, body, source_path, tags, applies_to, supersedes, superseded_by, provenance_commit, content_hash, created_at, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(source_path) DO UPDATE SET
+ON CONFLICT(id) DO UPDATE SET
     slug = excluded.slug,
     type = excluded.type,
     scope = excluded.scope,
@@ -472,6 +493,7 @@ ON CONFLICT(source_path) DO UPDATE SET
     status = excluded.status,
     severity = excluded.severity,
     body = excluded.body,
+    source_path = excluded.source_path,
     tags = excluded.tags,
     applies_to = excluded.applies_to,
     supersedes = excluded.supersedes,
@@ -498,7 +520,7 @@ ON CONFLICT(source_path) DO UPDATE SET
 		return err
 	}
 
-	textHash := record.ContentHash(r)
+	textHash := r.ContentHash
 	_, err = tx.Exec(`
 INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts, last_error)
 VALUES (?, ?, ?, 0, NULL)
@@ -531,6 +553,49 @@ func (s *Store) GetRecordByID(id string) (*record.Record, bool, error) {
 		return nil, false, err
 	}
 	return r, true, nil
+}
+
+func (s *Store) GetRecordsByIDs(ids []string) (map[string]*record.Record, error) {
+	out := make(map[string]*record.Record, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	const chunk = 400
+	for i := 0; i < len(ids); i += chunk {
+		end := i + chunk
+		if end > len(ids) {
+			end = len(ids)
+		}
+		part := ids[i:end]
+		placeholders := strings.Repeat("?,", len(part))
+		placeholders = placeholders[:len(placeholders)-1]
+		rows, err := s.db.Query(`SELECT `+recordCols+` FROM records WHERE id IN (`+placeholders+`)`, anyArgs(part)...)
+		if err != nil {
+			return nil, err
+		}
+		for rows.Next() {
+			r, err := scanRecord(rows)
+			if err != nil {
+				_ = rows.Close()
+				return nil, err
+			}
+			out[r.ID] = r
+		}
+		err = rows.Err()
+		_ = rows.Close()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func anyArgs(ids []string) []any {
+	args := make([]any, len(ids))
+	for i, id := range ids {
+		args[i] = id
+	}
+	return args
 }
 
 func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
@@ -683,7 +748,7 @@ type EmbeddingRow struct {
 	Embedding []float32
 }
 
-func (s *Store) ListEmbeddings(filter RecordFilter) ([]EmbeddingRow, error) {
+func embeddingSelect(filter RecordFilter) (string, []any) {
 	q := `SELECT rv.record_id, rv.embedding FROM record_vectors rv`
 	var args []any
 	if filter.Type != "" || filter.Scope != "" {
@@ -697,6 +762,11 @@ func (s *Store) ListEmbeddings(filter RecordFilter) ([]EmbeddingRow, error) {
 			args = append(args, string(filter.Scope))
 		}
 	}
+	return q, args
+}
+
+func (s *Store) ListEmbeddings(filter RecordFilter) ([]EmbeddingRow, error) {
+	q, args := embeddingSelect(filter)
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
@@ -716,6 +786,46 @@ func (s *Store) ListEmbeddings(filter RecordFilter) ([]EmbeddingRow, error) {
 		out = append(out, EmbeddingRow{RecordID: id, Embedding: emb})
 	}
 	return out, rows.Err()
+}
+
+// RankEmbeddings scores stored vectors against query without materializing
+// decoded embeddings, then returns the top limit ids (highest cosine first).
+func (s *Store) RankEmbeddings(query []float32, filter RecordFilter, limit int) ([]FTSResult, error) {
+	if len(query) == 0 || limit <= 0 {
+		return nil, nil
+	}
+	q, args := embeddingSelect(filter)
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	normQ := vectorNorm(query)
+	type scored struct {
+		id    string
+		score float64
+	}
+	var ranked []scored
+	for rows.Next() {
+		var id string
+		var blob []byte
+		if err := rows.Scan(&id, &blob); err != nil {
+			return nil, err
+		}
+		ranked = append(ranked, scored{id: id, score: cosineSimilarityEncoded(query, normQ, blob)})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
+	if len(ranked) > limit {
+		ranked = ranked[:limit]
+	}
+	out := make([]FTSResult, len(ranked))
+	for i, s := range ranked {
+		out[i] = FTSResult{RecordID: s.id, Score: s.score}
+	}
+	return out, nil
 }
 
 // --- Embed queue ---

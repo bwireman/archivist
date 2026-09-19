@@ -111,9 +111,11 @@ Defer Ollama embedding so `index`, `remember`, and `update` never need the embed
 
 ## Behavior
 
-Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_id` (`text_hash`, `enqueued_at`, `attempts`, `last_error`). Unchanged records skip upsert, so they are not re-queued. Deleting a record also deletes its queue row and vector.
+Any `UpsertRecord` inserts or replaces a row in `embed_queue` keyed by `record_id` (`text_hash`, `enqueued_at`, `attempts`, `last_error`). Unchanged records (same `content_hash` and `source_path`) skip upsert, so they are not re-queued. Deleting a record also deletes its queue row and vector. Opening a store also deletes FTS rows whose `record_id` is gone.
 
-The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
+`UpsertRecord` adopts the id already stored at `source_path` before writing FTS and the queue, then upserts on `id`. A second remember at the same path cannot enqueue an id that is not in `records`.
+
+The worker lists **all** queued rows on each store (not a 16-item peek) and embeds them with `--concurrency` goroutines (default 2, including when `Worker.Run` is called with concurrency ≤ 0). Each item is looked up on the store it was dequeued from, then on the other worker stores, so a home record is still embedded if the row was dequeued from the repo connection. Success is `SetRecordVector` on the store that holds the record, which upserts `record_vectors` and deletes the queue row. Opening a store deletes queue rows and vectors whose `record_id` is gone. A queue row with no matching record anywhere is dropped and logged. Ollama failure calls `FailQueueItem` and **does not** stop siblings in the same pass.
 
 `archivist embed --once` runs one full pass over the current queue and exits. Without `--once`, it repeats until the queue is empty (or a pass embeds nothing and items remain). `make embed` and the refresh skill use `--once`. `--worker` remains as a hidden no-op for older scripts.
 
@@ -151,7 +153,7 @@ Find archive records by meaning and by keywords. Agents query via MCP `search` o
 
 User text is not FTS5 syntax. `fts5Query` splits on non-alphanumeric characters, quotes each token, and ANDs them, so paths (`docs/foo.md`) and dotted names (`records.global`) cannot produce `fts5: syntax error`. An empty token list or a leftover MATCH syntax error yields no FTS hits; vector search still uses the raw string. If Ollama is down at startup, search is keyword-only. If embedding fails mid-query, search logs `search embed: ...; using keyword-only` to stderr and continues with FTS only.
 
-Vector search loads only `record_id` and embedding blobs (no record bodies). `type` and `scope` filters apply in SQL for both FTS and vector listing. Full records are hydrated only for the union of FTS hits and top `top_k*3` vector IDs before RRF and slug overlay.
+Vector ranking scores embedding blobs in place (`RankEmbeddings`) and keeps only the top `top_k*3` ids per store — it does not decode every vector into a `[]float32` first. `type` and `scope` filters apply in SQL for both FTS and vector listing. Full records are hydrated in batches (`GetRecordsByIDs`) for the union of FTS hits and those top vector ids before RRF and slug overlay.
 
 After a successful search, the repo store stamps `last_search` and `last_search_at`. Status currently prints last indexed time, not last search.
 
@@ -165,7 +167,7 @@ After a successful search, the repo store stamps `last_search` and `last_search_
 
 - CLI: `archivist search <query> [--type] [--scope] [--top]`
 - MCP: `search`
-- Types: `retrieve.Engine`, `store.SearchFTS`, `store.ListEmbeddings`, `store.fts5Query`
+- Types: `retrieve.Engine`, `store.SearchFTS`, `store.RankEmbeddings`, `store.GetRecordsByIDs`, `store.fts5Query`
 
 ---
 
@@ -186,6 +188,8 @@ Primary agent API over stdio. Clients consult and curate the archive without a s
 
 Search works if Ollama is down (keyword-only). Writes never need Ollama. The process cwd must be the repo, or the client must pass `--path`.
 
+`remember` splits `applies_to` and `tags` on commas or newlines (same as CLI `--applies-to` / `--tags`). `check` splits `paths` the same way. `check` `HasViolation` follows the rule-check feature (glob matches only).
+
 When `log_commands` is true, each tool call is appended to `.archivist/commands.log` (`dir=in` then `dir=out`) via tool-handler middleware. The `mcp` process itself is not logged as a CLI command. Stdio JSON-RPC is never written to the log.
 
 ## Connects to
@@ -199,6 +203,37 @@ When `log_commands` is true, each tool call is appended to `.archivist/commands.
 
 - CLI: `archivist mcp`
 - Types: `mcp.Server`, `mcp.ServeStdio`
+
+---
+
+## Rule check
+
+- Status: accepted
+- Scope: global
+- Applies to: internal/check/**, internal/cmd/remember.go, internal/mcp/**
+- Tags: check, rules
+
+## Purpose
+
+Match archive rules against a proposed change so agents and CI can see which constraints apply.
+
+## Behavior
+
+`check.Run` loads every `rule` record from the repo and home stores. Rules whose `applies_to` globs match the supplied paths are listed first. An optional description runs hybrid search over rules; those hits are advisory. Diff text adds paths from `diff --git`, `---` and `+++` lines. `/dev/null` is ignored; a rename contributes both old and new paths. MCP `paths` may be a comma- or newline-separated list.
+
+`HasViolation` is true only when a must/must-not rule matched via `applies_to`. Semantic-only hits never set it. CLI `--strict` exits nonzero on `HasViolation`.
+
+## Connects to
+
+- `retrieve.Engine` for semantic rule search.
+- `record.MatchesPaths` / `IsEnforceable`.
+- Typed records and the record-rule skill.
+
+## Entry points
+
+- CLI: `archivist check [description] [--paths] [--diff] [--strict]`
+- MCP: `check`
+- Types: `check.Run`, `check.Result`
 
 ---
 
@@ -217,7 +252,9 @@ Markdown files with YAML front matter are the source of truth for the archive. S
 
 Types: `decision`, `rule`, `feature`, `guide`, `map`, `pitfall`. Scopes: `dev`, `repo`, `global`. Status: `proposed`, `accepted`, `deprecated`, `superseded`. Rules may set `severity` and `applies_to` globs for `archivist check`. Features should set `applies_to` to the packages they document.
 
-`remember` writes a file under the configured records directory and upserts the store (FTS + embed queue). `update` rewrites the file in place. `retire` sets `status=superseded` and optional `superseded_by`. Query overlay prefers repo over global over dev for the same slug.
+`remember` writes a file under the configured records directory and upserts the store (FTS + embed queue). If that default path already exists (on disk or in the index), `remember` reuses the existing record id and overwrites the file — same identity as `update`. Writes are atomic (temp file + rename) then `UpsertRecord`; `archivist index` repairs the store if the file lands and the upsert fails. `update` rewrites the file in place. `retire` sets `status=superseded` and optional `superseded_by`. Query overlay prefers repo over global over dev for the same slug.
+
+`UpsertRecord` keys on record id after adopting any row already stored at `source_path`, so a second write at the same path cannot leave FTS or `embed_queue` pointing at a new id that is not in `records`.
 
 In this product checkout, `records.global` is `docs/global-decisions` so product records stay in git. Empty `records.global` in other repos is `~/.archivist`.
 
@@ -226,14 +263,14 @@ In this product checkout, `records.global` is `docs/global-decisions` so product
 - Config: `records.repo`, `records.global`, `records.dev`, `records.export`.
 - Indexer walks those directories (and home global/dev) and prunes missing files.
 - Export writes `INDEX.md` by `record.IndexOrder`, a full-text digest per type (`rules.md`, `features.md`, …), and copies under `records/<scope>/<type>/`.
-- Check only enforces `rule` records.
+- Check only enforces `rule` records (`applies_to` glob matches); semantic hits are advisory.
 - On-demand skills: `record-decision`, `record-rule`, `record-feature`. Always-on `rules/record.md` tells agents to distill lasting facts from this conversation (search first, skip chat glut). MCP initialize `instructions` are the consult + record templates so hosts without skills install still get that bar.
 
 ## Entry points
 
 - CLI: `archivist remember`, `update`, `retire`, `check`
 - MCP: `remember`, `update`, `retire`, `get`, `check`
-- Types: `record.Record`, `archive.Service`
+- Types: `record.Record`, `archive.Service`, `store.UpsertRecord`
 
 ---
 

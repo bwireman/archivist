@@ -6,6 +6,7 @@ Type digests: [Rules](rules.md) · [Decisions](decisions.md) · [Features](featu
 
 - [Append gitignore entries on their own line](records/global/rule/append-gitignore-entries-on-their-own-line.md) (accepted) [must]
 - [Bump codemap.Version when extractors change](records/global/rule/bump-codemap-version-when-extractors-change.md) (accepted) [must]
+- [Check --strict only fails on applies_to glob matches](records/global/rule/check-strict-only-fails-on-applies-to-glob-matches.md) (accepted) [must]
 - [Code map tests must fixture every registered language](records/global/rule/code-map-tests-must-fixture-every-registered-language.md) (accepted) [must]
 - [Do not store session notes as accepted archive records](records/global/rule/do-not-store-session-notes-as-accepted-archive-records.md) (accepted) [should-not]
 - [Embed --once must process every queued item](records/global/rule/embed-once-must-process-every-queued-item.md) (accepted) [must]
@@ -50,5 +51,6 @@ Type digests: [Rules](rules.md) · [Decisions](decisions.md) · [Features](featu
 - [Embed queue and worker](records/global/feature/embed-queue-and-worker.md) (accepted)
 - [Hybrid search](records/global/feature/hybrid-search.md) (accepted)
 - [MCP server](records/global/feature/mcp-server.md) (accepted)
+- [Rule check](records/global/feature/rule-check.md) (accepted)
 - [Typed archive records](records/global/feature/typed-archive-records.md) (accepted)
 
