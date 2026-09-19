@@ -8,7 +8,6 @@ import (
 
 type Embedder interface {
 	Embed(ctx context.Context, text string) ([]float32, error)
-	Dimensions() int
 }
 
 func OptionalFromConfig(ctx context.Context, cfg config.OllamaConfig) Embedder {

@@ -12,17 +12,13 @@ import (
 	"time"
 
 	"github.com/bwireman/archivist/internal/record"
-	"github.com/bwireman/archivist/internal/version"
 
 	_ "modernc.org/sqlite"
 )
 
 const (
-	MetaLastIndexedAt    = "last_indexed_at"
-	MetaArchivistVersion = "archivist_version"
-	MetaLastSearch       = "last_search"
-	MetaLastSearchAt     = "last_search_at"
-	MetaCodemapVersion   = "codemap_version"
+	MetaLastIndexedAt  = "last_indexed_at"
+	MetaCodemapVersion = "codemap_version"
 )
 
 type Store struct {
@@ -42,33 +38,11 @@ func Open(path string) (*Store, error) {
 		_ = db.Close()
 		return nil, fmt.Errorf("initialize store: %w", err)
 	}
-	if _, err := db.Exec(`PRAGMA foreign_keys = ON`); err != nil {
-		_ = db.Close()
-		return nil, fmt.Errorf("enable foreign keys: %w", err)
-	}
 	if err := s.purgeOrphans(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("purge orphans: %w", err)
 	}
 	return s, nil
-}
-
-func OpenIfExists(path string) (*Store, bool, error) {
-	if path == "" {
-		return nil, false, fmt.Errorf("empty store path")
-	}
-	_, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, false, nil
-		}
-		return nil, false, err
-	}
-	st, err := Open(path)
-	if err != nil {
-		return nil, false, err
-	}
-	return st, true, nil
 }
 
 func (s *Store) Close() error {
@@ -164,10 +138,7 @@ CREATE TABLE IF NOT EXISTS commits (
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
-	if err := s.ensureFTS(); err != nil {
-		return err
-	}
-	return nil
+	return s.ensureFTS()
 }
 
 func (s *Store) purgeOrphans() error {
@@ -211,10 +182,6 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value
 	return err
 }
 
-func (s *Store) ArchivistVersion() (string, bool, error) {
-	return s.GetMeta(MetaArchivistVersion)
-}
-
 func (s *Store) LastIndexedAt() (time.Time, bool, error) {
 	val, ok, err := s.GetMeta(MetaLastIndexedAt)
 	if err != nil || !ok {
@@ -225,37 +192,7 @@ func (s *Store) LastIndexedAt() (time.Time, bool, error) {
 }
 
 func (s *Store) StampIndexed(t time.Time) error {
-	if err := s.SetMeta(MetaLastIndexedAt, t.UTC().Format(time.RFC3339)); err != nil {
-		return err
-	}
-	return s.SetMeta(MetaArchivistVersion, version.Version)
-}
-
-func (s *Store) StampSearch(query string, t time.Time) error {
-	query = strings.TrimSpace(query)
-	if query == "" {
-		return nil
-	}
-	if t.IsZero() {
-		t = time.Now()
-	}
-	if err := s.SetMeta(MetaLastSearch, query); err != nil {
-		return err
-	}
-	return s.SetMeta(MetaLastSearchAt, t.UTC().Format(time.RFC3339))
-}
-
-func (s *Store) LastSearch() (string, bool, error) {
-	return s.GetMeta(MetaLastSearch)
-}
-
-func (s *Store) LastSearchAt() (time.Time, bool, error) {
-	val, ok, err := s.GetMeta(MetaLastSearchAt)
-	if err != nil || !ok {
-		return time.Time{}, ok, err
-	}
-	t, err := time.Parse(time.RFC3339, val)
-	return t, true, err
+	return s.SetMeta(MetaLastIndexedAt, t.UTC().Format(time.RFC3339))
 }
 
 // --- Records ---
@@ -427,13 +364,8 @@ func (s *Store) GetRecordsByIDs(ids []string) (map[string]*record.Record, error)
 	}
 	const chunk = 400
 	for i := 0; i < len(ids); i += chunk {
-		end := i + chunk
-		if end > len(ids) {
-			end = len(ids)
-		}
-		part := ids[i:end]
-		placeholders := strings.Repeat("?,", len(part))
-		placeholders = placeholders[:len(placeholders)-1]
+		part := ids[i:min(i+chunk, len(ids))]
+		placeholders := strings.TrimSuffix(strings.Repeat("?,", len(part)), ",")
 		rows, err := s.db.Query(`SELECT `+recordCols+` FROM records WHERE id IN (`+placeholders+`)`, anyArgs(part)...)
 		if err != nil {
 			return nil, err
@@ -504,23 +436,6 @@ func (s *Store) AllRecords() ([]*record.Record, error) {
 	return out, rows.Err()
 }
 
-func (s *Store) RecordSourcePaths() ([]string, error) {
-	rows, err := s.db.Query(`SELECT source_path FROM records`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var paths []string
-	for rows.Next() {
-		var p string
-		if err := rows.Scan(&p); err != nil {
-			return nil, err
-		}
-		paths = append(paths, p)
-	}
-	return paths, rows.Err()
-}
-
 func (s *Store) RecordsByType(t record.Type) ([]*record.Record, error) {
 	rows, err := s.db.Query(`SELECT `+recordCols+` FROM records WHERE type = ?`, string(t))
 	if err != nil {
@@ -571,11 +486,8 @@ func (s *Store) RecordCount() (int, error) {
 // --- Vectors ---
 
 func (s *Store) SetRecordVector(recordID, model string, embedding []float32) error {
-	blob, err := encodeEmbedding(embedding)
-	if err != nil {
-		return err
-	}
-	_, err = s.db.Exec(`
+	blob := encodeEmbedding(embedding)
+	_, err := s.db.Exec(`
 INSERT INTO record_vectors (record_id, model, dim, embedding) VALUES (?, ?, ?, ?)
 ON CONFLICT(record_id) DO UPDATE SET model=excluded.model, dim=excluded.dim, embedding=excluded.embedding
 `, recordID, model, len(embedding), blob)
@@ -608,11 +520,6 @@ type RecordFilter struct {
 	Scope record.Scope
 }
 
-type EmbeddingRow struct {
-	RecordID  string
-	Embedding []float32
-}
-
 func embeddingSelect(filter RecordFilter) (string, []any) {
 	q := `SELECT rv.record_id, rv.embedding FROM record_vectors rv`
 	var args []any
@@ -628,29 +535,6 @@ func embeddingSelect(filter RecordFilter) (string, []any) {
 		}
 	}
 	return q, args
-}
-
-func (s *Store) ListEmbeddings(filter RecordFilter) ([]EmbeddingRow, error) {
-	q, args := embeddingSelect(filter)
-	rows, err := s.db.Query(q, args...)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var out []EmbeddingRow
-	for rows.Next() {
-		var id string
-		var blob []byte
-		if err := rows.Scan(&id, &blob); err != nil {
-			return nil, err
-		}
-		emb, err := decodeEmbedding(blob)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, EmbeddingRow{RecordID: id, Embedding: emb})
-	}
-	return out, rows.Err()
 }
 
 // RankEmbeddings scores stored vectors against query without materializing
@@ -806,19 +690,19 @@ type FileRecord struct {
 }
 
 type Symbol struct {
-	ID       int64
-	FilePath string
-	Name     string
-	Kind     string
-	Line     int
-	DocLine  string
-	Exported bool
+	ID       int64  `json:"-"`
+	FilePath string `json:"file_path"`
+	Name     string `json:"name"`
+	Kind     string `json:"kind"`
+	Line     int    `json:"line"`
+	DocLine  string `json:"doc_line,omitempty"`
+	Exported bool   `json:"exported"`
 }
 
 type SymbolEdge struct {
-	FromFile string
-	ToPath   string
-	EdgeType string
+	FromFile string `json:"from_file"`
+	ToPath   string `json:"to_path"`
+	EdgeType string `json:"edge_type"`
 }
 
 func (s *Store) GetFile(path string) (*FileRecord, bool, error) {
@@ -935,17 +819,25 @@ func (s *Store) FileCount() (int, error) {
 }
 
 func (s *Store) SearchSymbols(query string, limit int) ([]Symbol, error) {
-	query = strings.TrimSpace(query)
+	pattern := likeContains(query)
 	rows, err := s.db.Query(`
 SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported
 FROM symbols
-WHERE name LIKE ? OR doc_line LIKE ?
+WHERE name LIKE ? ESCAPE '\' OR doc_line LIKE ? ESCAPE '\' OR file_path LIKE ? ESCAPE '\'
+ORDER BY file_path, line
 LIMIT ?
-`, "%"+query+"%", "%"+query+"%", limit)
+`, pattern, pattern, pattern, limit)
 	if err != nil {
 		return nil, err
 	}
 	return collectSymbols(rows)
+}
+
+// likeContains builds a substring LIKE pattern in which %, _, and \ from the
+// user's query are literals rather than wildcards.
+func likeContains(query string) string {
+	r := strings.NewReplacer(`\`, `\\`, `%`, `\%`, `_`, `\_`)
+	return "%" + r.Replace(strings.TrimSpace(query)) + "%"
 }
 
 func (s *Store) SymbolsForFile(path string) ([]Symbol, error) {
@@ -983,15 +875,110 @@ func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
 	return out, rows.Err()
 }
 
+// ImportsFrom returns the import edges declared by each of the given files.
+func (s *Store) ImportsFrom(files []string, limit int) ([]SymbolEdge, error) {
+	if len(files) == 0 || limit <= 0 {
+		return nil, nil
+	}
+	placeholders := strings.TrimSuffix(strings.Repeat("?,", len(files)), ",")
+	args := append(anyArgs(files), limit)
+	rows, err := s.db.Query(`
+SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
+WHERE from_file IN (`+placeholders+`)
+ORDER BY from_file, to_path
+LIMIT ?
+`, args...)
+	if err != nil {
+		return nil, err
+	}
+	return collectEdges(rows)
+}
+
+// ImportersOf returns the import edges whose target mentions query, answering
+// "which files import this package or module".
+func (s *Store) ImportersOf(query string, limit int) ([]SymbolEdge, error) {
+	if strings.TrimSpace(query) == "" || limit <= 0 {
+		return nil, nil
+	}
+	rows, err := s.db.Query(`
+SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
+WHERE to_path LIKE ? ESCAPE '\'
+ORDER BY from_file, to_path
+LIMIT ?
+`, likeContains(query), limit)
+	if err != nil {
+		return nil, err
+	}
+	return collectEdges(rows)
+}
+
+func collectEdges(rows *sql.Rows) ([]SymbolEdge, error) {
+	defer rows.Close()
+	var out []SymbolEdge
+	for rows.Next() {
+		var e SymbolEdge
+		if err := rows.Scan(&e.FromFile, &e.ToPath, &e.EdgeType); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+// CodeSearch answers "where does this live and how did it get here" from the
+// code map and indexed git history.
+type CodeSearch struct {
+	Symbols   []Symbol       `json:"symbols,omitempty"`
+	Imports   []SymbolEdge   `json:"imports,omitempty"`
+	Importers []SymbolEdge   `json:"importers,omitempty"`
+	Commits   []CommitRecord `json:"commits,omitempty"`
+}
+
+// ExploreCode finds symbols matching query, the imports declared by the files
+// that hold them, the files importing anything whose path mentions query, and
+// recent commits that mention it.
+func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
+	var out CodeSearch
+	if strings.TrimSpace(query) == "" {
+		return out, nil
+	}
+	if limit <= 0 {
+		limit = 30
+	}
+	syms, err := s.SearchSymbols(query, limit)
+	if err != nil {
+		return out, err
+	}
+	out.Symbols = syms
+
+	seen := map[string]struct{}{}
+	var files []string
+	for _, sym := range syms {
+		if _, ok := seen[sym.FilePath]; ok {
+			continue
+		}
+		seen[sym.FilePath] = struct{}{}
+		files = append(files, sym.FilePath)
+	}
+	if out.Imports, err = s.ImportsFrom(files, limit); err != nil {
+		return out, err
+	}
+	if out.Importers, err = s.ImportersOf(query, limit); err != nil {
+		return out, err
+	}
+	out.Commits, err = s.SearchCommits(query, limit)
+	return out, err
+}
+
 // --- Commits ---
 
 type CommitRecord struct {
-	Hash       string
-	Subject    string
-	Body       string
-	Author     string
-	AuthoredAt time.Time
-	IndexedAt  time.Time
+	Hash       string    `json:"hash"`
+	Subject    string    `json:"subject"`
+	Body       string    `json:"body,omitempty"`
+	Author     string    `json:"author,omitempty"`
+	AuthoredAt time.Time `json:"authored_at"`
+	IndexedAt  time.Time `json:"-"`
 }
 
 func (s *Store) CommitHashes() (map[string]struct{}, error) {
@@ -1007,6 +994,37 @@ func (s *Store) CommitHashes() (map[string]struct{}, error) {
 			return nil, err
 		}
 		out[h] = struct{}{}
+	}
+	return out, rows.Err()
+}
+
+// SearchCommits returns recent commits whose subject or body mentions query,
+// newest first.
+func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
+	if strings.TrimSpace(query) == "" || limit <= 0 {
+		return nil, nil
+	}
+	pattern := likeContains(query)
+	rows, err := s.db.Query(`
+SELECT hash, COALESCE(subject,''), COALESCE(body,''), COALESCE(author,''), COALESCE(authored_at,'')
+FROM commits
+WHERE subject LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\'
+ORDER BY authored_at DESC
+LIMIT ?
+`, pattern, pattern, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CommitRecord
+	for rows.Next() {
+		var rec CommitRecord
+		var authoredAt string
+		if err := rows.Scan(&rec.Hash, &rec.Subject, &rec.Body, &rec.Author, &authoredAt); err != nil {
+			return nil, err
+		}
+		rec.AuthoredAt, _ = time.Parse(time.RFC3339, authoredAt)
+		out = append(out, rec)
 	}
 	return out, rows.Err()
 }

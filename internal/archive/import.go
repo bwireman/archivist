@@ -27,7 +27,7 @@ func (s *Service) Import() (ImportResult, error) {
 		prefix := s.Records.Repo
 		if err := walkMarkdown(dir, func(rel, abs string) error {
 			sourcePath := filepath.ToSlash(filepath.Join(prefix, rel))
-			return s.importFile(sourcePath, abs, &res)
+			return s.importFile(sourcePath, abs, record.ScopeRepo, &res)
 		}); err != nil {
 			return res, err
 		}
@@ -37,15 +37,14 @@ func (s *Service) Import() (ImportResult, error) {
 		prefix := s.Records.Global
 		if err := walkMarkdown(dir, func(rel, abs string) error {
 			sourcePath := filepath.ToSlash(filepath.Join(prefix, rel))
-			return s.importFile(sourcePath, abs, &res)
+			return s.importFile(sourcePath, abs, record.ScopeGlobal, &res)
 		}); err != nil {
 			return res, err
 		}
-	}
-	if !s.Records.GlobalInRepo() {
+	} else {
 		dir := s.Records.GlobalDir(s.RepoRoot)
 		if err := s.walkHomeGlobal(dir, func(virt, abs string) error {
-			return s.importFile(virt, abs, &res)
+			return s.importFile(virt, abs, record.ScopeGlobal, &res)
 		}); err != nil {
 			return res, err
 		}
@@ -53,19 +52,32 @@ func (s *Service) Import() (ImportResult, error) {
 	if dir := s.devDir(); dir != "" {
 		if err := walkMarkdown(dir, func(rel, abs string) error {
 			virt := config.VirtualUserADRPath(rel)
-			return s.importFile(virt, abs, &res)
+			return s.importFile(virt, abs, record.ScopeDev, &res)
 		}); err != nil {
 			return res, err
 		}
 	}
 	exportRecords := filepath.Join(s.RepoRoot, s.Records.Export, "records")
 	if err := walkMarkdown(exportRecords, func(rel, abs string) error {
+		scope := scopeFromExportRel(rel)
 		rel = filepath.ToSlash(filepath.Join("records", rel))
-		return s.importFile(rel, abs, &res)
+		return s.importFile(rel, abs, scope, &res)
 	}); err != nil {
 		return res, err
 	}
 	return res, nil
+}
+
+// scopeFromExportRel reads the scope segment of an export copy, whose layout is
+// <scope>/<type>/<slug>.md. Unrecognized layouts fall through to the front
+// matter, which export always writes.
+func scopeFromExportRel(rel string) record.Scope {
+	switch scope := record.Scope(strings.SplitN(rel, "/", 2)[0]); scope {
+	case record.ScopeRepo, record.ScopeGlobal, record.ScopeDev:
+		return scope
+	default:
+		return ""
+	}
 }
 
 func walkMarkdown(dir string, fn func(rel, abs string) error) error {
@@ -129,7 +141,7 @@ func samePath(a, b string) bool {
 	return a == b
 }
 
-func (s *Service) importFile(sourcePath, abs string, res *ImportResult) error {
+func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope, res *ImportResult) error {
 	data, err := os.ReadFile(abs)
 	if err != nil {
 		return err
@@ -138,7 +150,7 @@ func (s *Service) importFile(sourcePath, abs string, res *ImportResult) error {
 	if !record.HasFrontMatterID(content) {
 		return nil
 	}
-	parsed, err := record.ParseFile(sourcePath, content)
+	parsed, err := record.ParseFile(sourcePath, content, fallbackScope)
 	if err != nil {
 		return fmt.Errorf("%s: %w", sourcePath, err)
 	}

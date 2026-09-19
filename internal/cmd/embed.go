@@ -9,7 +9,6 @@ import (
 )
 
 func newEmbedCmd() *cobra.Command {
-	var worker bool
 	var once bool
 	var concurrency int
 	cmd := &cobra.Command{
@@ -35,14 +34,11 @@ func newEmbedCmd() *cobra.Command {
 				Embedder: client,
 				Model:    cfg.Ollama.EmbedModel,
 			}
-			opts := embed.WorkerOptions{Once: once, Concurrency: concurrency}
-			n, err := w.Run(cmd.Context(), opts)
-			fmt.Printf("Embedded %d records\n", n)
+			n, err := w.Run(cmd.Context(), embed.WorkerOptions{Once: once, Concurrency: concurrency})
+			fmt.Fprintf(cmd.OutOrStdout(), "Embedded %d records\n", n)
 			return err
 		},
 	}
-	cmd.Flags().BoolVar(&worker, "worker", false, "ignored; embed always drains the queue")
-	_ = cmd.Flags().MarkHidden("worker")
 	cmd.Flags().BoolVar(&once, "once", false, "process every queued item once, then exit")
 	cmd.Flags().IntVar(&concurrency, "concurrency", 2, "parallel embed workers")
 	return cmd

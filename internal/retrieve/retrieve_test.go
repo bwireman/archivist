@@ -18,8 +18,6 @@ func (f fixedEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
 	return f.vec, nil
 }
 
-func (f fixedEmbedder) Dimensions() int { return len(f.vec) }
-
 func TestSearchFiltersByType(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
 	if err != nil {
@@ -109,5 +107,40 @@ func TestSearchOverlayPrefersRepoScope(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].Record.ID != repoRec.ID {
 		t.Fatalf("overlay results: %+v", results)
+	}
+}
+
+// The scope overlay collapses same-topic records. Records of different types
+// that happen to slugify the same are different topics and must both survive.
+func TestSearchKeepsSameSlugAcrossTypes(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	feature := &record.Record{
+		ID: "rec_feature", Slug: "archive-export", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Archive export", Status: record.StatusAccepted, Body: "how export works",
+		SourcePath: "docs/decisions/archive-export-feature.md",
+	}
+	rule := &record.Record{
+		ID: "rec_rule", Slug: "archive-export", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Archive export", Status: record.StatusAccepted, Body: "never hand-edit export",
+		SourcePath: "docs/decisions/archive-export-rule.md",
+	}
+	for _, rec := range []*record.Record{feature, rule} {
+		if err := st.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	engine := &retrieve.Engine{Repo: st}
+	results, err := engine.Search(context.Background(), nil, retrieve.Options{Query: "export", TopK: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 {
+		t.Fatalf("both types should survive the overlay, got %+v", results)
 	}
 }

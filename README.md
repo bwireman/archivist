@@ -55,7 +55,7 @@ make build          # ./archivist
 
    ```bash
    archivist import               # optional; upsert markdown into SQLite
-   archivist index                # code map + git; no Ollama
+   archivist index                # code map + git history; no Ollama
    archivist embed --once         # skip if Ollama is down
    archivist export               # no-op unless records.write_docs is true
    ```
@@ -134,7 +134,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 | `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `top_k`). Use before implementing or writing a record. |
 | `get` | One record by id or slug |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
-| `map` | Where code lives (symbols / files) |
+| `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`) |
 | `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Distill lasting facts; do not dump chat. No markdown file. |
 | `update` | Amend title, body, or status in place (prefer over a parallel `remember`) |
 | `retire` | Mark superseded when a later choice replaces it |
@@ -183,9 +183,10 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | --- | --- | --- |
 | `archivist init` | no | Config, SQLite dirs, optional import drop folders |
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
-| `archivist index` | no | Index code map + git history |
+| `archivist index` | no | Index code map + git history (feeds `map`) |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
 | `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs) |
+| `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits |
 | `archivist check` | optional | Match rules to a change |
 | `archivist remember` | no | Create a record in SQLite (no markdown file) |
 | `archivist update` / `retire` | no | Amend or supersede |

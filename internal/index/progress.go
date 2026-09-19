@@ -2,46 +2,12 @@ package index
 
 import "fmt"
 
-// Phase is the stage of an Index run.
-type Phase int
-
-const (
-	PhaseScan Phase = iota
-	PhaseFiles
-	PhasePrune
-	PhaseGit
-	PhaseDone
-)
-
-func (p Phase) String() string {
-	switch p {
-	case PhaseScan:
-		return "scan"
-	case PhaseFiles:
-		return "files"
-	case PhasePrune:
-		return "prune"
-	case PhaseGit:
-		return "git"
-	case PhaseDone:
-		return "done"
-	default:
-		return ""
-	}
-}
-
-// Progress is a snapshot of an in-flight Index run.
+// Progress is the result of an Index run.
 type Progress struct {
-	Phase Phase
-	Path  string
-
 	FilesIndexed int
 	FilesRemoved int
 	CommitsNew   int
 }
-
-// Reporter receives Progress snapshots during Index.
-type Reporter func(Progress)
 
 // FormatSummary is the one-line result printed after indexing.
 func FormatSummary(p Progress, recordCount int) string {

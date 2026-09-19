@@ -12,6 +12,11 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
+// maxAttempts bounds how many times a single record may fail to embed before
+// it is dropped from the queue. Without it one permanently bad record makes
+// every later `archivist embed` run fail.
+const maxAttempts = 5
+
 type Worker struct {
 	Stores   []*store.Store
 	Embedder Embedder
@@ -122,9 +127,16 @@ func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.Que
 		fmt.Fprintf(os.Stderr, "dropping embed queue row with no record: %s\n", item.RecordID)
 		return false, st.DropQueueItem(item.RecordID)
 	}
-	text := rec.EmbedText()
-	emb, err := w.Embedder.Embed(ctx, text)
+	emb, err := w.Embedder.Embed(ctx, rec.EmbedText())
 	if err != nil {
+		if item.Attempts+1 >= maxAttempts {
+			fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", rec.SourcePath, item.Attempts+1, err)
+			_ = recStore.DropQueueItem(item.RecordID)
+			if recStore != st {
+				_ = st.DropQueueItem(item.RecordID)
+			}
+			return false, nil
+		}
 		_ = recStore.FailQueueItem(item.RecordID, err.Error())
 		if recStore != st {
 			_ = st.FailQueueItem(item.RecordID, err.Error())

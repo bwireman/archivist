@@ -19,7 +19,6 @@ type Options struct {
 	Description string
 	Paths       []string
 	Diff        string
-	Strict      bool
 	TopK        int
 }
 
@@ -35,11 +34,7 @@ type Result struct {
 }
 
 func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, opts Options) (*Result, error) {
-	paths := opts.Paths
-	if opts.Diff != "" {
-		paths = append(paths, pathsFromDiff(opts.Diff)...)
-	}
-	paths = unique(paths)
+	paths := unique(append(pathsFromDiff(opts.Diff), opts.Paths...))
 
 	var matches []Match
 	seen := map[string]struct{}{}
@@ -109,6 +104,9 @@ func SplitPathList(s string) []string {
 }
 
 func pathsFromDiff(diff string) []string {
+	if diff == "" {
+		return nil
+	}
 	var paths []string
 	for _, line := range strings.Split(diff, "\n") {
 		line = strings.TrimRight(line, "\r")

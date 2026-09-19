@@ -51,7 +51,7 @@ func TestIndexCodeMap(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "foo.go", "package foo\n\nfunc Bar() {}\n")
 	idx, st, _ := newIndexer(t, root)
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	syms, err := st.SymbolsForFile("foo.go")
@@ -67,7 +67,7 @@ func TestIndexGleamCodeMap(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
 	idx, st, _ := newIndexer(t, root)
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	syms, err := st.SymbolsForFile("src/mod.gleam")
@@ -83,7 +83,7 @@ func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
 	idx, st, _ := newIndexer(t, root)
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	existing, ok, err := st.GetFile("src/mod.gleam")
@@ -96,7 +96,7 @@ func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
 	if err := st.SetMeta(store.MetaCodemapVersion, "0"); err != nil {
 		t.Fatal(err)
 	}
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	syms, err := st.SymbolsForFile("src/mod.gleam")
@@ -112,7 +112,7 @@ func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
 	idx, st, _ := newIndexer(t, root)
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	existing, ok, err := st.GetFile("src/mod.gleam")
@@ -122,7 +122,7 @@ func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
 	if err := st.ReplaceFileMap(*existing, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	syms, err := st.SymbolsForFile("src/mod.gleam")
@@ -149,7 +149,7 @@ Yes.
 `
 	writeFile(t, root, "docs/decisions/001-sqlite.md", content)
 	idx, st, _ := newIndexer(t, root)
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	if _, ok, err := st.GetRecordByID("rec_abc"); err != nil || ok {
@@ -161,7 +161,7 @@ func TestIndexSkipsArchive(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "docs/archive/INDEX.md", "# index\n")
 	idx, st, _ := newIndexer(t, root)
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	n, _ := st.FileCount()
@@ -187,7 +187,7 @@ func TestIndexDoesNotPruneDBOnlyRecord(t *testing.T) {
 	if err := st.UpsertRecord(rec); err != nil {
 		t.Fatal(err)
 	}
-	if err := idx.Index(context.Background(), ""); err != nil {
+	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
 	got, ok, err := st.GetRecordByID("rec_dbonly")

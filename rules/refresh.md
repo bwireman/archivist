@@ -5,7 +5,7 @@ After a turn that changed records (via MCP/CLI), Go sources, or markdown you wan
 ```bash
 archivist import
 archivist index
-archivist embed --worker --once
+archivist embed --once
 archivist export
 ```
 

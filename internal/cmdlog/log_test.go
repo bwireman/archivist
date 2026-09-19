@@ -12,11 +12,13 @@ import (
 )
 
 func TestDisabledWritesNothing(t *testing.T) {
+	dir := t.TempDir()
 	log := Disabled()
+	log.path = filepath.Join(dir, "commands.log")
 	log.In("cli", "archivist search", map[string]any{"args": []string{"foo"}})
 	log.Out("cli", "archivist search", nil, nil, time.Now())
-	if log.Enabled() {
-		t.Fatal("disabled logger should not be enabled")
+	if _, err := os.Stat(log.path); !os.IsNotExist(err) {
+		t.Fatal("disabled logger should not write a file")
 	}
 }
 

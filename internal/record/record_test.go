@@ -23,7 +23,7 @@ Why.
 ## Decision
 Don't.
 `
-	r, err := ParseFile("docs/decisions/001-billing.md", raw)
+	r, err := ParseFile("docs/decisions/001-billing.md", raw, ScopeRepo)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -89,10 +89,33 @@ func TestInferScopeFromPath(t *testing.T) {
 	if InferScopeFromPath("global/note.md") != ScopeGlobal {
 		t.Fatal("home global")
 	}
-	if InferScopeFromPath("docs/global-decisions/note.md") != ScopeGlobal {
+	// Configurable in-repo directories are ambiguous; the importer supplies
+	// the scope for the tree it walked.
+	if InferScopeFromPath("docs/global-decisions/note.md") != "" {
 		t.Fatal("in-repo global")
 	}
-	if InferScopeFromPath("docs/decisions/note.md") != ScopeRepo {
-		t.Fatal("repo")
+	if InferScopeFromPath("docs/decisions/note.md") != "" {
+		t.Fatal("in-repo repo")
+	}
+}
+
+func TestParseFileUsesFallbackScope(t *testing.T) {
+	raw := "---\nid: rec_1\ntype: decision\ntitle: Pick one\n---\n\nbody\n"
+	r, err := ParseFile("docs/team-adr/pick-one.md", raw, ScopeGlobal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Scope != ScopeGlobal {
+		t.Fatalf("scope: %s", r.Scope)
+	}
+
+	// Front matter still wins over the walked directory.
+	withScope := "---\nid: rec_2\ntype: decision\nscope: repo\ntitle: Pick two\n---\n\nbody\n"
+	r, err = ParseFile("docs/team-adr/pick-two.md", withScope, ScopeGlobal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.Scope != ScopeRepo {
+		t.Fatalf("front-matter scope: %s", r.Scope)
 	}
 }

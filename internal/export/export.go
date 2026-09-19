@@ -65,6 +65,12 @@ func Run(repo *store.Store, home *store.Store, opts Options) error {
 	return writeManifest(recs, filepath.Join(opts.OutDir, "archive.json"))
 }
 
+// WriteBundle writes the same tree as Run into a portable directory, ignoring
+// records.write_docs.
+func WriteBundle(repo, home *store.Store, bundlePath string) error {
+	return Run(repo, home, Options{OutDir: bundlePath})
+}
+
 func collectRecords(repo, home *store.Store) ([]*record.Record, error) {
 	var all []*record.Record
 	for _, st := range []*store.Store{repo, home} {
@@ -247,9 +253,4 @@ func writeManifest(recs []*record.Record, path string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
-}
-
-// WriteBundle writes a portable tar-less directory bundle.
-func WriteBundle(repo *store.Store, home *store.Store, bundlePath string) error {
-	return Run(repo, home, Options{OutDir: bundlePath})
 }

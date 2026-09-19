@@ -21,6 +21,9 @@ import (
 	ruletmpl "github.com/bwireman/archivist/rules"
 )
 
+// codemapLimit is the default number of rows per section returned by `map`.
+const codemapLimit = 30
+
 type Server struct {
 	RepoRoot string
 	Cfg      *config.Config
@@ -67,8 +70,9 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("diff"),
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
-		mcp.WithDescription("Find where code lives (symbols and files)."),
+		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. Run `archivist index` first."),
 		mcp.WithString("query", mcp.Required()),
+		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
 		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record. Writes SQLite only; does not create a markdown file."),
@@ -208,12 +212,12 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 }
 
 func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	query := req.GetString("query", "")
-	syms, err := s.RepoDB.SearchSymbols(query, 30)
+	limit := int(req.GetFloat("limit", float64(codemapLimit)))
+	res, err := s.RepoDB.ExploreCode(req.GetString("query", ""), limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(syms)
+	return jsonResult(res)
 }
 
 func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

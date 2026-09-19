@@ -130,6 +130,49 @@ fn uses(s: Severity) -> String {
 	}
 }
 
+func TestExtractGoNamesMethodsNotReturnTypes(t *testing.T) {
+	src := `package store
+
+import "database/sql"
+
+type Store struct {
+	db *sql.DB
+}
+
+// UpsertRecord writes a record.
+func (s *Store) UpsertRecord(id string) error {
+	return nil
+}
+
+func Open(path string) (*Store, error) {
+	return nil, nil
+}
+`
+	res, err := Extract("internal/store/store.go", src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.PackageName != "store" {
+		t.Errorf("package %q", res.PackageName)
+	}
+	byName := map[string]string{}
+	for _, sym := range res.Symbols {
+		byName[sym.Name] = sym.Kind
+	}
+	if byName["UpsertRecord"] != "method_declaration" {
+		t.Errorf("method should be named for itself, not its return type: %+v", res.Symbols)
+	}
+	if byName["Open"] != "function_declaration" {
+		t.Errorf("missing Open: %+v", res.Symbols)
+	}
+	if _, ok := byName["error"]; ok {
+		t.Errorf("return type leaked in as a symbol: %+v", res.Symbols)
+	}
+	if len(res.Edges) != 1 || res.Edges[0].ToPath != "database/sql" {
+		t.Errorf("edges %+v", res.Edges)
+	}
+}
+
 func TestExtractMjsUsesJavaScript(t *testing.T) {
 	src := `export function parse_adv(content) {
   return content

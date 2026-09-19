@@ -19,7 +19,9 @@ func HasFrontMatterID(content string) bool {
 }
 
 // ParseFile parses a markdown file with YAML front matter into a Record.
-func ParseFile(sourcePath, content string) (*Record, error) {
+// fallbackScope applies when neither the path prefix nor the front matter
+// names a scope; an empty fallback means repo.
+func ParseFile(sourcePath, content string, fallbackScope Scope) (*Record, error) {
 	fm, body, err := splitFrontMatter(content)
 	if err != nil {
 		return nil, err
@@ -29,11 +31,18 @@ func ParseFile(sourcePath, content string) (*Record, error) {
 		return nil, fmt.Errorf("parse front matter: %w", err)
 	}
 
+	scope := InferScopeFromPath(sourcePath)
+	if scope == "" {
+		scope = fallbackScope
+	}
+	if scope == "" {
+		scope = ScopeRepo
+	}
 	r := &Record{
 		SourcePath: sourcePath,
 		Slug:       SlugFromPath(sourcePath),
 		Body:       strings.TrimSpace(body),
-		Scope:      InferScopeFromPath(sourcePath),
+		Scope:      scope,
 	}
 
 	if v, ok := fields["id"]; ok {

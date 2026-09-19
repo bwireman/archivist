@@ -23,7 +23,7 @@ func wrapArchiveCommandLogs(root *cobra.Command) {
 
 func archiveCommand(c *cobra.Command) bool {
 	switch c.Name() {
-	case "search", "status", "remember", "update", "retire", "check", "index", "embed", "export", "import", "publish":
+	case "search", "map", "status", "remember", "update", "retire", "check", "index", "embed", "export", "import", "publish":
 		return true
 	default:
 		return false

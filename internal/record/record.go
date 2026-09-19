@@ -98,22 +98,19 @@ func ScopePrecedence(s Scope) int {
 	}
 }
 
-// InferScopeFromPath derives scope from a record file path relative to repo or home.
+// InferScopeFromPath derives scope from the virtual prefix of a logical record
+// path. Only the home-store prefixes are unambiguous: the repo and in-repo
+// global record directories are both configurable, so any other path returns ""
+// and the caller supplies the scope it walked.
 func InferScopeFromPath(path string) Scope {
-	path = filepath.ToSlash(path)
-	if strings.HasPrefix(path, config.UserGlobalPrefix+"/") {
+	switch {
+	case config.IsUserGlobalPath(path):
 		return ScopeDev
-	}
-	if config.IsHomeGlobalPath(path) {
+	case config.IsHomeGlobalPath(path):
 		return ScopeGlobal
+	default:
+		return ""
 	}
-	if glob.MatchAnyPattern(path, []string{config.DefaultGlobalDecisionsDir + "/**"}) {
-		return ScopeGlobal
-	}
-	if glob.MatchAnyPattern(path, []string{config.DefaultDecisionsDir + "/**"}) {
-		return ScopeRepo
-	}
-	return ScopeRepo
 }
 
 // SlugFromPath returns the filename without extension as slug.

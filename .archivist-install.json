@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "commit": "3ab01d6362a983a31e8ab3cebf78846c29a32231",
+  "commit": "efeb705ec7cebfb40239860b89b33d5d8ad669fa",
   "target": "cursor",
   "rules": {
     "consult.md": {
@@ -16,10 +16,10 @@
       "cursor": "84967dadf0a137e0ca4212eba71b28d2b19b363dcf82099215362ff937000cad"
     },
     "refresh.md": {
-      "agents-md": "a6f10423d8b1962a8c64e6a086678dd631f451e6dfd9b45e8fbc9a64852fb2a2",
-      "claude": "a6f10423d8b1962a8c64e6a086678dd631f451e6dfd9b45e8fbc9a64852fb2a2",
-      "copilot": "a6f10423d8b1962a8c64e6a086678dd631f451e6dfd9b45e8fbc9a64852fb2a2",
-      "cursor": "2260b6c0cfc1f2778d18e9bf7ffc5fcf43251f29e3f0e2eaac401122af13586d"
+      "agents-md": "c97c562cc750fb4d2134c47b02c56726ffac6d290ab84ff44f42ee30bb23bf51",
+      "claude": "c97c562cc750fb4d2134c47b02c56726ffac6d290ab84ff44f42ee30bb23bf51",
+      "copilot": "c97c562cc750fb4d2134c47b02c56726ffac6d290ab84ff44f42ee30bb23bf51",
+      "cursor": "9727c9c0142c41e1a51ed23a6826d7376f9646cb9bf9635af0821620de242187"
     }
   },
   "skills": {
@@ -40,8 +40,8 @@
       "cursor": "f1544d5cf623461bf2c91e3173628be2414aca7fa0a1fe05e9ca0c1a203f1567"
     },
     "refresh-archive/SKILL.md": {
-      "claude": "76134bc951446c591abe46c5fcbfc7c6edfbfecfa974fa337a447b003f743206",
-      "cursor": "76134bc951446c591abe46c5fcbfc7c6edfbfecfa974fa337a447b003f743206"
+      "claude": "3a84d5cc01f52639ce17d413441befa5233bc381dad91fafa329da05e4f95e0f",
+      "cursor": "3a84d5cc01f52639ce17d413441befa5233bc381dad91fafa329da05e4f95e0f"
     }
   }
 }

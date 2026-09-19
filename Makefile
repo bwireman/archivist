@@ -33,11 +33,11 @@ install: ## Install archivist to GOPATH/bin
 run: ## Run archivist (e.g. make run ARGS='search --help')
 	go run $(LDFLAGS) $(PKG) $(ARGS)
 
-index: build ## Index code map and git (no Ollama)
+index: build ## Index code map and git history (no Ollama)
 	./$(BIN) index
 
 embed: build ## Drain embed queue (needs Ollama)
-	./$(BIN) embed --worker --once
+	./$(BIN) embed --once
 
 export: build ## Generate docs/archive/ (no-op unless records.write_docs)
 	./$(BIN) export

@@ -7,7 +7,7 @@ import (
 	"github.com/bwireman/archivist/internal/record"
 )
 
-func TestListEmbeddingsFiltersType(t *testing.T) {
+func TestSearchFTSFiltersType(t *testing.T) {
 	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
@@ -35,14 +35,6 @@ func TestListEmbeddingsFiltersType(t *testing.T) {
 	}
 	if err := st.SetRecordVector(dec.ID, "test", []float32{0, 1}); err != nil {
 		t.Fatal(err)
-	}
-
-	rows, err := st.ListEmbeddings(RecordFilter{Type: record.TypeRule})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(rows) != 1 || rows[0].RecordID != rule.ID {
-		t.Fatalf("rule embeddings: %+v", rows)
 	}
 
 	hits, err := st.SearchFTS("sanitize", 10, RecordFilter{Type: record.TypeRule})
@@ -92,13 +84,11 @@ func TestRankEmbeddingsDoesNotNeedDecodedRows(t *testing.T) {
 		t.Fatalf("ranked %+v", ranked)
 	}
 
-	blob, err := encodeEmbedding([]float32{0, 1})
-	if err != nil {
-		t.Fatal(err)
-	}
-	got := cosineSimilarityEncoded([]float32{0, 1}, vectorNorm([]float32{0, 1}), blob)
-	want := CosineSimilarity([]float32{0, 1}, []float32{0, 1})
-	if got != want {
-		t.Fatalf("encoded cosine %v want %v", got, want)
+	// A vector against itself is cosine 1 whether or not the candidate side
+	// was ever decoded out of its blob.
+	query := []float32{0, 1}
+	got := cosineSimilarityEncoded(query, vectorNorm(query), encodeEmbedding(query))
+	if got != 1 {
+		t.Fatalf("encoded cosine %v want 1", got)
 	}
 }

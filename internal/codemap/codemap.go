@@ -22,7 +22,7 @@ import (
 
 // Version is the code-map extractor contract. Bump it when extractors change
 // so the next full index remaps files whose content hashes have not changed.
-const Version = 2
+const Version = 3
 
 type languageSpec struct {
 	lang    *sitter.Language
@@ -191,14 +191,17 @@ func findPackage(root *sitter.Node, src []byte, pkgNode, ext string) string {
 	return name
 }
 
+// symbolName is the declared name of node. Children are scanned in order so
+// that a Go method's field_identifier wins over the type_identifier of its
+// return value, which appears later in the same child list.
 func symbolName(node *sitter.Node, src []byte) string {
 	for i := 0; i < int(node.ChildCount()); i++ {
 		child := node.Child(i)
 		if child == nil {
 			continue
 		}
-		t := child.Type()
-		if t == "identifier" || t == "type_identifier" || t == "property_identifier" {
+		switch child.Type() {
+		case "identifier", "field_identifier", "type_identifier", "property_identifier":
 			return string(src[child.StartByte():child.EndByte()])
 		}
 	}

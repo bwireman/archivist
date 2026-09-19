@@ -33,9 +33,6 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 	if rec.SourcePath == "" {
 		rec.SourcePath = s.defaultPath(rec)
 	}
-	if err := s.adoptExistingIdentity(rec); err != nil {
-		return "", err
-	}
 	if rec.ID == "" {
 		rec.ID = record.NewID()
 	}
@@ -48,6 +45,8 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 	if st == nil {
 		return "", fmt.Errorf("no store for scope %s", rec.Scope)
 	}
+	// UpsertRecord adopts the id and created_at of any row already at this
+	// source_path, so remembering the same topic twice updates in place.
 	if err := st.UpsertRecord(rec); err != nil {
 		return "", err
 	}
@@ -68,22 +67,6 @@ func (s *Service) Update(id string, fn func(*record.Record) error) error {
 		return err
 	}
 	return st.UpsertRecord(rec)
-}
-
-func (s *Service) adoptExistingIdentity(rec *record.Record) error {
-	st := s.storeFor(rec.Scope)
-	if st == nil {
-		return nil
-	}
-	existing, ok, err := st.GetRecordByPath(rec.SourcePath)
-	if err != nil {
-		return err
-	}
-	if ok {
-		rec.ID = existing.ID
-		rec.CreatedAt = existing.CreatedAt
-	}
-	return nil
 }
 
 func (s *Service) Retire(id, supersededBy string) error {
@@ -148,18 +131,6 @@ func (s *Service) defaultPath(rec *record.Record) string {
 	default:
 		return filepath.ToSlash(filepath.Join(s.Records.Repo, name))
 	}
-}
-
-func (s *Service) absPath(sourcePath string) string {
-	if strings.HasPrefix(sourcePath, config.UserGlobalPrefix+"/") {
-		rel := strings.TrimPrefix(sourcePath, config.UserGlobalPrefix+"/")
-		return filepath.Join(s.devDir(), rel)
-	}
-	if config.IsHomeGlobalPath(sourcePath) && !s.Records.GlobalInRepo() {
-		rel := strings.TrimPrefix(sourcePath, config.HomeGlobalPrefix+"/")
-		return filepath.Join(s.Records.GlobalDir(s.RepoRoot), rel)
-	}
-	return filepath.Join(s.RepoRoot, sourcePath)
 }
 
 func (s *Service) devDir() string {

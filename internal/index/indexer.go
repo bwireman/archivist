@@ -23,85 +23,64 @@ type Indexer struct {
 	Cfg      *config.Config
 	Store    *store.Store
 	Home     *store.Store
-	Reporter Reporter
-	UserDir  string
 
 	progress Progress
 	ignore   *gitindex.Ignore
 	remap    bool
 }
 
-func (idx *Indexer) report() {
-	if idx.Reporter != nil {
-		idx.Reporter(idx.progress)
-	}
-}
-
-func (idx *Indexer) Index(ctx context.Context, scopePath string) error {
+func (idx *Indexer) Index(ctx context.Context, scopePath string) (Progress, error) {
 	root := idx.RepoRoot
 	if scopePath != "" {
 		root = filepath.Join(idx.RepoRoot, scopePath)
 	}
 
-	idx.progress = Progress{Phase: PhaseScan}
-	idx.report()
+	idx.progress = Progress{}
 
-	if err := idx.loadIgnore(); err != nil {
-		return err
-	}
-	remap, err := idx.needsCodemapRemap()
+	ignore, err := gitindex.LoadGitignore(idx.RepoRoot)
 	if err != nil {
-		return err
+		return idx.progress, err
 	}
-	idx.remap = remap
-
-	idx.progress.Phase = PhaseFiles
-	idx.report()
+	idx.ignore = ignore
+	idx.remap, err = idx.needsCodemapRemap()
+	if err != nil {
+		return idx.progress, err
+	}
 
 	seenRepo := make(map[string]struct{})
-
 	err = idx.walkFiles(root, func(rel, abs string) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		idx.progress.Path = rel
-		idx.report()
 		seenRepo[rel] = struct{}{}
-		if err := idx.indexPath(ctx, rel, abs, idx.Store); err != nil {
-			return err
-		}
-		idx.report()
-		return nil
+		return idx.indexPath(rel, abs, idx.Store)
 	})
 	if err != nil {
-		return err
+		return idx.progress, err
 	}
 
 	if err := idx.pruneFiles(seenRepo, scopePath); err != nil {
-		return err
+		return idx.progress, err
 	}
 	if err := idx.indexGit(ctx); err != nil {
-		return err
+		return idx.progress, err
 	}
 
 	now := time.Now().UTC()
 	if err := idx.Store.StampIndexed(now); err != nil {
-		return err
+		return idx.progress, err
 	}
 	if scopePath == "" {
 		if err := idx.Store.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
-			return err
+			return idx.progress, err
 		}
 	}
 	if idx.Home != nil {
 		if err := idx.Home.StampIndexed(now); err != nil {
-			return err
+			return idx.progress, err
 		}
 	}
-	idx.progress.Phase = PhaseDone
-	idx.progress.Path = ""
-	idx.report()
-	return nil
+	return idx.progress, nil
 }
 
 func (idx *Indexer) isRecordFile(rel string) bool {
@@ -117,12 +96,9 @@ func (idx *Indexer) isRecordFile(rel string) bool {
 	return idx.Cfg.Records.GlobalInRepo() && config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
-func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.Store) error {
-	if dest == nil {
+func (idx *Indexer) indexPath(rel, abs string, dest *store.Store) error {
+	if dest == nil || idx.isRecordFile(rel) {
 		return nil
-	}
-	if err := ctx.Err(); err != nil {
-		return err
 	}
 	data, err := os.ReadFile(abs)
 	if err != nil {
@@ -132,10 +108,6 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 		return dest.DeleteFile(rel)
 	}
 	hash := fileHash(data)
-
-	if idx.isRecordFile(rel) {
-		return nil
-	}
 
 	existing, ok, err := dest.GetFile(rel)
 	if err != nil {
@@ -162,8 +134,6 @@ func (idx *Indexer) indexPath(ctx context.Context, rel, abs string, dest *store.
 }
 
 func (idx *Indexer) indexGit(ctx context.Context) error {
-	idx.progress.Phase = PhaseGit
-	idx.report()
 	commits, err := gitindex.ListCommits(idx.RepoRoot, 500)
 	if err != nil {
 		return err
@@ -263,16 +233,6 @@ func (idx *Indexer) gitignored(rel string, isDir bool) bool {
 	return idx.ignore != nil && idx.ignore.Match(rel, isDir)
 }
 
-func (idx *Indexer) loadIgnore() error {
-	idx.ignore = nil
-	ig, err := gitindex.LoadGitignore(idx.RepoRoot)
-	if err != nil {
-		return err
-	}
-	idx.ignore = ig
-	return nil
-}
-
 func (idx *Indexer) needsCodemapRemap() (bool, error) {
 	if idx.Store == nil {
 		return false, nil
@@ -307,7 +267,6 @@ var binaryExts = map[string]bool{
 }
 
 func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error {
-	idx.progress.Phase = PhasePrune
 	paths, err := idx.Store.AllFilePaths()
 	if err != nil {
 		return err

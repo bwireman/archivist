@@ -10,10 +10,10 @@ import (
 )
 
 func newInitCmd() *cobra.Command {
-	var plain bool
-	cmd := &cobra.Command{
+	return &cobra.Command{
 		Use:   "init",
 		Short: "Initialize archivist config and data directory",
+		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			root, err := repoRoot()
 			if err != nil {
@@ -32,9 +32,6 @@ func newInitCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&plain, "plain", false, "ignored; init always writes defaults")
-	_ = cmd.Flags().MarkHidden("plain")
-	return cmd
 }
 
 func configExists(root string) bool {

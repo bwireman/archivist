@@ -174,7 +174,6 @@ func newCheckCmd() *cobra.Command {
 				Description: strings.Join(args, " "),
 				Paths:       paths,
 				Diff:        diff,
-				Strict:      strict,
 			})
 			if err != nil {
 				return err

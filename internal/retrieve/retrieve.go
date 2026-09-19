@@ -6,7 +6,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
@@ -84,67 +83,79 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 		}
 	}
 
-	idSet := map[string]struct{}{}
+	ids := make([]string, 0, len(ftsRank)+len(vectorRank))
 	for id := range ftsRank {
-		idSet[id] = struct{}{}
+		ids = append(ids, id)
 	}
 	for id := range vectorRank {
-		idSet[id] = struct{}{}
-	}
-	ids := make([]string, 0, len(idSet))
-	for id := range idSet {
-		ids = append(ids, id)
+		if _, ok := ftsRank[id]; !ok {
+			ids = append(ids, id)
+		}
 	}
 	recs, err := e.lookupRecords(ids)
 	if err != nil {
 		return nil, err
 	}
 
-	merged := map[string]Result{}
-	for id := range idSet {
+	// A record can exist in both stores under the same type and slug; the
+	// narrower scope wins the overlay. Keying on type as well as slug keeps
+	// unrelated records that happen to share a slug from evicting each other.
+	best := map[string]Result{}
+	for _, id := range ids {
 		rec, ok := recs[id]
 		if !ok {
 			continue
 		}
-		source := "hybrid"
-		if ftsRank[id] > 0 && vectorRank[id] == 0 {
-			source = "fts"
-		} else if vectorRank[id] > 0 && ftsRank[id] == 0 {
-			source = "vector"
-		}
-		merged[id] = Result{
+		candidate := Result{
 			Record: rec,
 			Score:  rrfScore(ftsRank[id], vectorRank[id]),
-			Source: source,
+			Source: hitSource(ftsRank[id], vectorRank[id]),
 		}
+		key := string(rec.Type) + "/" + rec.Slug
+		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {
+			continue
+		}
+		best[key] = candidate
 	}
 
-	results := make([]Result, 0, len(merged))
-	for _, r := range merged {
+	results := make([]Result, 0, len(best))
+	for _, r := range best {
 		results = append(results, r)
 	}
-	sort.Slice(results, func(i, j int) bool { return results[i].Score > results[j].Score })
-
-	bySlug := map[string]Result{}
-	for _, r := range results {
-		existing, ok := bySlug[r.Record.Slug]
-		if !ok || record.ScopePrecedence(r.Record.Scope) > record.ScopePrecedence(existing.Record.Scope) {
-			bySlug[r.Record.Slug] = r
+	// Ids come out of map iteration, so break score ties on id to keep the
+	// same query returning the same ordering.
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].Score != results[j].Score {
+			return results[i].Score > results[j].Score
 		}
-	}
-	results = make([]Result, 0, len(bySlug))
-	for _, r := range bySlug {
-		results = append(results, r)
-	}
-	sort.Slice(results, func(i, j int) bool { return results[i].Score > results[j].Score })
+		return results[i].Record.ID < results[j].Record.ID
+	})
 	if len(results) > opts.TopK {
 		results = results[:opts.TopK]
 	}
-
-	if e.Repo != nil {
-		_ = e.Repo.StampSearch(opts.Query, time.Now())
-	}
 	return results, nil
+}
+
+// overlayWins reports whether candidate should replace existing for the same
+// type and slug: narrower scope first, then the better retrieval score.
+func overlayWins(candidate, existing Result) bool {
+	cp := record.ScopePrecedence(candidate.Record.Scope)
+	ep := record.ScopePrecedence(existing.Record.Scope)
+	if cp != ep {
+		return cp > ep
+	}
+	return candidate.Score > existing.Score
+}
+
+func hitSource(ftsRank, vectorRank int) string {
+	switch {
+	case vectorRank == 0:
+		return "fts"
+	case ftsRank == 0:
+		return "vector"
+	default:
+		return "hybrid"
+	}
 }
 
 func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, error) {

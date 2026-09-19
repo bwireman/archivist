@@ -31,7 +31,6 @@ func TestStrictViolationOnlyOnAppliesTo(t *testing.T) {
 	semantic, err := Run(ctx, engine, nil, Options{
 		Description: "Sanitize MATCH input before search",
 		Paths:       []string{"internal/mcp/server.go"},
-		Strict:      true,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -44,8 +43,7 @@ func TestStrictViolationOnlyOnAppliesTo(t *testing.T) {
 	}
 
 	glob, err := Run(ctx, engine, nil, Options{
-		Paths:  []string{"internal/store/fts.go"},
-		Strict: true,
+		Paths: []string{"internal/store/fts.go"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -58,8 +56,7 @@ func TestStrictViolationOnlyOnAppliesTo(t *testing.T) {
 	}
 
 	advisory, err := Run(ctx, engine, nil, Options{
-		Paths:  []string{"internal/mcp/server.go"},
-		Strict: true,
+		Paths: []string{"internal/mcp/server.go"},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -31,6 +31,7 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newIndexCmd())
 	root.AddCommand(newSearchCmd())
+	root.AddCommand(newMapCmd())
 	root.AddCommand(newStatusCmd())
 	root.AddCommand(newVersionCmd())
 	root.AddCommand(newEmbedCmd())
@@ -83,19 +84,11 @@ func openStore(root string) (*store.Store, error) {
 }
 
 func openHomeStore() (*store.Store, error) {
-	path, err := resolveHomeStorePath()
-	if err != nil {
-		return nil, err
+	path := config.HomeStorePath()
+	if path == "" {
+		return nil, fmt.Errorf("cannot resolve home archive path (set $HOME)")
 	}
 	return store.Open(path)
-}
-
-func resolveHomeStorePath() (string, error) {
-	path := config.HomeStorePath()
-	if path != "" {
-		return path, nil
-	}
-	return "", fmt.Errorf("cannot resolve home archive path (set $HOME)")
 }
 
 func openStores(root string) (*store.Store, *store.Store, error) {

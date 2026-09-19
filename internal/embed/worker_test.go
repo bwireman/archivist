@@ -136,8 +136,6 @@ func (f embedFunc) Embed(ctx context.Context, text string) ([]float32, error) {
 	return f(ctx, text)
 }
 
-func (f embedFunc) Dimensions() int { return 4 }
-
 func openStore(t *testing.T) *store.Store {
 	t.Helper()
 	st, err := store.Open(filepath.Join(t.TempDir(), "t.db"))

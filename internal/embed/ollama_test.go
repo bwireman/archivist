@@ -44,9 +44,6 @@ func TestOllamaClientEmbedAndHealth(t *testing.T) {
 	if len(vec) != 3 || vec[0] != 1 {
 		t.Fatalf("vec %v", vec)
 	}
-	if client.Dimensions() != 3 {
-		t.Fatalf("dim %d", client.Dimensions())
-	}
 }
 
 func TestOllamaClientEmptyVector(t *testing.T) {

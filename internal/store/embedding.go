@@ -6,16 +6,16 @@ import (
 	"math"
 )
 
-func encodeEmbedding(emb []float32) ([]byte, error) {
+func encodeEmbedding(emb []float32) []byte {
 	if len(emb) == 0 {
-		return nil, nil
+		return nil
 	}
 	buf := make([]byte, 4+len(emb)*4)
 	binary.LittleEndian.PutUint32(buf[:4], uint32(len(emb)))
 	for i, v := range emb {
 		binary.LittleEndian.PutUint32(buf[4+i*4:], math.Float32bits(v))
 	}
-	return buf, nil
+	return buf
 }
 
 func decodeEmbedding(buf []byte) ([]float32, error) {
@@ -36,22 +36,8 @@ func decodeEmbedding(buf []byte) ([]float32, error) {
 	return emb, nil
 }
 
-func CosineSimilarity(a, b []float32) float64 {
-	if len(a) == 0 || len(b) == 0 || len(a) != len(b) {
-		return 0
-	}
-	var dot, normA, normB float64
-	for i := range a {
-		dot += float64(a[i]) * float64(b[i])
-		normA += float64(a[i]) * float64(a[i])
-		normB += float64(b[i]) * float64(b[i])
-	}
-	if normA == 0 || normB == 0 {
-		return 0
-	}
-	return dot / (math.Sqrt(normA) * math.Sqrt(normB))
-}
-
+// vectorNorm is the squared L2 norm; cosineSimilarityEncoded takes its square
+// root once per query rather than once per candidate.
 func vectorNorm(v []float32) float64 {
 	var n float64
 	for _, x := range v {

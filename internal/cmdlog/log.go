@@ -47,10 +47,6 @@ func FromConfig(repoRoot string, cfg *config.Config) *Logger {
 	return New(config.CommandsLogPath(repoRoot))
 }
 
-func (l *Logger) Enabled() bool {
-	return l != nil && l.enabled
-}
-
 func (l *Logger) In(source, command string, args any) {
 	l.append(Entry{
 		Dir:     "in",

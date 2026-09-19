@@ -16,11 +16,6 @@ type OllamaClient struct {
 	baseURL    string
 	embedModel string
 	httpClient *http.Client
-	dimensions int
-}
-
-func NewOllamaClient(baseURL, embedModel string) *OllamaClient {
-	return NewOllamaClientWithTimeout(baseURL, embedModel, config.DefaultEmbedTimeout)
 }
 
 func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {
@@ -87,12 +82,7 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 	if len(out.Embedding) == 0 {
 		return nil, fmt.Errorf("embed returned an empty vector")
 	}
-	c.dimensions = len(out.Embedding)
 	return out.Embedding, nil
-}
-
-func (c *OllamaClient) Dimensions() int {
-	return c.dimensions
 }
 
 // FakeEmbedder is used in tests.
@@ -117,13 +107,6 @@ func (f *FakeEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 		}
 	}
 	return vec, nil
-}
-
-func (f *FakeEmbedder) Dimensions() int {
-	if f.Dim == 0 {
-		return 8
-	}
-	return f.Dim
 }
 
 func (f *FakeEmbedder) Healthy(ctx context.Context) error { return nil }
