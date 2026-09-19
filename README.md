@@ -248,12 +248,14 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 
 ## Agent rules and skills
 
-`archivist skills install --target cursor|claude|agents-md|copilot` writes:
+`archivist skills install --target cursor|claude|agents-md|copilot` (`codex` is an alias for `agents-md`) writes:
 
 - **Rules** (always on): consult the archive, distill lasting decisions/rules/features from the conversation (skip chat glut), refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
 - **Skills** (on demand): `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Skills are the per-type procedure (search first, short body); the record rule is when to write. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
+
+Every install also writes `.archivist-install.json` with the CLI version, the binary’s git commit (ldflags `Commit`, otherwise Go’s `vcs.revision`), the host this run installed, and SHA-256 hashes of **each rule as rendered for every target** (`cursor`, `claude`, `agents-md`, `copilot`). Cursor hashes the wrapped `.mdc`; the others hash the trimmed rule body. Skills are hashed for `cursor` and `claude` only. `--target codex` is an alias for `agents-md`.
 
 ## Publish destinations
 

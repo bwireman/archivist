@@ -32,7 +32,7 @@ func newSkillsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	install.Flags().String("target", "cursor", "cursor|claude|agents-md|copilot")
+	install.Flags().String("target", "cursor", "cursor|claude|agents-md|copilot|codex")
 	cmd.AddCommand(install)
 	return cmd
 }

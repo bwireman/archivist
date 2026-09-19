@@ -1,5 +1,5 @@
 ---
-description: Rebuild the Archivist code map, embeddings, and optional export after record or code changes
+description: Rebuild the Archivist index, embeddings, and export after record or code changes
 alwaysApply: true
 ---
 

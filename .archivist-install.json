@@ -1,0 +1,47 @@
+{
+  "version": "0.1.0",
+  "commit": "3ab01d6362a983a31e8ab3cebf78846c29a32231",
+  "target": "cursor",
+  "rules": {
+    "consult.md": {
+      "agents-md": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
+      "claude": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
+      "copilot": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
+      "cursor": "f11cfb8c0d95f8a3d7fb6d82fc68de145748265299a7394504abfd0746c8839f"
+    },
+    "record.md": {
+      "agents-md": "11288a258b7eecbb3a21c379bbba3ca7f1b0ab01213b5f8f56bf8b71cbbb8105",
+      "claude": "11288a258b7eecbb3a21c379bbba3ca7f1b0ab01213b5f8f56bf8b71cbbb8105",
+      "copilot": "11288a258b7eecbb3a21c379bbba3ca7f1b0ab01213b5f8f56bf8b71cbbb8105",
+      "cursor": "84967dadf0a137e0ca4212eba71b28d2b19b363dcf82099215362ff937000cad"
+    },
+    "refresh.md": {
+      "agents-md": "a6f10423d8b1962a8c64e6a086678dd631f451e6dfd9b45e8fbc9a64852fb2a2",
+      "claude": "a6f10423d8b1962a8c64e6a086678dd631f451e6dfd9b45e8fbc9a64852fb2a2",
+      "copilot": "a6f10423d8b1962a8c64e6a086678dd631f451e6dfd9b45e8fbc9a64852fb2a2",
+      "cursor": "2260b6c0cfc1f2778d18e9bf7ffc5fcf43251f29e3f0e2eaac401122af13586d"
+    }
+  },
+  "skills": {
+    "publish-archive/SKILL.md": {
+      "claude": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",
+      "cursor": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9"
+    },
+    "record-decision/SKILL.md": {
+      "claude": "c4c92c27fae6bc0302f5ec8854493fd7f88a1edefea94933dbd578a7e1db7291",
+      "cursor": "c4c92c27fae6bc0302f5ec8854493fd7f88a1edefea94933dbd578a7e1db7291"
+    },
+    "record-feature/SKILL.md": {
+      "claude": "7610e258fd5a91fd25953de73de9818ea8e68678a30232e5e252213ddf970648",
+      "cursor": "7610e258fd5a91fd25953de73de9818ea8e68678a30232e5e252213ddf970648"
+    },
+    "record-rule/SKILL.md": {
+      "claude": "f1544d5cf623461bf2c91e3173628be2414aca7fa0a1fe05e9ca0c1a203f1567",
+      "cursor": "f1544d5cf623461bf2c91e3173628be2414aca7fa0a1fe05e9ca0c1a203f1567"
+    },
+    "refresh-archive/SKILL.md": {
+      "claude": "76134bc951446c591abe46c5fcbfc7c6edfbfecfa974fa337a447b003f743206",
+      "cursor": "76134bc951446c591abe46c5fcbfc7c6edfbfecfa974fa337a447b003f743206"
+    }
+  }
+}
