@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "commit": "efeb705ec7cebfb40239860b89b33d5d8ad669fa",
+  "commit": "a2bdf13c6c7a871f719f00fb6b9b17fecf183d04",
   "target": "cursor",
   "rules": {
     "consult.md": {
@@ -23,6 +23,10 @@
     }
   },
   "skills": {
+    "plan-changes/SKILL.md": {
+      "claude": "a8281416a670836438a764685176069e783c7eb7fe0fb0fc5edb3213dcc2e6b6",
+      "cursor": "a8281416a670836438a764685176069e783c7eb7fe0fb0fc5edb3213dcc2e6b6"
+    },
     "publish-archive/SKILL.md": {
       "claude": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",
       "cursor": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9"

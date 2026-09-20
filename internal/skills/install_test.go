@@ -101,6 +101,14 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if _, err := os.Stat(feature); err != nil {
 		t.Fatal(err)
 	}
+	plan := filepath.Join(root, ".cursor", "skills", "plan-changes", "SKILL.md")
+	planData, err := os.ReadFile(plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(planData), "Search the archive before asking") {
+		t.Fatalf("plan-changes skill should search then ask: %s", planData)
+	}
 	data, err = os.ReadFile(filepath.Join(root, ManifestFile))
 	if err != nil {
 		t.Fatal(err)
@@ -126,6 +134,9 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	}
 	if m.Skills["record-decision/SKILL.md"][string(TargetCursor)] == "" || m.Skills["record-decision/SKILL.md"][string(TargetClaude)] == "" {
 		t.Fatalf("missing skill hashes: %v", m.Skills)
+	}
+	if m.Skills["plan-changes/SKILL.md"][string(TargetCursor)] == "" || m.Skills["plan-changes/SKILL.md"][string(TargetClaude)] == "" {
+		t.Fatalf("missing plan-changes skill hashes: %v", m.Skills)
 	}
 }
 
