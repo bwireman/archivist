@@ -12,6 +12,7 @@ import (
 
 func TestOllamaClientEmbedAndHealth(t *testing.T) {
 	var gotPrompt string
+	var gotReq embedRequest
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/tags":
@@ -23,6 +24,7 @@ func TestOllamaClientEmbedAndHealth(t *testing.T) {
 				t.Errorf("decode: %v", err)
 			}
 			gotPrompt = req.Prompt
+			gotReq = req
 			_ = json.NewEncoder(w).Encode(embedResponse{Embedding: []float32{1, 0, 0}})
 		default:
 			http.NotFound(w, r)
@@ -43,6 +45,33 @@ func TestOllamaClientEmbedAndHealth(t *testing.T) {
 	}
 	if len(vec) != 3 || vec[0] != 1 {
 		t.Fatalf("vec %v", vec)
+	}
+	if gotReq.Options != nil {
+		t.Fatalf("expected no options, got %#v", gotReq.Options)
+	}
+}
+
+func TestOllamaClientEmbedNumCtx(t *testing.T) {
+	var gotReq embedRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/embeddings" {
+			http.NotFound(w, r)
+			return
+		}
+		if err := json.NewDecoder(r.Body).Decode(&gotReq); err != nil {
+			t.Errorf("decode: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(embedResponse{Embedding: []float32{1}})
+	}))
+	t.Cleanup(srv.Close)
+
+	client := NewOllamaClientWithTimeout(srv.URL, "test-model", time.Second)
+	client.numCtx = 32768
+	if _, err := client.Embed(context.Background(), "hello"); err != nil {
+		t.Fatal(err)
+	}
+	if gotReq.Options == nil || gotReq.Options.NumCtx != 32768 {
+		t.Fatalf("options: %#v", gotReq.Options)
 	}
 }
 

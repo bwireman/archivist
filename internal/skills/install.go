@@ -66,6 +66,9 @@ func Install(repoRoot string, target Target) error {
 	if err := installRules(repoRoot, target, rules); err != nil {
 		return err
 	}
+	if err := InstallGithooks(repoRoot); err != nil {
+		return err
+	}
 	switch target {
 	case TargetAgentsMD, TargetCopilot:
 	default:

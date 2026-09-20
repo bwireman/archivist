@@ -2,7 +2,8 @@
   "ollama": {
     "base_url": "http://localhost:11434",
     "embed_model": "qwen3-embedding:8b",
-    "embed_timeout": "5m"
+    "embed_timeout": "5m",
+    "embed_num_ctx": 32768
   },
   "records": {
     "repo": "docs/decisions",

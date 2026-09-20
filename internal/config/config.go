@@ -46,6 +46,7 @@ type OllamaConfig struct {
 	BaseURL      string `json:"base_url"`
 	EmbedModel   string `json:"embed_model"`
 	EmbedTimeout string `json:"embed_timeout,omitempty"`
+	EmbedNumCtx  int    `json:"embed_num_ctx,omitempty"`
 }
 
 func (o OllamaConfig) EmbedTimeoutDuration() time.Duration {

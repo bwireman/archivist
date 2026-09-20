@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/skills"
 	"github.com/spf13/cobra"
 )
 
@@ -28,7 +29,7 @@ func newInitCmd() *cobra.Command {
 			if existed {
 				verb = "Updated"
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s .archivist.json and .archivist/\nEmbeddings use Ollama:\n  ollama pull %s\n", verb, cfg.Ollama.EmbedModel)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s .archivist.json and .archivist/\nEmbeddings use Ollama:\n  ollama pull %s\nGit hook (optional): .githooks/post-commit runs archivist index after each commit when enabled:\n  git config core.hooksPath .githooks\n", verb, cfg.Ollama.EmbedModel)
 			return nil
 		},
 	}
@@ -70,5 +71,8 @@ func applyInit(root string, cfg *config.Config) error {
 	if dir := cfg.DevRecordsDir(); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
 	}
-	return appendGitignore(filepath.Join(root, ".gitignore"), ".archivist/\n")
+	if err := appendGitignore(filepath.Join(root, ".gitignore"), ".archivist/\n"); err != nil {
+		return err
+	}
+	return skills.InstallGithooks(root)
 }

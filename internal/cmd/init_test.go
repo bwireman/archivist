@@ -30,6 +30,17 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, config.DefaultConfigName)); err != nil {
 		t.Fatal(err)
 	}
+	hook := filepath.Join(root, ".githooks", "post-commit")
+	if _, err := os.Stat(hook); err != nil {
+		t.Fatalf("post-commit hook: %v", err)
+	}
+	info, err := os.Stat(hook)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode()&0o111 == 0 {
+		t.Fatal("post-commit hook should be executable")
+	}
 }
 
 func TestApplyInitWriteDocsCreatesArchiveDir(t *testing.T) {

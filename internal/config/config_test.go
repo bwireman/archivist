@@ -50,6 +50,9 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.Ollama.EmbedTimeoutDuration() != config.DefaultEmbedTimeout {
 		t.Fatalf("timeout duration: %s", cfg.Ollama.EmbedTimeoutDuration())
 	}
+	if cfg.Ollama.EmbedNumCtx != 0 {
+		t.Fatalf("embed_num_ctx: %d want 0", cfg.Ollama.EmbedNumCtx)
+	}
 	if len(cfg.Index.SkipGlobs) != 0 {
 		t.Fatalf("skip_globs: %v", cfg.Index.SkipGlobs)
 	}
@@ -135,6 +138,21 @@ func TestLoadInvalidJSON(t *testing.T) {
 	}
 	if _, err := config.Load(dir); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+func TestLoadEmbedNumCtx(t *testing.T) {
+	dir := t.TempDir()
+	raw := []byte(`{"ollama": {"embed_num_ctx": 32768}}`)
+	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Ollama.EmbedNumCtx != 32768 {
+		t.Fatalf("embed_num_ctx: %d", loaded.Ollama.EmbedNumCtx)
 	}
 }
 

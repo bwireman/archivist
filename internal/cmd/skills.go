@@ -29,6 +29,7 @@ func newSkillsCmd() *cobra.Command {
 				return err
 			}
 			fmt.Printf("Installed agent rules and skills for %s\n", target)
+			fmt.Printf("Git hook: .githooks/post-commit (enable with: git config core.hooksPath .githooks)\n")
 			return nil
 		},
 	}

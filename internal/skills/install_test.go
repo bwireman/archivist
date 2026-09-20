@@ -33,6 +33,10 @@ func TestInstallCursor(t *testing.T) {
 	if _, err := os.Stat(skill); err != nil {
 		t.Fatal(err)
 	}
+	hook := filepath.Join(root, ".githooks", "post-commit")
+	if _, err := os.Stat(hook); err != nil {
+		t.Fatal(err)
+	}
 	assertManifest(t, root, TargetCursor)
 	consult := fileBytes(t, filepath.Join(root, "rules", "consult.md"))
 	wantCursor := sha256Hex([]byte(renderRule(TargetCursor, "consult.md", consult)))

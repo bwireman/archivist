@@ -1,0 +1,8 @@
+#!/usr/bin/env sh
+# Archivist: refresh code map and git metadata after each commit (no Ollama).
+set -e
+root="$(git rev-parse --show-toplevel)"
+cd "$root"
+test -f .archivist.json || exit 0
+command -v archivist >/dev/null 2>&1 || exit 0
+archivist index >/dev/null 2>&1 || true

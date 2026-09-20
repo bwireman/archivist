@@ -15,11 +15,14 @@ import (
 type OllamaClient struct {
 	baseURL    string
 	embedModel string
+	numCtx     int
 	httpClient *http.Client
 }
 
 func NewOllamaClientFromConfig(cfg config.OllamaConfig) *OllamaClient {
-	return NewOllamaClientWithTimeout(cfg.ResolvedBaseURL(), cfg.EmbedModel, cfg.EmbedTimeoutDuration())
+	c := NewOllamaClientWithTimeout(cfg.ResolvedBaseURL(), cfg.EmbedModel, cfg.EmbedTimeoutDuration())
+	c.numCtx = cfg.EmbedNumCtx
+	return c
 }
 
 func NewOllamaClientWithTimeout(baseURL, embedModel string, timeout time.Duration) *OllamaClient {
@@ -47,9 +50,14 @@ func (c *OllamaClient) Healthy(ctx context.Context) error {
 	return nil
 }
 
+type embedOptions struct {
+	NumCtx int `json:"num_ctx,omitempty"`
+}
+
 type embedRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
+	Model   string        `json:"model"`
+	Prompt  string        `json:"prompt"`
+	Options *embedOptions `json:"options,omitempty"`
 }
 
 type embedResponse struct {
@@ -57,7 +65,11 @@ type embedResponse struct {
 }
 
 func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error) {
-	body, err := json.Marshal(embedRequest{Model: c.embedModel, Prompt: text})
+	reqBody := embedRequest{Model: c.embedModel, Prompt: text}
+	if c.numCtx > 0 {
+		reqBody.Options = &embedOptions{NumCtx: c.numCtx}
+	}
+	body, err := json.Marshal(reqBody)
 	if err != nil {
 		return nil, err
 	}

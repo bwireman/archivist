@@ -18,3 +18,4 @@ archivist export
 - `export` writes `records.export` (default `docs/archive/`) only when `records.write_docs` is true; otherwise it is a no-op. `--bundle` and publish still write. Do not hand-edit that tree.
 - After changing how a capability behaves, update its `feature` record (or create one with `record-feature`) before this refresh.
 - Skip the whole sequence if you only touched `docs/archive/` or `.archivist/`.
+- Optional: `archivist init` / `skills install` ship `.githooks/post-commit` (`git config core.hooksPath .githooks`) to run `archivist index` after each commit; that does not replace this full refresh when records or embeddings change.
