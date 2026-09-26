@@ -28,6 +28,10 @@
     }
   },
   "skills": {
+    "init-archive/SKILL.md": {
+      "claude": "7e9dc2f055eee2f3a77898cf685c9b823d785ecd023e7d0b81667fb523aacc51",
+      "cursor": "7e9dc2f055eee2f3a77898cf685c9b823d785ecd023e7d0b81667fb523aacc51"
+    },
     "plan-changes/SKILL.md": {
       "claude": "4c79900d575a7daf76f58a6a8db698e693e138c1776b04a0e62d8e187f9b1f41",
       "cursor": "4c79900d575a7daf76f58a6a8db698e693e138c1776b04a0e62d8e187f9b1f41"

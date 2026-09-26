@@ -156,6 +156,17 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if m.Skills["plan-changes/SKILL.md"][string(TargetCursor)] == "" || m.Skills["plan-changes/SKILL.md"][string(TargetClaude)] == "" {
 		t.Fatalf("missing plan-changes skill hashes: %v", m.Skills)
 	}
+	initSkill := filepath.Join(root, ".cursor", "skills", "init-archive", "SKILL.md")
+	initData, err := os.ReadFile(initSkill)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(initData), "Scan") || !strings.Contains(string(initData), "archivist embed --once") {
+		t.Fatalf("init-archive skill should scan then embed: %s", initData)
+	}
+	if m.Skills["init-archive/SKILL.md"][string(TargetCursor)] == "" || m.Skills["init-archive/SKILL.md"][string(TargetClaude)] == "" {
+		t.Fatalf("missing init-archive skill hashes: %v", m.Skills)
+	}
 }
 
 func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {

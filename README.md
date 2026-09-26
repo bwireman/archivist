@@ -66,7 +66,9 @@ make build          # ./archivist
    archivist skills install --target cursor    # or claude | agents-md | copilot
    ```
 
-5. **Point an MCP client at this repo** (next section), then `archivist status` to confirm.
+5. **Seed the archive** with the `init-archive` skill after rules are installed. It scans the repo for decisions, rules, features, and the other record types, writes the gaps, and embeds them so search is useful before new work. `archivist init` only creates the empty store.
+
+6. **Point an MCP client at this repo** (next section), then `archivist status` to confirm.
 
 From another directory, pass `--path`:
 
@@ -253,7 +255,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 `archivist skills install --target cursor|claude|agents-md|copilot` (`codex` is an alias for `agents-md`) writes:
 
 - **Rules** (always on): consult the archive, ask when a user-facing choice or preference is unsettled, distill lasting decisions/rules/features from the conversation (skip chat glut), refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
-- **Skills** (on demand): `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `plan-changes` searches the archive, then asks about architecture, requirements, and constraints before proposing a plan. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
+- **Skills** (on demand): `init-archive`, `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `init-archive` scans the repo and embeds the gaps so a new archive is searchable. `plan-changes` searches the archive, then asks about architecture, requirements, and constraints before proposing a plan. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
 
