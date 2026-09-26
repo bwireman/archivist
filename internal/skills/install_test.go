@@ -113,6 +113,9 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(planData), "Search the archive before asking") {
 		t.Fatalf("plan-changes skill should search then ask: %s", planData)
 	}
+	if !strings.Contains(string(planData), "always-on ask rule") {
+		t.Fatalf("plan-changes skill should leave the short gap to the ask rule: %s", planData)
+	}
 	data, err = os.ReadFile(filepath.Join(root, ManifestFile))
 	if err != nil {
 		t.Fatal(err)
@@ -124,7 +127,18 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if m.Version != version.Version {
 		t.Fatalf("manifest version %q", m.Version)
 	}
-	for _, name := range []string{"consult.md", "record.md", "refresh.md"} {
+	askPath := filepath.Join(root, ".cursor", "rules", "archivist-ask.mdc")
+	askData, err := os.ReadFile(askPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(askData), "Ask when unsure") {
+		t.Fatalf("embedded ask rule missing: %s", askData)
+	}
+	if !strings.Contains(string(askData), "Ask the user when a choice or preference") {
+		t.Fatalf("ask rule description missing: %s", askData)
+	}
+	for _, name := range []string{"ask.md", "consult.md", "record.md", "refresh.md"} {
 		hosts := m.Rules[name]
 		if hosts[string(TargetCursor)] == "" || hosts[string(TargetClaude)] == "" || hosts[string(TargetAgentsMD)] == "" || hosts[string(TargetCopilot)] == "" {
 			t.Fatalf("missing per-host rule hashes for %s: %v", name, hosts)
@@ -166,6 +180,9 @@ func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 func TestCursorRuleDescriptions(t *testing.T) {
 	if !strings.Contains(cursorRuleDescription("record"), "Distill lasting") {
 		t.Fatal(cursorRuleDescription("record"))
+	}
+	if !strings.Contains(cursorRuleDescription("ask"), "Ask the user when a choice or preference") {
+		t.Fatal(cursorRuleDescription("ask"))
 	}
 	if got := cursorRuleDescription("unknown"); got != "Archivist rule unknown" {
 		t.Fatalf("fallback: %s", got)

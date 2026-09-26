@@ -2,6 +2,12 @@
   "version": "0.1.0",
   "target": "cursor",
   "rules": {
+    "ask.md": {
+      "agents-md": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
+      "claude": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
+      "copilot": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
+      "cursor": "c73ee2346ac51becac1332ab623ddda832f06b1cef3241df4aa193b3361d9a09"
+    },
     "consult.md": {
       "agents-md": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
       "claude": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
@@ -23,8 +29,8 @@
   },
   "skills": {
     "plan-changes/SKILL.md": {
-      "claude": "a8281416a670836438a764685176069e783c7eb7fe0fb0fc5edb3213dcc2e6b6",
-      "cursor": "a8281416a670836438a764685176069e783c7eb7fe0fb0fc5edb3213dcc2e6b6"
+      "claude": "4c79900d575a7daf76f58a6a8db698e693e138c1776b04a0e62d8e187f9b1f41",
+      "cursor": "4c79900d575a7daf76f58a6a8db698e693e138c1776b04a0e62d8e187f9b1f41"
     },
     "publish-archive/SKILL.md": {
       "claude": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",

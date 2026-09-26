@@ -141,7 +141,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 | `import` | Upsert typed markdown into SQLite (no prune) |
 | `status` | Counts, embed queue, Ollama health |
 
-Initialize `instructions` are the consult + record rule templates, so MCP-only hosts still look things up and distill from conversation.
+Initialize `instructions` are the consult, ask, and record rule templates, so MCP-only hosts still look things up, ask when a choice or preference is unsettled, and distill from conversation.
 
 Tool output is JSON, the same shape as CLI `--json`. Without MCP, use `archivist search` / `get`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
 
@@ -252,7 +252,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 
 `archivist skills install --target cursor|claude|agents-md|copilot` (`codex` is an alias for `agents-md`) writes:
 
-- **Rules** (always on): consult the archive, distill lasting decisions/rules/features from the conversation (skip chat glut), refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
+- **Rules** (always on): consult the archive, ask when a user-facing choice or preference is unsettled, distill lasting decisions/rules/features from the conversation (skip chat glut), refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
 - **Skills** (on demand): `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `plan-changes` searches the archive, then asks about architecture, requirements, and constraints before proposing a plan. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.

@@ -7,6 +7,8 @@ description: Interview the user about architecture, requirements, and constraint
 
 Do not implement in this skill. Search the archive before asking; ask before assuming.
 
+The always-on ask rule handles one unsettled user-facing choice or missing preference, then the agent continues and stores a dev-scope record (global when the choice is product-wide). Use this skill when the gap is an architecture interview: where it lives, what done means, and what to avoid, ending in a plan.
+
 ## 1. Source the archive
 
 MCP preferred, else CLI. Do not trust chat memory.

@@ -21,17 +21,22 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ask, err := ruletmpl.FS.ReadFile("ask.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 	record, err := ruletmpl.FS.ReadFile("record.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(record))
+	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record))
 	got := agentInstructions()
 	if got != want {
-		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/record.md")
+		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/ask.md + rules/record.md")
 	}
 	for _, needle := range []string{
 		"Consult the archive",
+		"Ask when unsure",
 		"Scan this conversation",
 		"Do not wait for \"remember this.\"",
 		"Search first",

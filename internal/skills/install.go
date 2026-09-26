@@ -291,6 +291,8 @@ func cursorRuleDescription(name string) string {
 		return "Distill lasting decisions, rules, and features from this conversation; skip chat glut"
 	case "refresh":
 		return "Rebuild the Archivist index, embeddings, and export after record or code changes"
+	case "ask":
+		return "Ask the user when a choice or preference is unsettled after archive search"
 	default:
 		return "Archivist rule " + name
 	}
