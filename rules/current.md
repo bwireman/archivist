@@ -1,0 +1,9 @@
+# Keep the code map current
+
+When you change source code, run `archivist index` before the next lookup that depends on the code map, and again before the turn ends. The map and git metadata should match the tree you are editing. Do not wait for a commit.
+
+`archivist index` does not need Ollama and does not ingest or delete records. If it fails, continue the task and say the map was not updated.
+
+Skip this when the turn did not change source files, or only touched `docs/archive/` or `.archivist/`.
+
+Records and markdown you want in SQLite still follow the refresh rule.

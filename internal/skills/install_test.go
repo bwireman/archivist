@@ -138,7 +138,18 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(askData), "Ask the user when a choice or preference") {
 		t.Fatalf("ask rule description missing: %s", askData)
 	}
-	for _, name := range []string{"ask.md", "consult.md", "record.md", "refresh.md"} {
+	currentPath := filepath.Join(root, ".cursor", "rules", "archivist-current.mdc")
+	currentData, err := os.ReadFile(currentPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(currentData), "alwaysApply: true") || !strings.Contains(string(currentData), "archivist index") {
+		t.Fatalf("current rule should stay always-on and reindex: %s", currentData)
+	}
+	if !strings.Contains(string(currentData), "Keep the Archivist code map current") {
+		t.Fatalf("current rule description missing: %s", currentData)
+	}
+	for _, name := range []string{"ask.md", "consult.md", "current.md", "record.md", "refresh.md"} {
 		hosts := m.Rules[name]
 		if hosts[string(TargetCursor)] == "" || hosts[string(TargetClaude)] == "" || hosts[string(TargetAgentsMD)] == "" || hosts[string(TargetCopilot)] == "" {
 			t.Fatalf("missing per-host rule hashes for %s: %v", name, hosts)
@@ -195,8 +206,61 @@ func TestCursorRuleDescriptions(t *testing.T) {
 	if !strings.Contains(cursorRuleDescription("ask"), "Ask the user when a choice or preference") {
 		t.Fatal(cursorRuleDescription("ask"))
 	}
+	if !strings.Contains(cursorRuleDescription("current"), "Keep the Archivist code map current") {
+		t.Fatal(cursorRuleDescription("current"))
+	}
 	if got := cursorRuleDescription("unknown"); got != "Archivist rule unknown" {
 		t.Fatalf("fallback: %s", got)
+	}
+}
+
+func TestRulesStale(t *testing.T) {
+	root := t.TempDir()
+	stale, target, err := RulesStale(root)
+	if err != nil || stale || target != "" {
+		t.Fatalf("missing manifest: stale=%v target=%q err=%v", stale, target, err)
+	}
+	if err := Install(root, TargetCursor); err != nil {
+		t.Fatal(err)
+	}
+	stale, target, err = RulesStale(root)
+	if err != nil || stale || target != string(TargetCursor) {
+		t.Fatalf("fresh install: stale=%v target=%q err=%v", stale, target, err)
+	}
+	rule := filepath.Join(root, ".cursor", "rules", "archivist-consult.mdc")
+	if err := os.WriteFile(rule, []byte("edited\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stale, target, err = RulesStale(root)
+	if err != nil || !stale || target != string(TargetCursor) {
+		t.Fatalf("edited rule: stale=%v target=%q err=%v", stale, target, err)
+	}
+	if !strings.Contains(StaleRulesNotice(target), "archivist skills install --target cursor") {
+		t.Fatal(StaleRulesNotice(target))
+	}
+
+	agents := t.TempDir()
+	if err := Install(agents, TargetAgentsMD); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(agents, "AGENTS.md"), []byte("old\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stale, target, err = RulesStale(agents)
+	if err != nil || !stale || target != string(TargetAgentsMD) {
+		t.Fatalf("agents-md: stale=%v target=%q err=%v", stale, target, err)
+	}
+
+	broken := t.TempDir()
+	if err := os.WriteFile(filepath.Join(broken, ManifestFile), []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stale, target, err = RulesStale(broken)
+	if err != nil || !stale || target != "" {
+		t.Fatalf("bad manifest: stale=%v target=%q err=%v", stale, target, err)
+	}
+	if !strings.Contains(StaleRulesNotice(target), "--target cursor") {
+		t.Fatal(StaleRulesNotice(target))
 	}
 }
 

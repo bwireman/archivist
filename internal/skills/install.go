@@ -124,32 +124,102 @@ func loadSkills(repoRoot string) (map[string][]byte, error) {
 }
 
 func installRules(repoRoot string, target Target, rules map[string][]byte) error {
-	var parts []string
-	for _, name := range sortedKeys(rules) {
-		rendered := renderRule(target, name, rules[name])
-		if target == TargetCursor {
-			stem := strings.TrimSuffix(name, ".md")
-			dst := filepath.Join(repoRoot, ".cursor", "rules", "archivist-"+stem+".mdc")
-			if err := writeFile(dst, rendered); err != nil {
-				return err
-			}
-			continue
+	for rel, body := range renderedRuleFiles(target, rules) {
+		if err := writeFile(filepath.Join(repoRoot, rel), body); err != nil {
+			return err
 		}
-		parts = append(parts, rendered)
-	}
-	if len(parts) == 0 {
-		return nil
-	}
-	combined := strings.Join(parts, "\n\n") + "\n"
-	switch target {
-	case TargetClaude:
-		return writeFile(filepath.Join(repoRoot, "CLAUDE.md"), combined)
-	case TargetAgentsMD:
-		return writeFile(filepath.Join(repoRoot, "AGENTS.md"), combined)
-	case TargetCopilot:
-		return writeFile(filepath.Join(repoRoot, ".github", "copilot-instructions.md"), combined)
 	}
 	return nil
+}
+
+// renderedRuleFiles is what Install writes for rules. Cursor gets one file per
+// rule; other hosts get a single concatenated file.
+func renderedRuleFiles(target Target, rules map[string][]byte) map[string]string {
+	out := map[string]string{}
+	if target == TargetCursor {
+		for _, name := range sortedKeys(rules) {
+			stem := strings.TrimSuffix(name, ".md")
+			rel := filepath.Join(".cursor", "rules", "archivist-"+stem+".mdc")
+			out[rel] = renderRule(target, name, rules[name])
+		}
+		return out
+	}
+	var parts []string
+	for _, name := range sortedKeys(rules) {
+		parts = append(parts, renderRule(target, name, rules[name]))
+	}
+	if len(parts) == 0 {
+		return out
+	}
+	body := strings.Join(parts, "\n\n") + "\n"
+	switch target {
+	case TargetClaude:
+		out["CLAUDE.md"] = body
+	case TargetAgentsMD:
+		out["AGENTS.md"] = body
+	case TargetCopilot:
+		out[filepath.Join(".github", "copilot-instructions.md")] = body
+	}
+	return out
+}
+
+// RulesStale reports whether a previous skills install's rule files differ from
+// the templates Install would write now. A missing manifest is not stale.
+// target is the host recorded in the manifest, or empty when it cannot be used.
+func RulesStale(repoRoot string) (stale bool, target string, err error) {
+	m, err := loadManifest(repoRoot)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, "", nil
+	}
+	if err != nil {
+		var syn *json.SyntaxError
+		var typ *json.UnmarshalTypeError
+		if errors.As(err, &syn) || errors.As(err, &typ) {
+			return true, "", nil
+		}
+		return false, "", err
+	}
+	parsed, perr := ParseTarget(m.Target)
+	if perr != nil {
+		return true, "", nil
+	}
+	rules, err := loadRules(repoRoot)
+	if err != nil {
+		return false, m.Target, err
+	}
+	for rel, want := range renderedRuleFiles(parsed, rules) {
+		got, rerr := os.ReadFile(filepath.Join(repoRoot, rel))
+		if rerr != nil {
+			if errors.Is(rerr, os.ErrNotExist) {
+				return true, m.Target, nil
+			}
+			return false, m.Target, rerr
+		}
+		if string(got) != want {
+			return true, m.Target, nil
+		}
+	}
+	return false, m.Target, nil
+}
+
+// StaleRulesNotice is the stderr prompt when installed rules do not match.
+func StaleRulesNotice(target string) string {
+	if target == "" {
+		target = "cursor"
+	}
+	return fmt.Sprintf("archivist: installed agent rules are out of date. Reinstall with:\n  archivist skills install --target %s\n", target)
+}
+
+func loadManifest(repoRoot string) (Manifest, error) {
+	data, err := os.ReadFile(filepath.Join(repoRoot, ManifestFile))
+	if err != nil {
+		return Manifest{}, err
+	}
+	var m Manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return Manifest{}, err
+	}
+	return m, nil
 }
 
 func installSkills(repoRoot string, target Target, skillFiles map[string][]byte) error {
@@ -291,6 +361,8 @@ func cursorRuleDescription(name string) string {
 		return "Distill lasting decisions, rules, and features from this conversation; skip chat glut"
 	case "refresh":
 		return "Rebuild the Archivist index, embeddings, and export after record or code changes"
+	case "current":
+		return "Keep the Archivist code map current as source code changes"
 	case "ask":
 		return "Ask the user when a choice or preference is unsettled after archive search"
 	default:

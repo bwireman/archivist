@@ -11,6 +11,7 @@ import (
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
+	"github.com/bwireman/archivist/internal/skills"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/bwireman/archivist/internal/version"
 	"github.com/spf13/cobra"
@@ -22,12 +23,25 @@ func NewRoot() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "archivist",
 		Short:         "Knowledge archive for design decisions and code structure",
-		Version:       version.String(),
 		SilenceUsage:  true,
 		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ver, _ := cmd.Flags().GetBool("version")
+			if ver {
+				fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
+				return nil
+			}
+			return cmd.Help()
+		},
 	}
-	root.SetVersionTemplate("{{.Name}} version {{.Version}}\n")
+	root.Flags().BoolP("version", "v", false, "version for archivist")
 	root.PersistentFlags().StringVar(&repoPath, "path", ".", "repository root path")
+	root.PersistentPreRunE = warnStaleRules
+	defaultHelp := root.HelpFunc()
+	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
+		_ = warnStaleRules(cmd, args)
+		defaultHelp(cmd, args)
+	})
 	root.AddCommand(newInitCmd())
 	root.AddCommand(newIndexCmd())
 	root.AddCommand(newSearchCmd())
@@ -57,6 +71,31 @@ func newVersionCmd() *cobra.Command {
 			fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
 		},
 	}
+}
+
+func warnStaleRules(cmd *cobra.Command, _ []string) error {
+	if cmd.Annotations["archivist-rules-checked"] == "1" {
+		return nil
+	}
+	if cmd.Annotations == nil {
+		cmd.Annotations = map[string]string{}
+	}
+	cmd.Annotations["archivist-rules-checked"] = "1"
+
+	root, err := repoRoot()
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "archivist: could not check installed rules: %v\n", err)
+		return nil
+	}
+	stale, target, err := skills.RulesStale(root)
+	if err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "archivist: could not check installed rules: %v\n", err)
+		return nil
+	}
+	if stale {
+		fmt.Fprint(cmd.ErrOrStderr(), skills.StaleRulesNotice(target))
+	}
+	return nil
 }
 
 func repoRoot() (string, error) {
