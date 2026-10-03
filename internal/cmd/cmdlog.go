@@ -8,6 +8,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
+func noteResult(cmd *cobra.Command, v any) {
+	cmdlog.Note(cmd.Context(), v)
+}
+
 func wrapArchiveCommandLogs(root *cobra.Command) {
 	var walk func(*cobra.Command)
 	walk = func(c *cobra.Command) {
@@ -23,7 +27,7 @@ func wrapArchiveCommandLogs(root *cobra.Command) {
 
 func archiveCommand(c *cobra.Command) bool {
 	switch c.Name() {
-	case "search", "map", "status", "remember", "update", "retire", "check", "index", "embed", "export", "import", "publish":
+	case "search", "map", "status", "remember", "update", "retire", "check", "index", "embed", "export", "import", "publish", "cite":
 		return true
 	default:
 		return false
@@ -37,10 +41,12 @@ func wrapLoggedRunE(c *cobra.Command) {
 		if root, cfg, err := loadEnv(); err == nil {
 			logger = cmdlog.FromConfig(root, cfg)
 		}
+		box := &cmdlog.ResultBox{}
+		cmd.SetContext(cmdlog.WithResult(cmd.Context(), box))
 		start := time.Now()
 		logger.In("cli", cmd.CommandPath(), cliArgs(cmd, args))
 		err := orig(cmd, args)
-		logger.Out("cli", cmd.CommandPath(), nil, err, start)
+		logger.Out("cli", cmd.CommandPath(), box.Get(), err, start)
 		return err
 	}
 }

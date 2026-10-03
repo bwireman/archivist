@@ -79,6 +79,22 @@ func TestOutRecordsError(t *testing.T) {
 	}
 }
 
+func TestReadSkipsTornLastLine(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "commands.log")
+	body := "{\"ts\":\"2026-10-03T15:00:00Z\",\"dir\":\"in\",\"source\":\"mcp\",\"command\":\"search\"}\n{\"ts\":\"2026-10-03T15:00:01Z\",\"dir\":\"out\",\"source\":\"mcp\",\"command\":\"search\",\"result\":[]}\n{\"dir\":\"in\",\"command\":\"sea"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	entries, err := Read(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("entries: %d", len(entries))
+	}
+}
+
 func TestClipLargePayload(t *testing.T) {
 	big := strings.Repeat("x", maxFieldBytes+10)
 	got := clip(big)

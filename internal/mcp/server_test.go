@@ -21,6 +21,10 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	cite, err := ruletmpl.FS.ReadFile("cite.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ask, err := ruletmpl.FS.ReadFile("ask.md")
 	if err != nil {
 		t.Fatal(err)
@@ -29,10 +33,10 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record))
+	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record))
 	got := agentInstructions()
 	if got != want {
-		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/ask.md + rules/record.md")
+		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/cite.md + rules/ask.md + rules/record.md")
 	}
 	for _, needle := range []string{
 		"Consult the archive",
@@ -40,6 +44,7 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 		"Scan this conversation",
 		"Do not wait for \"remember this.\"",
 		"Search first",
+		"call cite",
 	} {
 		if !strings.Contains(got, needle) {
 			t.Fatalf("instructions missing %q", needle)
@@ -117,6 +122,25 @@ func TestMcpLogResultParsesJSON(t *testing.T) {
 	m, ok = got.(map[string]any)
 	if !ok || m["is_error"] != true {
 		t.Fatalf("error result: %#v", got)
+	}
+}
+
+func TestCiteRequiresLogCommands(t *testing.T) {
+	s := &Server{Cfg: config.Default()}
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]any{"id": "rec_1", "effect": "kept the store"}
+	res, err := s.toolCite(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil || !res.IsError {
+		t.Fatalf("expected cite error, got %+v", res)
+	}
+	got := mcpLogResult(res)
+	m, ok := got.(map[string]any)
+	text, _ := m["text"].(string)
+	if !ok || !strings.Contains(text, "log_commands is false") {
+		t.Fatalf("cite error: %#v", got)
 	}
 }
 

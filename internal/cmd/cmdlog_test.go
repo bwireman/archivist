@@ -55,6 +55,14 @@ func TestCommandLogCLIRemember(t *testing.T) {
 	if out.Dir != "out" || out.Error != "" {
 		t.Fatalf("out: %+v", out)
 	}
+	got, ok := out.Result.(map[string]any)
+	if !ok {
+		t.Fatalf("out result: %#v", out.Result)
+	}
+	id, _ := got["id"].(string)
+	if !strings.HasPrefix(id, "rec_") {
+		t.Fatalf("out id: %#v", out.Result)
+	}
 }
 
 func TestCommandLogOffWritesNothing(t *testing.T) {
@@ -104,11 +112,19 @@ func TestArchiveCommandSelection(t *testing.T) {
 	root := NewRoot()
 	want := map[string]bool{
 		"search": true, "status": true, "remember": true, "index": true,
+		"cite": true, "trace": false,
 		"version": false, "init": false, "mcp": false, "skills": false,
 	}
+	found := map[string]bool{}
 	for _, c := range root.Commands() {
+		found[c.Name()] = true
 		if expect, ok := want[c.Name()]; ok && archiveCommand(c) != expect {
 			t.Fatalf("%s archiveCommand=%v want %v", c.Name(), archiveCommand(c), expect)
+		}
+	}
+	for name := range want {
+		if !found[name] {
+			t.Fatalf("missing command %s", name)
 		}
 	}
 }

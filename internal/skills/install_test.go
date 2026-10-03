@@ -139,7 +139,18 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(currentData), "Keep the Archivist code map current") {
 		t.Fatalf("current rule description missing: %s", currentData)
 	}
-	for _, name := range []string{"ask.md", "consult.md", "current.md", "record.md", "refresh.md"} {
+	citePath := filepath.Join(root, ".cursor", "rules", "archivist-cite.mdc")
+	citeData, err := os.ReadFile(citePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(citeData), "alwaysApply: true") || !strings.Contains(string(citeData), "call cite") {
+		t.Fatalf("cite rule should be its own always-on install: %s", citeData)
+	}
+	if !strings.Contains(string(citeData), "Cite an Archivist record") {
+		t.Fatalf("cite rule description missing: %s", citeData)
+	}
+	for _, name := range []string{"ask.md", "cite.md", "consult.md", "current.md", "record.md", "refresh.md"} {
 		hosts := m.Rules[name]
 		if hosts[string(TargetCursor)] == "" || hosts[string(TargetClaude)] == "" || hosts[string(TargetAgentsMD)] == "" || hosts[string(TargetCopilot)] == "" {
 			t.Fatalf("missing per-host rule hashes for %s: %v", name, hosts)
@@ -198,6 +209,9 @@ func TestCursorRuleDescriptions(t *testing.T) {
 	}
 	if !strings.Contains(cursorRuleDescription("current"), "Keep the Archivist code map current") {
 		t.Fatal(cursorRuleDescription("current"))
+	}
+	if !strings.Contains(cursorRuleDescription("cite"), "Cite an Archivist record") {
+		t.Fatal(cursorRuleDescription("cite"))
 	}
 	if got := cursorRuleDescription("unknown"); got != "Archivist rule unknown" {
 		t.Fatalf("fallback: %s", got)

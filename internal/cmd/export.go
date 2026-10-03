@@ -22,6 +22,7 @@ func newExportCmd() *cobra.Command {
 			}
 			outDir, skip := docsExportTarget(root, cfg, bundle)
 			if skip != "" {
+				noteResult(cmd, map[string]any{"skipped": true, "message": skip})
 				fmt.Fprintln(cmd.OutOrStdout(), skip)
 				return nil
 			}
@@ -34,6 +35,7 @@ func newExportCmd() *cobra.Command {
 			if err := export.Run(repo, home, export.Options{RepoRoot: root, OutDir: outDir}); err != nil {
 				return err
 			}
+			noteResult(cmd, map[string]string{"out": outDir})
 			if bundle != "" {
 				fmt.Fprintf(cmd.OutOrStdout(), "Wrote bundle to %s\n", bundle)
 			} else {

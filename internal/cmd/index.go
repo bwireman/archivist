@@ -45,6 +45,12 @@ func newIndexCmd() *cobra.Command {
 				n, _ := home.RecordCount()
 				count += n
 			}
+			noteResult(cmd, map[string]any{
+				"files_indexed": progress.FilesIndexed,
+				"files_removed": progress.FilesRemoved,
+				"commits_new":   progress.CommitsNew,
+				"records":       count,
+			})
 			fmt.Fprintln(cmd.OutOrStdout(), index.FormatSummary(progress, count))
 			return nil
 		},

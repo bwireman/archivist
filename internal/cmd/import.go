@@ -27,6 +27,7 @@ func newImportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteResult(cmd, res)
 			fmt.Fprintf(cmd.OutOrStdout(), "Imported %d, updated %d, skipped %d\n", res.Imported, res.Updated, res.Skipped)
 			return nil
 		},

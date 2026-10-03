@@ -17,6 +17,7 @@ import (
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/store"
+	"github.com/bwireman/archivist/internal/trace"
 	"github.com/bwireman/archivist/internal/version"
 	ruletmpl "github.com/bwireman/archivist/rules"
 )
@@ -93,6 +94,11 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("superseded_by"),
 	), s.toolRetire)
+	srv.AddTool(mcp.NewTool("cite",
+		mcp.WithDescription("Call before the turn ends when a retrieved record changed the work. id is a record id or slug; effect is one line. Do not cite a hit you did not use. Requires log_commands."),
+		mcp.WithString("id", mcp.Required()),
+		mcp.WithString("effect", mcp.Required(), mcp.Description("one line: what the record changed")),
+	), s.toolCite)
 	srv.AddTool(mcp.NewTool("status",
 		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health)."),
 	), s.toolStatus)
@@ -146,9 +152,9 @@ func mcpLogResult(res *mcp.CallToolResult) any {
 }
 
 // agentInstructions is returned on MCP initialize so hosts without skills
-// install still consult the archive, ask when a gap is unsettled, and distill lasting facts.
+// install still consult the archive, cite a record that changed the work, ask when a gap is unsettled, and distill lasting facts.
 func agentInstructions() string {
-	return mustRule("consult.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md")
+	return mustRule("consult.md") + "\n\n" + mustRule("cite.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md")
 }
 
 func mustRule(name string) string {
@@ -271,6 +277,22 @@ func (s *Server) toolImport(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 		"updated":  res.Updated,
 		"skipped":  res.Skipped,
 	})
+}
+
+func (s *Server) toolCite(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	effect, err := trace.PrepareCite(s != nil && s.Cfg != nil && s.Cfg.LogCommands, req.GetString("effect", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	id := req.GetString("id", "")
+	if id == "" {
+		return mcp.NewToolResultError("cite id is required"), nil
+	}
+	rec, err := s.Archive.Get(id)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]string{"id": rec.ID, "effect": effect})
 }
 
 func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {

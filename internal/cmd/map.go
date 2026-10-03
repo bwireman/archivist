@@ -33,6 +33,7 @@ func newMapCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteResult(cmd, res)
 			if asJSON {
 				return writeIndentedJSON(cmd.OutOrStdout(), res)
 			}

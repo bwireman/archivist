@@ -152,12 +152,13 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 | `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Distill lasting facts; do not dump chat. No markdown file. |
 | `update` | Amend title, body, or status in place (prefer over a parallel `remember`) |
 | `retire` | Mark superseded when a later choice replaces it |
+| `cite` | Optional. Record that a retrieved record changed the work (`id`, one-line `effect`). Requires `log_commands`. |
 | `import` | Upsert typed markdown into SQLite (no prune) |
 | `status` | Counts, embed queue, Ollama health |
 
 Initialize `instructions` are the consult, ask, and record rule templates, so MCP-only hosts still look things up, ask when a choice or preference is unsettled, and distill from conversation.
 
-Tool output is JSON, the same shape as CLI `--json`. Without MCP, use `archivist search` / `get`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
+Tool output is JSON, the same shape as CLI `--json`. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
 
 ## Record model
 
@@ -202,6 +203,8 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs) |
 | `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits |
 | `archivist check` | optional | Match rules to a change |
+| `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
+| `archivist trace` | no | Digest `commands.log`; `--since` joins retrieved records to a git diff |
 | `archivist remember` | no | Create a record in SQLite (no markdown file) |
 | `archivist update` / `retire` | no | Amend or supersede |
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |
@@ -259,14 +262,14 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 - Empty `records.global` is `~/.archivist` (import walk for top-level `.md`, skip `records/` and `archive.db`). Set a checkout-relative directory (this repo uses `docs/global-decisions`) if you want an in-repo import drop folder for product-wide records. SQLite remains canonical; committing markdown is optional.
 - `records.write_docs` (default false) controls whether `archivist export` writes `records.export`. `--bundle` and publish ignore the flag.
 - SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
-- `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the result or error. `init`, `version`, `skills`, and the `mcp` process itself are not logged (MCP tools still are). Logging never fails the command.
+- `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the parsed result or error (CLI and MCP, clipped at 64KiB). `init`, `version`, `skills`, `trace`, and the `mcp` process itself are not logged (MCP tools still are, including `cite`). Logging never fails the command. `archivist cite` errors when the flag is off. `archivist trace` reads the log and, with `--since`, reports retrieved records whose `applies_to` overlaps the diff.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
 
 ## Agent rules and skills
 
 `archivist skills install --target cursor|claude|agents-md|copilot` (`codex` is an alias for `agents-md`) writes:
 
-- **Rules** (always on): consult the archive, ask when a user-facing choice or preference is unsettled, distill lasting decisions/rules/features from the conversation (skip chat glut), keep the code map current as source changes (`archivist index`), refresh after changes. Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
+- **Rules** (always on): consult the archive, cite a retrieved record that changed the work before the turn ends, ask when a user-facing choice or preference is unsettled, distill lasting decisions/rules/features from the conversation (skip chat glut), keep the code map current as source changes (`archivist index`), refresh after changes. Each rule is its own file (`rules/consult.md`, `rules/cite.md`, `rules/ask.md`, `rules/record.md`, `rules/current.md`, `rules/refresh.md`). Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
 - **Skills** (on demand): `init-archive`, `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `init-archive` scans the repo and embeds the gaps so a new archive is searchable. `plan-changes` searches the archive, then asks about architecture, requirements, and constraints before proposing a plan. Cursor: `.cursor/skills/<name>/SKILL.md`. Claude: `.claude/skills/`.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.

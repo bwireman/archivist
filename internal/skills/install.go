@@ -365,6 +365,8 @@ func cursorRuleDescription(name string) string {
 		return "Keep the Archivist code map current as source code changes"
 	case "ask":
 		return "Ask the user when a choice or preference is unsettled after archive search"
+	case "cite":
+		return "Cite an Archivist record that changed the work before the turn ends"
 	default:
 		return "Archivist rule " + name
 	}

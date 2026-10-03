@@ -21,6 +21,7 @@ func newPublishCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
+			noteResult(cmd, map[string]string{"destination": args[0]})
 			return publish.Publish(root, cfg, repo, home, args[0])
 		},
 	}

@@ -1,6 +1,5 @@
 {
   "version": "0.1.0",
-  "commit": "7bdd99a742ab97d17233c976464466c9a027a383",
   "target": "cursor",
   "rules": {
     "ask.md": {
@@ -8,6 +7,12 @@
       "claude": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
       "copilot": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
       "cursor": "c73ee2346ac51becac1332ab623ddda832f06b1cef3241df4aa193b3361d9a09"
+    },
+    "cite.md": {
+      "agents-md": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
+      "claude": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
+      "copilot": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
+      "cursor": "ed92687e0d5e92c094c11c63b855f92c46c890e952ea8e7192396d9b508ba7be"
     },
     "consult.md": {
       "agents-md": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",

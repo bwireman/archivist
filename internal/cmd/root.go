@@ -58,6 +58,8 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newRetireCmd())
 	root.AddCommand(newCheckCmd())
+	root.AddCommand(newCiteCmd())
+	root.AddCommand(newTraceCmd())
 	root.AddCommand(newSkillsCmd())
 	wrapArchiveCommandLogs(root)
 	return root
@@ -205,6 +207,7 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteResult(cmd, results)
 			if asJSON {
 				return writeIndentedJSON(os.Stdout, results)
 			}
@@ -266,6 +269,7 @@ func newStatusCmd() *cobra.Command {
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
+			noteResult(cmd, s)
 			if asJSON {
 				return writeIndentedJSON(os.Stdout, s)
 			}

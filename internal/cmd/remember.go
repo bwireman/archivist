@@ -47,6 +47,7 @@ func newRememberCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteResult(cmd, map[string]string{"id": id})
 			if asJSON {
 				return json.NewEncoder(os.Stdout).Encode(map[string]string{"id": id})
 			}
@@ -93,6 +94,7 @@ func newUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteResult(cmd, map[string]string{"id": args[0]})
 			if asJSON {
 				return json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "ok"})
 			}
@@ -129,6 +131,7 @@ func newRetireCmd() *cobra.Command {
 			if err := svc.Retire(args[0], supersededBy); err != nil {
 				return err
 			}
+			noteResult(cmd, map[string]string{"id": args[0], "superseded_by": supersededBy})
 			if asJSON {
 				return json.NewEncoder(os.Stdout).Encode(map[string]string{"status": "ok"})
 			}
@@ -170,6 +173,7 @@ func newCheckCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			noteResult(cmd, res)
 			if asJSON {
 				return json.NewEncoder(os.Stdout).Encode(res)
 			}

@@ -35,6 +35,7 @@ func newEmbedCmd() *cobra.Command {
 				Model:    cfg.Ollama.EmbedModel,
 			}
 			n, err := w.Run(cmd.Context(), embed.WorkerOptions{Once: once, Concurrency: concurrency})
+			noteResult(cmd, map[string]int{"embedded": n})
 			fmt.Fprintf(cmd.OutOrStdout(), "Embedded %d records\n", n)
 			return err
 		},
