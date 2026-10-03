@@ -180,7 +180,7 @@ func findPackage(root *sitter.Node, src []byte, pkgNode string) string {
 		if node == nil || name != "" {
 			return
 		}
-		if pkgNode != "" && node.Type() == pkgNode {
+		if node.Type() == pkgNode {
 			text := strings.TrimPrefix(string(src[node.StartByte():node.EndByte()]), "package ")
 			fields := strings.Fields(text)
 			if len(fields) > 0 {

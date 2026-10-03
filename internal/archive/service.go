@@ -130,7 +130,6 @@ func (s *Service) devDir() string {
 	return (&config.Config{Records: s.Records}).DevRecordsDir()
 }
 
-// PatchText applies a non-empty title, body, or status onto an existing record.
 func PatchText(r *record.Record, title, body, status string) {
 	if title != "" {
 		r.Title = title

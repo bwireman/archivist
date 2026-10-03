@@ -1,5 +1,5 @@
 ---
-description: After every agent commit, run simplify (if >100 lines), then caveman-review
+description: After every agent commit, run simplify (if >100 lines), caveman-review, then commit those fixes
 alwaysApply: true
 ---
 
@@ -15,7 +15,7 @@ If over threshold, follow `.cursor/skills/simplify/SKILL.md` on commit just made
 
 - **Scope:** `git show --stat --patch --no-color HEAD`
 - Main thread: parallel read-only reviewers → targeted inline fixes
-- Stage simplify fixes; **do not commit** unless user already asked for commit this turn
+- Stage simplify fixes. Leave them uncommitted until §4 so the review sees them
 
 ## 2. Launch review subagent
 
@@ -41,17 +41,20 @@ If diff unavailable, retry once with file contents from `git show HEAD --name-on
 
 Apply code-level fixes inline (main thread). Keep each fix minimal. Findings needing product/architecture call: skip fix, report to user — they do **not** block ending turn.
 
-## 4. After fixes
+## 4. Commit the fixes
 
-If any 🔴/🟡 fixed inline:
+If simplify or §3 changed files:
 
 1. Lint touched files
-2. Stage fixes; **do not commit** unless user already asked for commit this turn
-3. Report staged fixes and offer commit; user decides
+2. Stage **only** those files. Leave unrelated dirty work unstaged
+3. Commit them as a follow-up. Do not amend. Do not push. Message follows `.cursor/skills/caveman-commit/SKILL.md`
+4. Stop. Do not run this rule again on that follow-up commit
+
+If nothing changed, do not create an empty commit.
 
 ## 5. Report
 
-One line: simplify summary (if any), review findings count, what was fixed, what was skipped (nits, questions, ambiguous).
+One line: simplify summary (if any), review findings count, what was fixed, what was skipped (nits, questions, ambiguous), and the follow-up commit if one was made.
 
 ## Exclusions
 
