@@ -74,6 +74,53 @@ func TestToolDescriptionsPreferDistillOverGlut(t *testing.T) {
 	}
 }
 
+func TestToolAnnotations(t *testing.T) {
+	srv := (&Server{}).MCPServer()
+	want := map[string]mcp.ToolAnnotation{
+		"search":   ann("Search archive", true, false, true),
+		"get":      ann("Get record", true, false, true),
+		"check":    ann("Check rules", true, false, true),
+		"map":      ann("Explore code map", true, false, true),
+		"status":   ann("Archive status", true, false, true),
+		"remember": ann("Remember record", false, true, true),
+		"update":   ann("Update record", false, true, true),
+		"retire":   ann("Retire record", false, true, true),
+		"import":   ann("Import markdown", false, true, true),
+		"cite":     ann("Cite record", false, false, false),
+	}
+	listed := srv.ListTools()
+	if len(listed) != len(want) {
+		t.Fatalf("tool count %d, want %d", len(listed), len(want))
+	}
+	for name, hint := range want {
+		tool := srv.GetTool(name)
+		if tool == nil {
+			t.Fatalf("missing %s", name)
+		}
+		got := tool.Tool.Annotations
+		if got.Title != hint.Title || !sameBool(got.ReadOnlyHint, hint.ReadOnlyHint) ||
+			!sameBool(got.DestructiveHint, hint.DestructiveHint) ||
+			!sameBool(got.IdempotentHint, hint.IdempotentHint) ||
+			!sameBool(got.OpenWorldHint, hint.OpenWorldHint) {
+			t.Fatalf("%s annotations: %+v", name, got)
+		}
+	}
+}
+
+func ann(title string, readOnly, destructive, idempotent bool) mcp.ToolAnnotation {
+	return mcp.ToolAnnotation{
+		Title:           title,
+		ReadOnlyHint:    boolPtr(readOnly),
+		DestructiveHint: boolPtr(destructive),
+		IdempotentHint:  boolPtr(idempotent),
+		OpenWorldHint:   boolPtr(false),
+	}
+}
+
+func sameBool(a, b *bool) bool {
+	return a != nil && b != nil && *a == *b
+}
+
 func TestCommandLogMiddlewareWritesJSONL(t *testing.T) {
 	dir := t.TempDir()
 	cfg := config.Default()

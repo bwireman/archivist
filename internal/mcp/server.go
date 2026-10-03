@@ -51,6 +51,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	}
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
+		annotate("Search archive", true, false, true),
 		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
@@ -58,21 +59,25 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithNumber("top_k"),
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
+		annotate("Get record", true, false, true),
 		mcp.WithDescription("Get one archive record by id or slug after search."),
 		mcp.WithString("id", mcp.Required()),
 	), s.toolGet)
 	srv.AddTool(mcp.NewTool("check",
+		annotate("Check rules", true, false, true),
 		mcp.WithDescription("Check rule records against a change (description, paths, diff)."),
 		mcp.WithString("description"),
 		mcp.WithString("paths"),
 		mcp.WithString("diff"),
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
+		annotate("Explore code map", true, false, true),
 		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. Run `archivist index` first."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
+		annotate("Remember record", false, true, true),
 		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record. Writes SQLite only; does not create a markdown file."),
 		mcp.WithString("type", mcp.Required(), mcp.Description("decision, rule, feature, guide, map, or pitfall")),
 		mcp.WithString("scope", mcp.Required(), mcp.Description("repo, global, or dev")),
@@ -83,6 +88,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("tags"),
 	), s.toolRemember)
 	srv.AddTool(mcp.NewTool("update",
+		annotate("Update record", false, true, true),
 		mcp.WithDescription("Update an existing record in place when the same topic already has a current document. Prefer this over remember for refinements."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("title"),
@@ -90,23 +96,46 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("status"),
 	), s.toolUpdate)
 	srv.AddTool(mcp.NewTool("retire",
+		annotate("Retire record", false, true, true),
 		mcp.WithDescription("Mark a record superseded when a later choice replaces it. Leave a stub plus superseded_by; do not keep two accepted documents on the same topic."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("superseded_by"),
 	), s.toolRetire)
 	srv.AddTool(mcp.NewTool("cite",
+		annotate("Cite record", false, false, false),
 		mcp.WithDescription("Call before the turn ends when a retrieved record changed the work. id is a record id or slug; effect is one line. Do not cite a hit you did not use. Requires log_commands."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("effect", mcp.Required(), mcp.Description("one line: what the record changed")),
 	), s.toolCite)
 	srv.AddTool(mcp.NewTool("status",
+		annotate("Archive status", true, false, true),
 		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health)."),
 	), s.toolStatus)
 	srv.AddTool(mcp.NewTool("import",
+		annotate("Import markdown", false, true, true),
 		mcp.WithDescription("Import typed markdown from record directories and export copies into SQLite. Does not delete DB-only records."),
 	), s.toolImport)
+	registerAddPrompts(srv)
 	return srv
 }
+
+// annotate sets MCP ToolAnnotations. Unset hints default to read-only false,
+// destructive true, idempotent false, and open-world true, so every tool sets
+// all four. Archivist tools are closed-world: local SQLite and one configured
+// embedder. destructive and idempotent still apply when readOnly is false:
+// remember, update, retire, and import may replace record content, and a
+// repeat whose content hash matches is a no-op. cite only appends a log line.
+func annotate(title string, readOnly, destructive, idempotent bool) mcp.ToolOption {
+	return mcp.WithToolAnnotation(mcp.ToolAnnotation{
+		Title:           title,
+		ReadOnlyHint:    boolPtr(readOnly),
+		DestructiveHint: boolPtr(destructive),
+		IdempotentHint:  boolPtr(idempotent),
+		OpenWorldHint:   boolPtr(false),
+	})
+}
+
+func boolPtr(v bool) *bool { return &v }
 
 func (s *Server) commandLogMiddleware() mcpserver.ToolHandlerMiddleware {
 	log := cmdlog.FromConfig(s.RepoRoot, s.Cfg)

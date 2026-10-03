@@ -156,6 +156,19 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 | `import` | Upsert typed markdown into SQLite (no prune) |
 | `status` | Counts, embed queue, Ollama health |
 
+### Prompts
+
+`prompts/list` walks through adding one record. Each prompt takes `topic` (required) and `scope` (`repo`, `global`, or `dev`). The prompt does not write. It tells the client to `search` that type, `update` a current record when one exists, then `remember`.
+
+| Prompt | Record |
+| --- | --- |
+| `add-decision` | Choice among alternatives (Context, Decision, Consequences) |
+| `add-rule` | Must or should, with `severity` and `applies_to` |
+| `add-feature` | How a capability works (Purpose, Behavior, Connects to, Entry points) |
+| `add-guide` | How-to procedure |
+| `add-map` | Packages and how they connect |
+| `add-pitfall` | Confirmed gotcha |
+
 Initialize `instructions` are the consult, ask, and record rule templates, so MCP-only hosts still look things up, ask when a choice or preference is unsettled, and distill from conversation.
 
 Tool output is JSON, the same shape as CLI `--json`. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
