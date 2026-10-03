@@ -51,12 +51,7 @@ func GitChanged(repoRoot, since string) (GitJoin, error) {
 }
 
 func parseSinceTime(s string) (time.Time, bool) {
-	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
-		if t, err := time.Parse(layout, s); err == nil {
-			return t, true
-		}
-	}
-	return time.Time{}, false
+	return parseTime(s)
 }
 
 func pathsSince(repoRoot string, t time.Time) ([]string, error) {

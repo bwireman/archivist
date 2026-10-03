@@ -27,8 +27,7 @@ func Read(path string) ([]Entry, error) {
 		}
 		var e Entry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
-			last := i == len(lines)-1 || (i == len(lines)-2 && lines[len(lines)-1] == "")
-			if last && !trailingNL {
+			if i == len(lines)-1 && !trailingNL {
 				continue
 			}
 			return nil, fmt.Errorf("commands.log line %d: %w", i+1, err)

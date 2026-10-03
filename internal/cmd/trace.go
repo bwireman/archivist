@@ -44,7 +44,7 @@ func buildTrace(root string, cfg *config.Config, since string) (*trace.Report, e
 	path := config.CommandsLogPath(root)
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
-			if cfg == nil || !cfg.LogCommands {
+			if !cfg.LogCommands {
 				return &trace.Report{LoggingOff: true}, nil
 			}
 			return &trace.Report{Empty: true}, nil
@@ -73,7 +73,6 @@ func buildTrace(root string, cfg *config.Config, since string) (*trace.Report, e
 			defer repo.Close()
 			defer home.Close()
 			cat = storeCatalog{repo: repo, home: home}
-			return trace.Build(entries, opts, cat)
 		}
 	}
 	return trace.Build(entries, opts, cat)

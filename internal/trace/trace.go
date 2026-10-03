@@ -103,9 +103,6 @@ var skippedCommand = map[string]bool{
 // Build summarizes command-log entries. Maintenance commands are ignored.
 // A search result marked truncated is incomplete and is left out of follow-through.
 func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
-	if !opts.After.IsZero() {
-		entries = filterAfter(entries, opts.After)
-	}
 	rep := &Report{Counts: map[string]int{}}
 	var searches []searchEvent
 	retrieved := map[string]struct{}{}
@@ -139,8 +136,11 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 		if skippedCommand[call.name] || !call.hasOut {
 			continue
 		}
-		rep.Counts[call.name]++
 		at := call.at()
+		if !opts.After.IsZero() && (at.IsZero() || at.Before(opts.After)) {
+			continue
+		}
+		rep.Counts[call.name]++
 		switch call.name {
 		case "search":
 			q := queryOf(call.in.Args)
@@ -220,9 +220,6 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 			}
 			appeared[id] = struct{}{}
 			cited[id] = struct{}{}
-			if _, ok := meta[id]; !ok {
-				meta[id] = idMeta{}
-			}
 			rep.Cites = append(rep.Cites, CiteHit{At: at, ID: id, Effect: effect})
 		}
 	}
@@ -306,9 +303,13 @@ func currentRule(r *record.Record) bool {
 	}
 }
 
+func withinFollow(searchAt, at time.Time) bool {
+	return !at.Before(searchAt) && at.Sub(searchAt) <= followWindow
+}
+
 func followed(searches []searchEvent, at time.Time, id string) bool {
 	for _, s := range searches {
-		if at.Before(s.at) || at.Sub(s.at) > followWindow {
+		if !withinFollow(s.at, at) {
 			continue
 		}
 		if _, ok := s.ids[id]; ok {
@@ -320,10 +321,9 @@ func followed(searches []searchEvent, at time.Time, id string) bool {
 
 func searchInWindow(searches []searchEvent, at time.Time) bool {
 	for _, s := range searches {
-		if at.Before(s.at) || at.Sub(s.at) > followWindow {
-			continue
+		if withinFollow(s.at, at) {
+			return true
 		}
-		return true
 	}
 	return false
 }
@@ -368,47 +368,18 @@ func pairCalls(entries []cmdlog.Entry) []paired {
 	return calls
 }
 
-func filterAfter(entries []cmdlog.Entry, after time.Time) []cmdlog.Entry {
-	pending := map[string][]cmdlog.Entry{}
-	var out []cmdlog.Entry
-	for _, e := range entries {
-		name := baseCommand(e.Command)
-		switch e.Dir {
-		case "in":
-			pending[name] = append(pending[name], e)
-		case "out":
-			var in cmdlog.Entry
-			if q := pending[name]; len(q) > 0 {
-				in = q[0]
-				pending[name] = q[1:]
-			}
-			t := entryTime(e)
-			if t.IsZero() {
-				t = entryTime(in)
-			}
-			if t.IsZero() || t.Before(after) {
-				continue
-			}
-			if in.Dir != "" {
-				out = append(out, in)
-			}
-			out = append(out, e)
-		}
-	}
-	return out
+func entryTime(e cmdlog.Entry) time.Time {
+	t, _ := parseTime(e.TS)
+	return t
 }
 
-func entryTime(e cmdlog.Entry) time.Time {
-	if e.TS == "" {
-		return time.Time{}
+func parseTime(s string) (time.Time, bool) {
+	for _, layout := range []string{time.RFC3339Nano, time.RFC3339} {
+		if t, err := time.Parse(layout, s); err == nil {
+			return t, true
+		}
 	}
-	if t, err := time.Parse(time.RFC3339Nano, e.TS); err == nil {
-		return t
-	}
-	if t, err := time.Parse(time.RFC3339, e.TS); err == nil {
-		return t
-	}
-	return time.Time{}
+	return time.Time{}, false
 }
 
 func baseCommand(s string) string {
