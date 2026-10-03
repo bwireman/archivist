@@ -13,7 +13,19 @@ Archivist depends only on SQLite and Ollama HTTP — no vendor SDKs.
 
 ## Install the CLI
 
-There is no published binary yet. From this checkout:
+Each successful commit to `main` publishes a GitHub pre-release. This downloads
+the newest one, checks its SHA-256, and installs `archivist` (Linux amd64 or
+Apple Silicon):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/bwireman/archivist/main/scripts/install.sh | bash
+archivist version
+```
+
+The binary is written to `~/.local/bin`. Override the directory with
+`ARCHIVIST_INSTALL_DIR`, or pin a tag with `ARCHIVIST_TAG=v0.1.0-<sha>`.
+
+From this checkout, with Go 1.27+:
 
 ```bash
 git clone https://github.com/bwireman/archivist.git
@@ -291,6 +303,7 @@ make refresh-archive  # import, index, embed, export
 Pull requests and pushes to `main` run the Go test suite and `go vet`. Each
 successful commit to `main` publishes a GitHub **pre-release** tagged
 `v<version>-<short-sha>` with a source archive plus compiled CLI binaries for
-Linux amd64 and Apple Silicon macOS. Every file includes a SHA-256 checksum;
+Linux amd64 and Apple Silicon macOS. `scripts/install.sh` installs the newest
+of those releases. Every file includes a SHA-256 checksum;
 `build-info.txt` (and per-binary `*.build-info.txt`) record the CLI version and
 full commit SHA.
