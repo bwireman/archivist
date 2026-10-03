@@ -44,7 +44,7 @@ func TestAddPrompts(t *testing.T) {
 		text := promptText(t, res)
 		for _, needle := range []string{
 			`about "billing calls"`,
-			"type=" + spec.kind,
+			"type=" + string(spec.kind),
 			"search",
 			"update",
 			"remember",

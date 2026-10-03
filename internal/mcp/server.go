@@ -126,16 +126,18 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 // remember, update, retire, and import may replace record content, and a
 // repeat whose content hash matches is a no-op. cite only appends a log line.
 func annotate(title string, readOnly, destructive, idempotent bool) mcp.ToolOption {
-	return mcp.WithToolAnnotation(mcp.ToolAnnotation{
-		Title:           title,
-		ReadOnlyHint:    boolPtr(readOnly),
-		DestructiveHint: boolPtr(destructive),
-		IdempotentHint:  boolPtr(idempotent),
-		OpenWorldHint:   boolPtr(false),
-	})
+	return mcp.WithToolAnnotation(toolAnnotation(title, readOnly, destructive, idempotent))
 }
 
-func boolPtr(v bool) *bool { return &v }
+func toolAnnotation(title string, readOnly, destructive, idempotent bool) mcp.ToolAnnotation {
+	return mcp.ToolAnnotation{
+		Title:           title,
+		ReadOnlyHint:    mcp.ToBoolPtr(readOnly),
+		DestructiveHint: mcp.ToBoolPtr(destructive),
+		IdempotentHint:  mcp.ToBoolPtr(idempotent),
+		OpenWorldHint:   mcp.ToBoolPtr(false),
+	}
+}
 
 func (s *Server) commandLogMiddleware() mcpserver.ToolHandlerMiddleware {
 	log := cmdlog.FromConfig(s.RepoRoot, s.Cfg)

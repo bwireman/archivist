@@ -77,16 +77,16 @@ func TestToolDescriptionsPreferDistillOverGlut(t *testing.T) {
 func TestToolAnnotations(t *testing.T) {
 	srv := (&Server{}).MCPServer()
 	want := map[string]mcp.ToolAnnotation{
-		"search":   ann("Search archive", true, false, true),
-		"get":      ann("Get record", true, false, true),
-		"check":    ann("Check rules", true, false, true),
-		"map":      ann("Explore code map", true, false, true),
-		"status":   ann("Archive status", true, false, true),
-		"remember": ann("Remember record", false, true, true),
-		"update":   ann("Update record", false, true, true),
-		"retire":   ann("Retire record", false, true, true),
-		"import":   ann("Import markdown", false, true, true),
-		"cite":     ann("Cite record", false, false, false),
+		"search":   toolAnnotation("Search archive", true, false, true),
+		"get":      toolAnnotation("Get record", true, false, true),
+		"check":    toolAnnotation("Check rules", true, false, true),
+		"map":      toolAnnotation("Explore code map", true, false, true),
+		"status":   toolAnnotation("Archive status", true, false, true),
+		"remember": toolAnnotation("Remember record", false, true, true),
+		"update":   toolAnnotation("Update record", false, true, true),
+		"retire":   toolAnnotation("Retire record", false, true, true),
+		"import":   toolAnnotation("Import markdown", false, true, true),
+		"cite":     toolAnnotation("Cite record", false, false, false),
 	}
 	listed := srv.ListTools()
 	if len(listed) != len(want) {
@@ -104,16 +104,6 @@ func TestToolAnnotations(t *testing.T) {
 			!sameBool(got.OpenWorldHint, hint.OpenWorldHint) {
 			t.Fatalf("%s annotations: %+v", name, got)
 		}
-	}
-}
-
-func ann(title string, readOnly, destructive, idempotent bool) mcp.ToolAnnotation {
-	return mcp.ToolAnnotation{
-		Title:           title,
-		ReadOnlyHint:    boolPtr(readOnly),
-		DestructiveHint: boolPtr(destructive),
-		IdempotentHint:  boolPtr(idempotent),
-		OpenWorldHint:   boolPtr(false),
 	}
 }
 
