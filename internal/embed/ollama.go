@@ -120,5 +120,3 @@ func (f *FakeEmbedder) Embed(ctx context.Context, text string) ([]float32, error
 	}
 	return vec, nil
 }
-
-func (f *FakeEmbedder) Healthy(ctx context.Context) error { return nil }

@@ -31,29 +31,35 @@ type languageSpec struct {
 	pkgNode string
 }
 
-var languageSpecs = map[string]languageSpec{
-	".go": {
-		lang:    golang.GetLanguage(),
-		symbols: []string{"function_declaration", "method_declaration", "type_declaration", "type_spec", "interface_type"},
-		imports: []string{"import_spec"},
-		pkgNode: "package_clause",
-	},
-	".py": {
-		lang:    python.GetLanguage(),
-		symbols: []string{"function_definition", "class_definition"},
-		imports: []string{"import_statement", "import_from_statement"},
-	},
-	".js":   {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".jsx":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".mjs":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".cjs":  {lang: javascript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".ts":   {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".tsx":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".mts":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".cts":  {lang: typescript.GetLanguage(), symbols: []string{"function_declaration", "class_declaration", "method_definition"}, imports: []string{"import_statement"}},
-	".rs":   {lang: rust.GetLanguage(), symbols: []string{"function_item", "struct_item", "enum_item", "trait_item", "impl_item"}, imports: []string{"use_declaration"}},
-	".java": {lang: java.GetLanguage(), symbols: []string{"method_declaration", "class_declaration", "interface_declaration"}, imports: []string{"import_declaration"}},
-}
+var (
+	jsSpec = languageSpec{
+		lang:    javascript.GetLanguage(),
+		symbols: []string{"function_declaration", "class_declaration", "method_definition"},
+		imports: []string{"import_statement"},
+	}
+	tsSpec = languageSpec{
+		lang:    typescript.GetLanguage(),
+		symbols: []string{"function_declaration", "class_declaration", "method_definition"},
+		imports: []string{"import_statement"},
+	}
+	languageSpecs = map[string]languageSpec{
+		".go": {
+			lang:    golang.GetLanguage(),
+			symbols: []string{"function_declaration", "method_declaration", "type_declaration", "type_spec", "interface_type"},
+			imports: []string{"import_spec"},
+			pkgNode: "package_clause",
+		},
+		".py": {
+			lang:    python.GetLanguage(),
+			symbols: []string{"function_definition", "class_definition"},
+			imports: []string{"import_statement", "import_from_statement"},
+		},
+		".js": jsSpec, ".jsx": jsSpec, ".mjs": jsSpec, ".cjs": jsSpec,
+		".ts": tsSpec, ".tsx": tsSpec, ".mts": tsSpec, ".cts": tsSpec,
+		".rs":   {lang: rust.GetLanguage(), symbols: []string{"function_item", "struct_item", "enum_item", "trait_item", "impl_item"}, imports: []string{"use_declaration"}},
+		".java": {lang: java.GetLanguage(), symbols: []string{"method_declaration", "class_declaration", "interface_declaration"}, imports: []string{"import_declaration"}},
+	}
+)
 
 type Result struct {
 	PackageName string
@@ -71,21 +77,20 @@ func Extract(path, content string) (Result, error) {
 		return withGenericBackup(path, content, res, err)
 	}
 	if ext == ".gleam" {
-		res, err := extractGleam(path, content)
-		return withGenericBackup(path, content, res, err)
+		return withGenericBackup(path, content, extractGleam(path, content), nil)
 	}
-	return extractGeneric(path, content)
+	return extractGeneric(path, content), nil
 }
 
 func withGenericBackup(path, content string, res Result, err error) (Result, error) {
 	if err != nil {
-		return extractGeneric(path, content)
+		return extractGeneric(path, content), nil
 	}
 	if len(res.Symbols) > 0 || len(res.Edges) > 0 {
 		return res, nil
 	}
-	gen, gerr := extractGeneric(path, content)
-	if gerr != nil || (len(gen.Symbols) == 0 && len(gen.Edges) == 0) {
+	gen := extractGeneric(path, content)
+	if len(gen.Symbols) == 0 && len(gen.Edges) == 0 {
 		return res, nil
 	}
 	gen.PackageName = res.PackageName
@@ -123,7 +128,7 @@ func extractTreeSitter(path, content string, spec languageSpec, ext string) (Res
 	res := Result{}
 
 	if spec.pkgNode != "" {
-		res.PackageName = findPackage(root, src, spec.pkgNode, ext)
+		res.PackageName = findPackage(root, src, spec.pkgNode)
 	}
 
 	var walk func(node *sitter.Node)
@@ -168,18 +173,18 @@ func extractTreeSitter(path, content string, spec languageSpec, ext string) (Res
 	return res, nil
 }
 
-func findPackage(root *sitter.Node, src []byte, pkgNode, ext string) string {
+func findPackage(root *sitter.Node, src []byte, pkgNode string) string {
 	var name string
 	var walk func(node *sitter.Node)
 	walk = func(node *sitter.Node) {
 		if node == nil || name != "" {
 			return
 		}
-		if node.Type() == pkgNode {
-			text := string(src[node.StartByte():node.EndByte()])
-			if ext == ".go" {
-				text = strings.TrimPrefix(text, "package ")
-				name = strings.Fields(text)[0]
+		if pkgNode != "" && node.Type() == pkgNode {
+			text := strings.TrimPrefix(string(src[node.StartByte():node.EndByte()]), "package ")
+			fields := strings.Fields(text)
+			if len(fields) > 0 {
+				name = fields[0]
 			}
 			return
 		}

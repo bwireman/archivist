@@ -50,9 +50,6 @@ func applyInit(root string, cfg *config.Config) error {
 	if err := os.MkdirAll(config.DataDir(root), 0o755); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(config.StorePath(root)), 0o755); err != nil {
-		return err
-	}
 	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Repo), 0o755); err != nil {
 		return err
 	}

@@ -1,9 +1,6 @@
 package skills
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -116,14 +113,7 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(planData), "always-on ask rule") {
 		t.Fatalf("plan-changes skill should leave the short gap to the ask rule: %s", planData)
 	}
-	data, err = os.ReadFile(filepath.Join(root, ManifestFile))
-	if err != nil {
-		t.Fatal(err)
-	}
-	var m Manifest
-	if err := json.Unmarshal(data, &m); err != nil {
-		t.Fatal(err)
-	}
+	m := readManifest(t, root)
 	if m.Version != version.Version {
 		t.Fatalf("manifest version %q", m.Version)
 	}
@@ -312,12 +302,8 @@ func assertManifest(t *testing.T, root string, target Target) {
 
 func readManifest(t *testing.T, root string) Manifest {
 	t.Helper()
-	data, err := os.ReadFile(filepath.Join(root, ManifestFile))
+	m, err := loadManifest(root)
 	if err != nil {
-		t.Fatal(err)
-	}
-	var m Manifest
-	if err := json.Unmarshal(data, &m); err != nil {
 		t.Fatal(err)
 	}
 	return m
@@ -334,10 +320,5 @@ func fileBytes(t *testing.T, path string) []byte {
 
 func fileSHA256(t *testing.T, path string) string {
 	t.Helper()
-	data, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	sum := sha256.Sum256(data)
-	return hex.EncodeToString(sum[:])
+	return sha256Hex(fileBytes(t, path))
 }

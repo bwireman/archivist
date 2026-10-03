@@ -21,9 +21,6 @@ import (
 	ruletmpl "github.com/bwireman/archivist/rules"
 )
 
-// codemapLimit is the default number of rows per section returned by `map`.
-const codemapLimit = 30
-
 type Server struct {
 	RepoRoot string
 	Cfg      *config.Config
@@ -212,7 +209,7 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 }
 
 func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	limit := int(req.GetFloat("limit", float64(codemapLimit)))
+	limit := int(req.GetFloat("limit", float64(store.DefaultExploreLimit)))
 	res, err := s.RepoDB.ExploreCode(req.GetString("query", ""), limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -247,15 +244,7 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 func (s *Server) toolUpdate(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	id := req.GetString("id", "")
 	err := s.Archive.Update(id, func(r *record.Record) error {
-		if t := req.GetString("title", ""); t != "" {
-			r.Title = t
-		}
-		if b := req.GetString("body", ""); b != "" {
-			r.Body = b
-		}
-		if st := req.GetString("status", ""); st != "" {
-			r.Status = record.Status(st)
-		}
+		archive.PatchText(r, req.GetString("title", ""), req.GetString("body", ""), req.GetString("status", ""))
 		return nil
 	})
 	if err != nil {

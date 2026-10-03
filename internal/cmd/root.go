@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,9 +206,7 @@ func newSearchCmd() *cobra.Command {
 				return err
 			}
 			if asJSON {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(results)
+				return writeIndentedJSON(os.Stdout, results)
 			}
 			fmt.Print(retrieve.FormatResults(results))
 			return nil
@@ -268,9 +267,7 @@ func newStatusCmd() *cobra.Command {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
 			if asJSON {
-				enc := json.NewEncoder(os.Stdout)
-				enc.SetIndent("", "  ")
-				return enc.Encode(s)
+				return writeIndentedJSON(os.Stdout, s)
 			}
 			fmt.Printf("Version: %s\n", version.String())
 			fmt.Printf("Embeddings (Ollama): ")
@@ -289,4 +286,10 @@ func newStatusCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
+}
+
+func writeIndentedJSON(w io.Writer, v any) error {
+	enc := json.NewEncoder(w)
+	enc.SetIndent("", "  ")
+	return enc.Encode(v)
 }

@@ -224,8 +224,6 @@ func (s *Store) StampIndexed(t time.Time) error {
 	return s.SetMeta(MetaLastIndexedAt, t.UTC().Format(time.RFC3339))
 }
 
-// --- Records ---
-
 func encodeJSONList(items []string) string {
 	if len(items) == 0 {
 		return "[]"
@@ -351,7 +349,6 @@ ON CONFLICT(id) DO UPDATE SET
 		return err
 	}
 
-	textHash := r.ContentHash
 	_, err = tx.Exec(`
 INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts, last_error)
 VALUES (?, ?, ?, 0, NULL)
@@ -360,23 +357,19 @@ ON CONFLICT(record_id) DO UPDATE SET
     enqueued_at = excluded.enqueued_at,
     attempts = 0,
     last_error = NULL
-`, r.ID, textHash, now.Format(time.RFC3339))
+`, r.ID, r.ContentHash, now.Format(time.RFC3339))
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func nullString(s string) interface{} {
-	if s == "" {
-		return nil
-	}
-	return s
+func nullString(s string) sql.NullString {
+	return sql.NullString{String: s, Valid: s != ""}
 }
 
-func (s *Store) GetRecordByID(id string) (*record.Record, bool, error) {
-	row := s.db.QueryRow(`SELECT `+recordCols+` FROM records WHERE id = ?`, id)
-	r, err := scanRecord(row)
+func (s *Store) oneRecord(query, arg string) (*record.Record, bool, error) {
+	r, err := scanRecord(s.db.QueryRow(query, arg))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
@@ -384,6 +377,10 @@ func (s *Store) GetRecordByID(id string) (*record.Record, bool, error) {
 		return nil, false, err
 	}
 	return r, true, nil
+}
+
+func (s *Store) GetRecordByID(id string) (*record.Record, bool, error) {
+	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE id = ?`, id)
 }
 
 func (s *Store) GetRecordsByIDs(ids []string) (map[string]*record.Record, error) {
@@ -398,18 +395,13 @@ func (s *Store) GetRecordsByIDs(ids []string) (map[string]*record.Record, error)
 		if err != nil {
 			return nil, err
 		}
-		for rows.Next() {
-			r, err := scanRecord(rows)
-			if err != nil {
-				_ = rows.Close()
-				return nil, err
-			}
-			out[r.ID] = r
-		}
-		err = rows.Err()
+		recs, err := collectRecords(rows)
 		_ = rows.Close()
 		if err != nil {
 			return nil, err
+		}
+		for _, r := range recs {
+			out[r.ID] = r
 		}
 	}
 	return out, nil
@@ -424,27 +416,23 @@ func anyArgs(ids []string) []any {
 }
 
 func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
-	row := s.db.QueryRow(`SELECT `+recordCols+` FROM records WHERE slug = ?`, slug)
-	r, err := scanRecord(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, false, nil
-	}
-	if err != nil {
-		return nil, false, err
-	}
-	return r, true, nil
+	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE slug = ?`, slug)
 }
 
 func (s *Store) GetRecordByPath(path string) (*record.Record, bool, error) {
-	row := s.db.QueryRow(`SELECT `+recordCols+` FROM records WHERE source_path = ?`, path)
-	r, err := scanRecord(row)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, false, nil
+	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE source_path = ?`, path)
+}
+
+func collectRecords(rows *sql.Rows) ([]*record.Record, error) {
+	var out []*record.Record
+	for rows.Next() {
+		r, err := scanRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, r)
 	}
-	if err != nil {
-		return nil, false, err
-	}
-	return r, true, nil
+	return out, rows.Err()
 }
 
 func (s *Store) AllRecords() ([]*record.Record, error) {
@@ -453,15 +441,7 @@ func (s *Store) AllRecords() ([]*record.Record, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*record.Record
-	for rows.Next() {
-		r, err := scanRecord(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
+	return collectRecords(rows)
 }
 
 func (s *Store) RecordsByType(t record.Type) ([]*record.Record, error) {
@@ -470,15 +450,7 @@ func (s *Store) RecordsByType(t record.Type) ([]*record.Record, error) {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []*record.Record
-	for rows.Next() {
-		r, err := scanRecord(rows)
-		if err != nil {
-			return nil, err
-		}
-		out = append(out, r)
-	}
-	return out, rows.Err()
+	return collectRecords(rows)
 }
 
 func (s *Store) DeleteRecordByPath(path string) error {
@@ -510,8 +482,6 @@ func (s *Store) RecordCount() (int, error) {
 	err := s.db.QueryRow(`SELECT COUNT(*) FROM records`).Scan(&n)
 	return n, err
 }
-
-// --- Vectors ---
 
 func (s *Store) SetRecordVector(recordID, model string, embedding []float32) error {
 	blob := encodeEmbedding(embedding)
@@ -553,14 +523,19 @@ func embeddingSelect(filter RecordFilter) (string, []any) {
 	var args []any
 	if filter.Type != "" || filter.Scope != "" {
 		q += ` JOIN records r ON r.id = rv.record_id WHERE 1=1`
-		if filter.Type != "" {
-			q += ` AND r.type = ?`
-			args = append(args, string(filter.Type))
-		}
-		if filter.Scope != "" {
-			q += ` AND r.scope = ?`
-			args = append(args, string(filter.Scope))
-		}
+		q, args = appendTypeScope(q, args, filter)
+	}
+	return q, args
+}
+
+func appendTypeScope(q string, args []any, filter RecordFilter) (string, []any) {
+	if filter.Type != "" {
+		q += ` AND r.type = ?`
+		args = append(args, string(filter.Type))
+	}
+	if filter.Scope != "" {
+		q += ` AND r.scope = ?`
+		args = append(args, string(filter.Scope))
 	}
 	return q, args
 }
@@ -604,8 +579,6 @@ func (s *Store) RankEmbeddings(query []float32, filter RecordFilter, limit int) 
 	}
 	return out, nil
 }
-
-// --- Embed queue ---
 
 type QueueItem struct {
 	RecordID   string
@@ -661,8 +634,6 @@ UPDATE embed_queue SET attempts = attempts + 1, last_error = ? WHERE record_id =
 	return err
 }
 
-// --- FTS ---
-
 type FTSResult struct {
 	RecordID string
 	Score    float64
@@ -678,15 +649,7 @@ SELECT f.record_id, bm25(records_fts) as score
 FROM records_fts f
 JOIN records r ON r.id = f.record_id
 WHERE records_fts MATCH ?`
-	args := []any{query}
-	if filter.Type != "" {
-		q += ` AND r.type = ?`
-		args = append(args, string(filter.Type))
-	}
-	if filter.Scope != "" {
-		q += ` AND r.scope = ?`
-		args = append(args, string(filter.Scope))
-	}
+	q, args := appendTypeScope(q, []any{query}, filter)
 	q += ` ORDER BY score LIMIT ?`
 	args = append(args, limit)
 	rows, err := s.db.Query(q, args...)
@@ -707,8 +670,6 @@ WHERE records_fts MATCH ?`
 	}
 	return out, rows.Err()
 }
-
-// --- Files / symbols ---
 
 type FileRecord struct {
 	Path        string
@@ -769,7 +730,11 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 			return err
 		}
 		for _, sym := range symbols {
-			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, sym.DocLine, boolToInt(sym.Exported)); err != nil {
+			exported := 0
+			if sym.Exported {
+				exported = 1
+			}
+			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, sym.DocLine, exported); err != nil {
 				_ = stmt.Close()
 				return err
 			}
@@ -801,13 +766,6 @@ ON CONFLICT(path) DO UPDATE SET content_hash=excluded.content_hash, package_name
 		return err
 	}
 	return tx.Commit()
-}
-
-func boolToInt(b bool) int {
-	if b {
-		return 1
-	}
-	return 0
 }
 
 func (s *Store) DeleteFile(path string) error {
@@ -961,6 +919,10 @@ type CodeSearch struct {
 	Commits   []CommitRecord `json:"commits,omitempty"`
 }
 
+// DefaultExploreLimit is the row cap for each section of ExploreCode when the
+// caller does not pass a positive limit.
+const DefaultExploreLimit = 30
+
 // ExploreCode finds symbols matching query, the imports declared by the files
 // that hold them, the files importing anything whose path mentions query, and
 // recent commits that mention it.
@@ -970,7 +932,7 @@ func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 		return out, nil
 	}
 	if limit <= 0 {
-		limit = 30
+		limit = DefaultExploreLimit
 	}
 	syms, err := s.SearchSymbols(query, limit)
 	if err != nil {
@@ -996,8 +958,6 @@ func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 	out.Commits, err = s.SearchCommits(query, limit)
 	return out, err
 }
-
-// --- Commits ---
 
 type CommitRecord struct {
 	Hash       string    `json:"hash"`

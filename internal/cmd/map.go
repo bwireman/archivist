@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -10,7 +9,7 @@ import (
 )
 
 // DefaultMapLimit is the number of rows per section printed by `archivist map`.
-const DefaultMapLimit = 30
+const DefaultMapLimit = store.DefaultExploreLimit
 
 func newMapCmd() *cobra.Command {
 	var limit int
@@ -35,9 +34,7 @@ func newMapCmd() *cobra.Command {
 				return err
 			}
 			if asJSON {
-				enc := json.NewEncoder(cmd.OutOrStdout())
-				enc.SetIndent("", "  ")
-				return enc.Encode(res)
+				return writeIndentedJSON(cmd.OutOrStdout(), res)
 			}
 			fmt.Fprint(cmd.OutOrStdout(), formatCodeSearch(res))
 			return nil

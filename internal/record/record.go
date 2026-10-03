@@ -190,7 +190,7 @@ func (r *Record) Validate() error {
 	return nil
 }
 
-// EmbedText returns the text used for embedding and FTS.
+// EmbedText returns the text sent to the embedding model.
 func (r *Record) EmbedText() string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "Title: %s\n", r.Title)

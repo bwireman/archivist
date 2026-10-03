@@ -292,17 +292,9 @@ func prefixedHomePath(prefix, rel string) string {
 }
 
 func IsUserGlobalPath(path string) bool {
-	return hasHomePrefix(path, UserGlobalPrefix)
+	return PathUnder(path, UserGlobalPrefix)
 }
 
 func IsHomeGlobalPath(path string) bool {
-	return hasHomePrefix(path, HomeGlobalPrefix)
-}
-
-func hasHomePrefix(path, prefix string) bool {
-	path = filepath.ToSlash(path)
-	if path == prefix {
-		return true
-	}
-	return strings.HasPrefix(path, prefix+"/")
+	return PathUnder(path, HomeGlobalPrefix)
 }

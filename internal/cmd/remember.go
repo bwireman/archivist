@@ -87,15 +87,7 @@ func newUpdateCmd() *cobra.Command {
 			defer home.Close()
 			svc := archive.New(root, cfg, repo, home)
 			err = svc.Update(args[0], func(r *record.Record) error {
-				if title != "" {
-					r.Title = title
-				}
-				if body != "" {
-					r.Body = body
-				}
-				if status != "" {
-					r.Status = record.Status(status)
-				}
+				archive.PatchText(r, title, body, status)
 				return nil
 			})
 			if err != nil {

@@ -11,11 +11,7 @@ func HasFrontMatterID(content string) bool {
 	if err != nil || fm == "" {
 		return false
 	}
-	fields, err := parseYAMLMap(fm)
-	if err != nil {
-		return false
-	}
-	return strings.TrimSpace(fields["id"]) != ""
+	return strings.TrimSpace(parseYAMLMap(fm)["id"]) != ""
 }
 
 // ParseFile parses a markdown file with YAML front matter into a Record.
@@ -26,10 +22,7 @@ func ParseFile(sourcePath, content string, fallbackScope Scope) (*Record, error)
 	if err != nil {
 		return nil, err
 	}
-	fields, err := parseYAMLMap(fm)
-	if err != nil {
-		return nil, fmt.Errorf("parse front matter: %w", err)
-	}
+	fields := parseYAMLMap(fm)
 
 	scope := InferScopeFromPath(sourcePath)
 	if scope == "" {
@@ -155,7 +148,7 @@ func splitFrontMatter(content string) (string, string, error) {
 	return fm, body, nil
 }
 
-func parseYAMLMap(fm string) (map[string]string, error) {
+func parseYAMLMap(fm string) map[string]string {
 	out := map[string]string{}
 	for _, line := range strings.Split(fm, "\n") {
 		line = strings.TrimSpace(line)
@@ -168,7 +161,7 @@ func parseYAMLMap(fm string) (map[string]string, error) {
 		}
 		out[key] = unquoteYAML(val)
 	}
-	return out, nil
+	return out
 }
 
 func splitYAMLLine(line string) (string, string, bool) {

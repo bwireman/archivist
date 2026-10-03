@@ -53,7 +53,7 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) (Progress, erro
 			return err
 		}
 		seenRepo[rel] = struct{}{}
-		return idx.indexPath(rel, abs, idx.Store)
+		return idx.indexPath(rel, abs)
 	})
 	if err != nil {
 		return idx.progress, err
@@ -96,8 +96,8 @@ func (idx *Indexer) isRecordFile(rel string) bool {
 	return idx.Cfg.Records.GlobalInRepo() && config.PathUnder(rel, idx.Cfg.Records.Global)
 }
 
-func (idx *Indexer) indexPath(rel, abs string, dest *store.Store) error {
-	if dest == nil || idx.isRecordFile(rel) {
+func (idx *Indexer) indexPath(rel, abs string) error {
+	if idx.Store == nil || idx.isRecordFile(rel) {
 		return nil
 	}
 	data, err := os.ReadFile(abs)
@@ -105,11 +105,11 @@ func (idx *Indexer) indexPath(rel, abs string, dest *store.Store) error {
 		return err
 	}
 	if codemap.IsBinary(data) {
-		return dest.DeleteFile(rel)
+		return idx.Store.DeleteFile(rel)
 	}
 	hash := fileHash(data)
 
-	existing, ok, err := dest.GetFile(rel)
+	existing, ok, err := idx.Store.GetFile(rel)
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (idx *Indexer) indexPath(rel, abs string, dest *store.Store) error {
 	if err != nil {
 		return err
 	}
-	if err := dest.ReplaceFileMap(store.FileRecord{
+	if err := idx.Store.ReplaceFileMap(store.FileRecord{
 		Path:        rel,
 		ContentHash: hash,
 		PackageName: result.PackageName,
@@ -290,8 +290,7 @@ func pathInScope(path, scope string) bool {
 	if scope == "" || scope == "." {
 		return true
 	}
-	path = filepath.ToSlash(path)
-	return path == scope || strings.HasPrefix(path, scope+"/")
+	return config.PathUnder(path, scope)
 }
 
 func fileHash(data []byte) string {

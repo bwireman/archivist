@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
@@ -39,7 +38,6 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 	if err := rec.Validate(); err != nil {
 		return "", err
 	}
-	rec.ContentHash = record.ContentHash(rec)
 
 	st := s.storeFor(rec.Scope)
 	if st == nil {
@@ -61,7 +59,6 @@ func (s *Service) Update(id string, fn func(*record.Record) error) error {
 	if err := fn(rec); err != nil {
 		return err
 	}
-	rec.UpdatedAt = time.Now().UTC()
 	rec.ContentHash = record.ContentHash(rec)
 	if err := rec.Validate(); err != nil {
 		return err
@@ -115,11 +112,7 @@ func (s *Service) storeFor(scope record.Scope) *store.Store {
 }
 
 func (s *Service) defaultPath(rec *record.Record) string {
-	slug := rec.Slug
-	if slug == "" {
-		slug = slugify(rec.Title)
-	}
-	name := slug + ".md"
+	name := rec.Slug + ".md"
 	switch rec.Scope {
 	case record.ScopeGlobal:
 		if s.Records.GlobalInRepo() {
@@ -135,6 +128,19 @@ func (s *Service) defaultPath(rec *record.Record) string {
 
 func (s *Service) devDir() string {
 	return (&config.Config{Records: s.Records}).DevRecordsDir()
+}
+
+// PatchText applies a non-empty title, body, or status onto an existing record.
+func PatchText(r *record.Record, title, body, status string) {
+	if title != "" {
+		r.Title = title
+	}
+	if body != "" {
+		r.Body = body
+	}
+	if status != "" {
+		r.Status = record.Status(status)
+	}
 }
 
 func slugify(title string) string {

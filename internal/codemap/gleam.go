@@ -17,7 +17,7 @@ var (
 
 // extractGleam maps top-level Gleam declarations. go-tree-sitter does not
 // ship a Gleam grammar, so this runs before the language-agnostic fallback.
-func extractGleam(path, content string) (Result, error) {
+func extractGleam(path, content string) Result {
 	lines := strings.Split(content, "\n")
 	res := Result{}
 	inType := false
@@ -80,7 +80,7 @@ func extractGleam(path, content string) (Result, error) {
 			res.Symbols = append(res.Symbols, gleamSym(path, m[1], "constant", lineNo, strings.HasPrefix(trimmed, "pub "), lines))
 		}
 	}
-	return res, nil
+	return res
 }
 
 func gleamSym(path, name, kind string, line int, exported bool, lines []string) store.Symbol {

@@ -199,14 +199,12 @@ func compileIgnoreGlob(glob string, anchored bool) (*regexp.Regexp, error) {
 	if !anchored {
 		b.WriteString("(?:.+/)?")
 	}
-	if err := writeGlob(&b, glob); err != nil {
-		return nil, err
-	}
+	writeGlob(&b, glob)
 	b.WriteString("(?:/.*)?$")
 	return regexp.Compile(b.String())
 }
 
-func writeGlob(b *strings.Builder, glob string) error {
+func writeGlob(b *strings.Builder, glob string) {
 	i := 0
 	for i < len(glob) {
 		switch {
@@ -227,5 +225,4 @@ func writeGlob(b *strings.Builder, glob string) error {
 			i++
 		}
 	}
-	return nil
 }

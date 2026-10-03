@@ -36,9 +36,9 @@ var (
 	genericImpRe  = regexp.MustCompile(`(?i)^(?:export\s+)?(?:import|use|require|include|from)\s+([^\s;(]+)`)
 )
 
-func extractGeneric(path, content string) (Result, error) {
+func extractGeneric(path, content string) Result {
 	if genericSkipExt[strings.ToLower(filepath.Ext(path))] {
-		return Result{}, nil
+		return Result{}
 	}
 	lines := strings.Split(content, "\n")
 	res := Result{}
@@ -70,7 +70,7 @@ func extractGeneric(path, content string) (Result, error) {
 			})
 		}
 	}
-	return res, nil
+	return res
 }
 
 func isGenericComment(trimmed string) bool {

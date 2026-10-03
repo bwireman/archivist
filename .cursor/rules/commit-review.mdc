@@ -1,0 +1,59 @@
+---
+description: After every agent commit, run simplify (if >100 lines), then caveman-review
+alwaysApply: true
+---
+
+# Post-Commit Review
+
+Mandatory after **every successful `git commit` agent runs** — before ending turn or reporting done.
+
+## 1. Simplify
+
+Skip unless `git show --shortstat --format='' HEAD` insertions + deletions **> 100**.
+
+If over threshold, follow `.cursor/skills/simplify/SKILL.md` on commit just made:
+
+- **Scope:** `git show --stat --patch --no-color HEAD`
+- Main thread: parallel read-only reviewers → targeted inline fixes
+- Stage simplify fixes; **do not commit** unless user already asked for commit this turn
+
+## 2. Launch review subagent
+
+One `bugbot` subagent (`run_in_background: false`):
+
+```text
+Full Repository Path: <workspace root>
+Diff: natural language
+Change Description: <output of `git show --stat HEAD` plus `git diff HEAD~1 HEAD`; if §1 produced staged fixes, also include `git diff --cached --no-color`>
+Custom Instructions: Follow `.cursor/skills/caveman-review/SKILL.md`. Output only findings in `path:line: <emoji> <severity>: <problem>. <fix>.` format. End with `totals: N🔴 N🟡 N🔵 N❓` or `No issues.`
+```
+
+If diff unavailable, retry once with file contents from `git show HEAD --name-only`.
+
+## 3. Apply findings
+
+| Severity | Emoji | Action |
+|----------|-------|--------|
+| High | 🔴 `bug:` | Fix inline before ending turn |
+| Medium | 🟡 `risk:` | Fix inline before ending turn |
+| Low | 🔵 `nit:` | Skip |
+| Question | ❓ `q:` | Skip |
+
+Apply code-level fixes inline (main thread). Keep each fix minimal. Findings needing product/architecture call: skip fix, report to user — they do **not** block ending turn.
+
+## 4. After fixes
+
+If any 🔴/🟡 fixed inline:
+
+1. Lint touched files
+2. Stage fixes; **do not commit** unless user already asked for commit this turn
+3. Report staged fixes and offer commit; user decides
+
+## 5. Report
+
+One line: simplify summary (if any), review findings count, what was fixed, what was skipped (nits, questions, ambiguous).
+
+## Exclusions
+
+- Commit failed or was aborted → skip
+- User says "commit only" / "no review" → skip review + simplify
