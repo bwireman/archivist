@@ -521,22 +521,29 @@ func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error
 }
 
 // RecordFilter optionally constrains search and embedding listing.
+// ExcludeRetired omits superseded and deprecated rows. Status, when set, matches that status only.
 type RecordFilter struct {
-	Type  record.Type
-	Scope record.Scope
+	Type           record.Type
+	Scope          record.Scope
+	Status         record.Status
+	ExcludeRetired bool
+}
+
+func (f RecordFilter) constrains() bool {
+	return f.Type != "" || f.Scope != "" || f.Status != "" || f.ExcludeRetired
 }
 
 func embeddingSelect(filter RecordFilter) (string, []any) {
 	q := `SELECT rv.record_id, rv.embedding FROM record_vectors rv`
 	var args []any
-	if filter.Type != "" || filter.Scope != "" {
+	if filter.constrains() {
 		q += ` JOIN records r ON r.id = rv.record_id WHERE 1=1`
-		q, args = appendTypeScope(q, args, filter)
+		q, args = appendRecordFilter(q, args, filter)
 	}
 	return q, args
 }
 
-func appendTypeScope(q string, args []any, filter RecordFilter) (string, []any) {
+func appendRecordFilter(q string, args []any, filter RecordFilter) (string, []any) {
 	if filter.Type != "" {
 		q += ` AND r.type = ?`
 		args = append(args, string(filter.Type))
@@ -544,6 +551,13 @@ func appendTypeScope(q string, args []any, filter RecordFilter) (string, []any) 
 	if filter.Scope != "" {
 		q += ` AND r.scope = ?`
 		args = append(args, string(filter.Scope))
+	}
+	if filter.Status != "" {
+		q += ` AND r.status = ?`
+		args = append(args, string(filter.Status))
+	} else if filter.ExcludeRetired {
+		q += ` AND r.status NOT IN (?, ?)`
+		args = append(args, string(record.StatusSuperseded), string(record.StatusDeprecated))
 	}
 	return q, args
 }
@@ -660,7 +674,7 @@ SELECT f.record_id, bm25(records_fts) as score
 FROM records_fts f
 JOIN records r ON r.id = f.record_id
 WHERE records_fts MATCH ?`
-	q, args := appendTypeScope(q, []any{query}, filter)
+	q, args := appendRecordFilter(q, []any{query}, filter)
 	q += ` ORDER BY score LIMIT ?`
 	args = append(args, limit)
 	rows, err := s.db.Query(q, args...)

@@ -183,6 +183,7 @@ func newSearchCmd() *cobra.Command {
 	var topK int
 	var recType string
 	var scope string
+	var status string
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "search <query>",
@@ -202,7 +203,7 @@ func newSearchCmd() *cobra.Command {
 
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
 			engine := &retrieve.Engine{Repo: repo, Home: home}
-			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " ")}
+			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " "), Status: record.Status(status)}
 			if recType != "" {
 				opts.Type = record.Type(recType)
 			}
@@ -224,6 +225,7 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().IntVar(&topK, "top", retrieve.DefaultTopK, "number of results")
 	cmd.Flags().StringVar(&recType, "type", "", "filter by record type: decision, rule, feature, guide, map, pitfall")
 	cmd.Flags().StringVar(&scope, "scope", "", "filter by scope: dev|repo|global")
+	cmd.Flags().StringVar(&status, "status", "", "record status: proposed, accepted, deprecated, or superseded; default omits deprecated and superseded")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }

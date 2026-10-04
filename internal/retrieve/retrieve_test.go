@@ -144,3 +144,81 @@ func TestSearchKeepsSameSlugAcrossTypes(t *testing.T) {
 		t.Fatalf("both types should survive the overlay, got %+v", results)
 	}
 }
+
+func TestSearchDropsWeakVectorOnlyAndRetired(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	hybrid := &record.Record{
+		ID: "rec_hybrid", Slug: "alpha", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Alpha feature", Status: record.StatusAccepted, Body: "alpha term",
+		SourcePath: "docs/global-decisions/alpha.md",
+	}
+	weak := &record.Record{
+		ID: "rec_weak", Slug: "weak", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Unrelated weak", Status: record.StatusAccepted, Body: "nothing shared",
+		SourcePath: "docs/global-decisions/weak.md",
+	}
+	strong := &record.Record{
+		ID: "rec_strong", Slug: "strong", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Unrelated strong", Status: record.StatusAccepted, Body: "nothing shared either",
+		SourcePath: "docs/global-decisions/strong.md",
+	}
+	retired := &record.Record{
+		ID: "rec_old", Slug: "old-alpha", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Old alpha", Status: record.StatusSuperseded, Body: "alpha term retired",
+		SourcePath: "docs/global-decisions/old-alpha.md",
+	}
+	for _, rec := range []*record.Record{hybrid, weak, strong, retired} {
+		if err := st.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// {1,3} against query {1,0} is about 0.32, under the floor. {1,0} is 1.
+	vecs := map[string][]float32{
+		hybrid.ID:  {1, 3},
+		weak.ID:    {1, 3},
+		strong.ID:  {1, 0},
+		retired.ID: {1, 0},
+	}
+	for id, vec := range vecs {
+		if err := st.SetRecordVector(id, "test", vec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	engine := &retrieve.Engine{Repo: st}
+	results, err := engine.Search(context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{
+		Query: "alpha",
+		TopK:  10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range results {
+		got[r.Record.ID] = r.Source
+	}
+	if got[hybrid.ID] != "hybrid" || got[strong.ID] != "vector" || len(got) != 2 {
+		t.Fatalf("results: %+v", results)
+	}
+
+	onlyOld, err := engine.Search(context.Background(), nil, retrieve.Options{
+		Query:  "alpha",
+		Status: record.StatusSuperseded,
+		TopK:   10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(onlyOld) != 1 || onlyOld[0].Record.ID != retired.ID {
+		t.Fatalf("status filter: %+v", onlyOld)
+	}
+
+	if _, err := engine.Search(context.Background(), nil, retrieve.Options{Query: "alpha", Status: "nope"}); err == nil {
+		t.Fatal("expected invalid status")
+	}
+}

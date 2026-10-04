@@ -15,6 +15,9 @@ import (
 
 const followWindow = 30 * time.Minute
 
+// widePathCount is when a --since diff is too broad for overlap to mean much.
+const widePathCount = 30
+
 // Catalog loads records for the git join. Record returns nil when id is unknown.
 type Catalog interface {
 	Record(id string) (*record.Record, error)
@@ -62,6 +65,7 @@ type Report struct {
 
 	EmptySearches     []QueryRef `json:"empty_searches,omitempty"`
 	KeywordOnly       []QueryRef `json:"keyword_only_searches,omitempty"`
+	VectorOnly        []QueryRef `json:"vector_only_searches,omitempty"`
 	SupersededTop     []QueryRef `json:"superseded_top_hits,omitempty"`
 	Incomplete        []QueryRef `json:"incomplete_searches,omitempty"`
 	FollowGets        []QueryRef `json:"follow_through_gets,omitempty"`
@@ -75,6 +79,7 @@ type Report struct {
 
 	Since        string      `json:"since,omitempty"`
 	GitSkipped   string      `json:"git_skipped,omitempty"`
+	WideDiff     bool        `json:"wide_diff,omitempty"`
 	ChangedPaths []string    `json:"changed_paths,omitempty"`
 	Overlap      []RecordHit `json:"overlap,omitempty"`
 	NoGlob       []RecordHit `json:"retrieved_no_glob,omitempty"`
@@ -105,16 +110,21 @@ var skippedCommand = map[string]bool{
 
 // Build summarizes command-log entries. Maintenance commands are ignored.
 // A search result marked truncated is incomplete and is left out of follow-through.
+// Vector-only search hits stay in follow-through and out of the consulted set.
 func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 	rep := &Report{Counts: map[string]int{}}
 	var searches []searchEvent
 	retrieved := map[string]struct{}{}
-	var retrievedOrder []string
+	consulted := map[string]struct{}{}
+	var consultedOrder []string
 	appeared := map[string]struct{}{}
 	meta := map[string]idMeta{}
 	cited := map[string]struct{}{}
 
-	addRetrieved := func(id string, m idMeta) {
+	// addConsulted records a get, cite, check, or hybrid/keyword search hit.
+	// Vector-only search hits stay out. countRetrieved is false for cite:
+	// cite is the numerator, not the cited/retrieved denominator.
+	addConsulted := func(id string, m idMeta, countRetrieved bool) {
 		if id == "" {
 			return
 		}
@@ -128,11 +138,14 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 			}
 		}
 		meta[id] = m
-		if _, ok := retrieved[id]; ok {
+		if countRetrieved {
+			retrieved[id] = struct{}{}
+		}
+		if _, ok := consulted[id]; ok {
 			return
 		}
-		retrieved[id] = struct{}{}
-		retrievedOrder = append(retrievedOrder, id)
+		consulted[id] = struct{}{}
+		consultedOrder = append(consultedOrder, id)
 	}
 
 	for _, call := range pairCalls(entries) {
@@ -158,15 +171,26 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 					rep.EmptySearches = append(rep.EmptySearches, ref)
 				default:
 					allFTS := len(hits) > 0
+					allVector := len(hits) > 0
 					for _, h := range hits {
 						ev.ids[h.id] = struct{}{}
-						addRetrieved(h.id, idMeta{title: h.title, applies: h.applies})
-						if !strings.EqualFold(h.source, "fts") {
+						switch strings.ToLower(h.source) {
+						case "fts":
+							allVector = false
+							addConsulted(h.id, idMeta{title: h.title, applies: h.applies}, true)
+						case "vector":
 							allFTS = false
+						default:
+							allFTS = false
+							allVector = false
+							addConsulted(h.id, idMeta{title: h.title, applies: h.applies}, true)
 						}
 					}
 					if allFTS {
 						rep.KeywordOnly = append(rep.KeywordOnly, ref)
+					}
+					if allVector {
+						rep.VectorOnly = append(rep.VectorOnly, ref)
 					}
 					if len(hits) > 0 && strings.EqualFold(hits[0].status, string(record.StatusSuperseded)) {
 						top := hits[0]
@@ -185,7 +209,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 			if h.id == "" {
 				break
 			}
-			addRetrieved(h.id, idMeta{title: h.title, applies: h.applies})
+			addConsulted(h.id, idMeta{title: h.title, applies: h.applies}, true)
 			ref := QueryRef{At: at, ID: h.id, Title: h.title}
 			if followed(searches, at, h.id) {
 				rep.FollowGets = append(rep.FollowGets, ref)
@@ -208,7 +232,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 				break
 			}
 			for _, m := range checkMatches(call.out.Result) {
-				addRetrieved(m.id, idMeta{title: m.title, applies: m.applies})
+				addConsulted(m.id, idMeta{title: m.title, applies: m.applies}, true)
 				rep.CheckMatches = append(rep.CheckMatches, QueryRef{
 					At: at, ID: m.id, Title: m.title, Note: m.note, Status: m.status,
 				})
@@ -221,7 +245,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 			if id == "" {
 				break
 			}
-			appeared[id] = struct{}{}
+			addConsulted(id, idMeta{}, false)
 			cited[id] = struct{}{}
 			rep.Cites = append(rep.Cites, CiteHit{At: at, ID: id, Effect: effect})
 		}
@@ -235,7 +259,8 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 		rep.GitSkipped = opts.GitSkipped
 		if opts.GitSkipped == "" {
 			rep.ChangedPaths = append([]string(nil), opts.Paths...)
-			for _, id := range retrievedOrder {
+			rep.WideDiff = len(opts.Paths) > widePathCount
+			for _, id := range consultedOrder {
 				hit, err := resolve(cat, id, meta[id])
 				if err != nil {
 					return nil, err
@@ -295,15 +320,7 @@ func resolve(cat Catalog, id string, fallback idMeta) (RecordHit, error) {
 }
 
 func currentRule(r *record.Record) bool {
-	if r == nil || r.Type != record.TypeRule {
-		return false
-	}
-	switch r.Status {
-	case record.StatusSuperseded, record.StatusDeprecated:
-		return false
-	default:
-		return true
-	}
+	return r != nil && r.Type == record.TypeRule && !r.Retired()
 }
 
 func withinFollow(searchAt, at time.Time) bool {
@@ -611,6 +628,9 @@ func Format(r *Report) string {
 	writeRefs(&b, "Keyword-only searches", r.KeywordOnly, func(q QueryRef) string {
 		return strings.TrimSpace(q.At.Format(time.RFC3339) + " " + q.Query)
 	})
+	writeRefs(&b, "Vector-only searches", r.VectorOnly, func(q QueryRef) string {
+		return strings.TrimSpace(q.At.Format(time.RFC3339) + " " + q.Query)
+	})
 	writeRefs(&b, "Superseded top hits", r.SupersededTop, func(q QueryRef) string {
 		return strings.TrimSpace(q.ID + " " + q.Title)
 	})
@@ -642,11 +662,14 @@ func Format(r *Report) string {
 			fmt.Fprintf(&b, "Git join skipped: %s\n", r.GitSkipped)
 		} else {
 			fmt.Fprintf(&b, "Changed paths: %d\n", len(r.ChangedPaths))
+			if r.WideDiff {
+				fmt.Fprintf(&b, "Wide diff: %d paths; overlap is coarse\n", len(r.ChangedPaths))
+			}
 			for _, p := range r.ChangedPaths {
 				fmt.Fprintf(&b, "  %s\n", p)
 			}
 			writeHits(&b, "Overlap", r.Overlap)
-			writeHits(&b, "Retrieved with no path glob", r.NoGlob)
+			writeHits(&b, "Consulted with no path glob", r.NoGlob)
 			writeHits(&b, "Rules matching the diff and absent from the log", r.MissedRules)
 		}
 	}

@@ -17,11 +17,18 @@ import (
 
 const DefaultTopK = 20
 
+// vectorOnlyMinCosine drops vector-only hits below this cosine.
+// Measured 2026-10-04: off-topic tops (porter, dungeon, Go style) were at most 0.41.
+// A paraphrase of the command-log feature with no FTS hit scored 0.55.
+// Hybrid and keyword hits are not filtered.
+const vectorOnlyMinCosine = 0.50
+
 type Options struct {
-	TopK  int
-	Type  record.Type
-	Scope record.Scope
-	Query string
+	TopK   int
+	Type   record.Type
+	Scope  record.Scope
+	Status record.Status
+	Query  string
 }
 
 type Result struct {
@@ -39,7 +46,10 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	if opts.TopK <= 0 {
 		opts.TopK = DefaultTopK
 	}
-	filter := store.RecordFilter{Type: opts.Type, Scope: opts.Scope}
+	filter, err := searchFilter(opts)
+	if err != nil {
+		return nil, err
+	}
 	rankLimit := opts.TopK * 3
 
 	ftsRank := map[string]int{}
@@ -69,6 +79,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	}
 
 	vectorRank := map[string]int{}
+	vectorScore := map[string]float64{}
 	if len(qEmb) > 0 {
 		for _, st := range []*store.Store{e.Repo, e.Home} {
 			if st == nil {
@@ -81,6 +92,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			for i, row := range ranked {
 				if _, ok := vectorRank[row.RecordID]; !ok {
 					vectorRank[row.RecordID] = i + 1
+					vectorScore[row.RecordID] = row.Score
 				}
 			}
 		}
@@ -90,10 +102,15 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	for id := range ftsRank {
 		ids = append(ids, id)
 	}
-	for id := range vectorRank {
-		if _, ok := ftsRank[id]; !ok {
-			ids = append(ids, id)
+	for id, score := range vectorScore {
+		if _, ok := ftsRank[id]; ok {
+			continue
 		}
+		if score < vectorOnlyMinCosine {
+			delete(vectorRank, id)
+			continue
+		}
+		ids = append(ids, id)
 	}
 	recs, err := e.lookupRecords(ids)
 	if err != nil {
@@ -145,6 +162,21 @@ func overlayWins(candidate, existing Result) bool {
 		return cp > ep
 	}
 	return candidate.Score > existing.Score
+}
+
+func searchFilter(opts Options) (store.RecordFilter, error) {
+	f := store.RecordFilter{Type: opts.Type, Scope: opts.Scope}
+	if opts.Status == "" {
+		f.ExcludeRetired = true
+		return f, nil
+	}
+	switch opts.Status {
+	case record.StatusProposed, record.StatusAccepted, record.StatusDeprecated, record.StatusSuperseded:
+		f.Status = opts.Status
+		return f, nil
+	default:
+		return f, fmt.Errorf("invalid status %q", opts.Status)
+	}
 }
 
 func hitSource(ftsRank, vectorRank int) string {

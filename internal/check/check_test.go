@@ -66,6 +66,31 @@ func TestStrictViolationOnlyOnAppliesTo(t *testing.T) {
 	}
 }
 
+func TestCheckSkipsRetiredRules(t *testing.T) {
+	st := openStore(t)
+	mustRule(t, st, &record.Record{
+		ID: "rec_old_must", Slug: "old-must", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Retired must", Status: record.StatusSuperseded,
+		Severity: record.SeverityMust, Body: "retiredphrase unique",
+		SourcePath: "docs/global-decisions/old-must.md", AppliesTo: []string{"internal/store/**"},
+	})
+	engine := &retrieve.Engine{Repo: st}
+	glob, err := Run(context.Background(), engine, nil, Options{Paths: []string{"internal/store/fts.go"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if glob.HasViolation || len(glob.Matches) != 0 {
+		t.Fatalf("retired applies_to should not match: %+v", glob)
+	}
+	semantic, err := Run(context.Background(), engine, nil, Options{Description: "retiredphrase unique"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(semantic.Matches) != 0 {
+		t.Fatalf("retired semantic hit: %+v", semantic.Matches)
+	}
+}
+
 func TestPathsFromDiffSkipsDevNullAndReadsGitHeader(t *testing.T) {
 	diff := "" +
 		"diff --git a/internal/store/old.go b/internal/store/old.go\n" +

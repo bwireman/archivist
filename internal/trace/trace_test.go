@@ -198,6 +198,78 @@ func TestBuildSinceOverlap(t *testing.T) {
 	}
 }
 
+func TestBuildVectorOnlyExcluded(t *testing.T) {
+	at := time.Date(2026, 10, 4, 18, 0, 0, 0, time.UTC)
+	vec := roundTrip(t, []retrieve.Result{{
+		Record: &record.Record{ID: "rec_miss", Title: "Reinstall rules", Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+		Source: "vector",
+	}})
+	entries := call("search", at, map[string]any{"query": "porter"}, vec)
+	entries = append(entries, call("get", at.Add(time.Minute), map[string]any{"id": "rec_miss"}, map[string]any{
+		"ID": "rec_miss", "Title": "Reinstall rules",
+	})...)
+	rep, err := Build(entries, Options{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.VectorOnly) != 1 || rep.VectorOnly[0].Query != "porter" {
+		t.Fatalf("vector-only: %+v", rep.VectorOnly)
+	}
+	if len(rep.FollowGets) != 1 || rep.FollowGets[0].ID != "rec_miss" {
+		t.Fatalf("follow: %+v", rep.FollowGets)
+	}
+	if rep.Retrieved != 1 || rep.Cited != 0 {
+		t.Fatalf("cited %d retrieved %d", rep.Cited, rep.Retrieved)
+	}
+
+	joinEntries := call("search", at, map[string]any{"query": "porter"}, vec)
+	joinEntries = append(joinEntries, call("cite", at.Add(time.Minute), map[string]any{"id": "rec_hit", "effect": "used it"}, map[string]any{
+		"id": "rec_hit", "effect": "used it",
+	})...)
+	cat := fakeCat{
+		recs: map[string]*record.Record{
+			"rec_hit": {ID: "rec_hit", Title: "Command log", Type: record.TypeFeature, Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+		},
+		rules: []*record.Record{
+			{ID: "rec_miss", Title: "Reinstall rules", Type: record.TypeRule, Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+		},
+	}
+	joined, err := Build(joinEntries, Options{Since: "HEAD", Paths: []string{"internal/cmd/foo.go"}}, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(joined.Overlap) != 1 || joined.Overlap[0].ID != "rec_hit" {
+		t.Fatalf("overlap: %+v", joined.Overlap)
+	}
+	if len(joined.MissedRules) != 1 || joined.MissedRules[0].ID != "rec_miss" {
+		t.Fatalf("missed: %+v", joined.MissedRules)
+	}
+	if joined.Retrieved != 0 || joined.Cited != 1 {
+		t.Fatalf("cited %d retrieved %d", joined.Cited, joined.Retrieved)
+	}
+
+	wide := make([]string, 31)
+	for i := range wide {
+		wide[i] = "internal/cmd/f.go"
+	}
+	wideRep, err := Build(joinEntries, Options{Since: "HEAD", Paths: wide}, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !wideRep.WideDiff || !strings.Contains(Format(wideRep), "overlap is coarse") {
+		t.Fatalf("wide: %+v\n%s", wideRep.WideDiff, Format(wideRep))
+	}
+	narrow := make([]string, 30)
+	copy(narrow, wide)
+	narrowRep, err := Build(joinEntries, Options{Since: "HEAD", Paths: narrow}, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if narrowRep.WideDiff {
+		t.Fatal("30 paths should not be a wide diff")
+	}
+}
+
 func TestPrepareCite(t *testing.T) {
 	if _, err := PrepareCite(false, "kept it"); err != ErrCiteDisabled {
 		t.Fatalf("got %v", err)

@@ -49,6 +49,9 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 			return nil, err
 		}
 		for _, r := range rules {
+			if r.Retired() {
+				continue
+			}
 			if len(paths) > 0 && r.MatchesPaths(paths) {
 				addMatch(&matches, seen, r, ReasonAppliesTo)
 			}

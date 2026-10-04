@@ -229,3 +229,11 @@ func (r *Record) MatchesPaths(paths []string) bool {
 func (r *Record) IsEnforceable() bool {
 	return r.Type == TypeRule && (r.Severity == SeverityMust || r.Severity == SeverityMustNot)
 }
+
+// Retired reports a superseded or deprecated record. Empty status is current.
+func (r *Record) Retired() bool {
+	if r == nil {
+		return false
+	}
+	return r.Status == StatusSuperseded || r.Status == StatusDeprecated
+}

@@ -145,7 +145,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 | Tool | Purpose |
 | --- | --- |
-| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `top_k`). Use before implementing or writing a record. |
+| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `status`, `top_k`). Default omits deprecated and superseded. Use before implementing or writing a record. |
 | `get` | One record by id or slug |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`) |
@@ -213,11 +213,11 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
 | `archivist index` | no | Index code map + git history (feeds `map`) |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
-| `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs) |
+| `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs; `--status` to include a retired status) |
 | `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits |
 | `archivist check` | optional | Match rules to a change |
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
-| `archivist trace` | no | Digest `commands.log`; `--since` joins retrieved records to a git diff |
+| `archivist trace` | no | Digest `commands.log`; `--since` joins consulted records to a git diff |
 | `archivist remember` | no | Create a record in SQLite (no markdown file) |
 | `archivist update` / `retire` | no | Amend or supersede |
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |
@@ -275,7 +275,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 - Empty `records.global` is `~/.archivist` (import walk for top-level `.md`, skip `records/` and `archive.db`). Set a checkout-relative directory (this repo uses `docs/global-decisions`) if you want an in-repo import drop folder for product-wide records. SQLite remains canonical; committing markdown is optional.
 - `records.write_docs` (default false) controls whether `archivist export` writes `records.export`. `--bundle` and publish ignore the flag.
 - SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
-- `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the parsed result or error (CLI and MCP, clipped at 64KiB). `init`, `version`, `skills`, `trace`, and the `mcp` process itself are not logged (MCP tools still are, including `cite`). Logging never fails the command. `archivist cite` errors when the flag is off. `archivist trace` reads the log and, with `--since`, reports retrieved records whose `applies_to` overlaps the diff.
+- `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the parsed result or error (CLI and MCP, clipped at 64KiB). `init`, `version`, `skills`, `trace`, and the `mcp` process itself are not logged (MCP tools still are, including `cite`). Logging never fails the command. `archivist cite` errors when the flag is off. `archivist trace` reads the log and, with `--since`, reports consulted records (get, cite, check, and hybrid or keyword search hits) whose `applies_to` overlaps the diff. Vector-only search hits are listed and left out of that join.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
 
 ## Agent rules and skills

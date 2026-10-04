@@ -57,6 +57,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("scope"),
+		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
 		mcp.WithNumber("top_k"),
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
@@ -214,6 +215,9 @@ func (s *Server) toolSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	}
 	if sc := req.GetString("scope", ""); sc != "" {
 		opts.Scope = record.Scope(sc)
+	}
+	if st := req.GetString("status", ""); st != "" {
+		opts.Status = record.Status(st)
 	}
 	results, err := s.Engine.Search(ctx, s.Embedder, opts)
 	if err != nil {
