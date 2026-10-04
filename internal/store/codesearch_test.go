@@ -77,7 +77,7 @@ func TestSearchTreatsWildcardsAsLiterals(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, q := range []string{"%", "_", `\` } {
+	for _, q := range []string{"%", "_", `\`} {
 		syms, err := st.SearchSymbols(q, 10)
 		if err != nil {
 			t.Fatal(err)
