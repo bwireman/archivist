@@ -39,6 +39,16 @@ func ValidType(t Type) bool {
 	}
 }
 
+// ValidStatus reports whether s is a known record status.
+func ValidStatus(s Status) bool {
+	switch s {
+	case StatusProposed, StatusAccepted, StatusDeprecated, StatusSuperseded:
+		return true
+	default:
+		return false
+	}
+}
+
 type Scope string
 
 const (
@@ -168,9 +178,7 @@ func (r *Record) Validate() error {
 	if r.Status == "" {
 		r.Status = StatusAccepted
 	}
-	switch r.Status {
-	case StatusProposed, StatusAccepted, StatusDeprecated, StatusSuperseded:
-	default:
+	if !ValidStatus(r.Status) {
 		return fmt.Errorf("invalid status %q", r.Status)
 	}
 	if r.Type == TypeRule && r.Severity != "" {
@@ -230,10 +238,7 @@ func (r *Record) IsEnforceable() bool {
 	return r.Type == TypeRule && (r.Severity == SeverityMust || r.Severity == SeverityMustNot)
 }
 
-// Retired reports a superseded or deprecated record. Empty status is current.
+// Empty status is current.
 func (r *Record) Retired() bool {
-	if r == nil {
-		return false
-	}
 	return r.Status == StatusSuperseded || r.Status == StatusDeprecated
 }

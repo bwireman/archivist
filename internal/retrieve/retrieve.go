@@ -17,11 +17,16 @@ import (
 
 const DefaultTopK = 20
 
-// vectorOnlyMinCosine drops vector-only hits below this cosine.
 // Measured 2026-10-04: off-topic tops (porter, dungeon, Go style) were at most 0.41.
 // A paraphrase of the command-log feature with no FTS hit scored 0.55.
 // Hybrid and keyword hits are not filtered.
 const vectorOnlyMinCosine = 0.50
+
+const (
+	SourceFTS    = "fts"
+	SourceVector = "vector"
+	SourceHybrid = "hybrid"
+)
 
 type Options struct {
 	TopK   int
@@ -79,7 +84,6 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	}
 
 	vectorRank := map[string]int{}
-	vectorScore := map[string]float64{}
 	if len(qEmb) > 0 {
 		for _, st := range []*store.Store{e.Repo, e.Home} {
 			if st == nil {
@@ -90,10 +94,15 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 				return nil, err
 			}
 			for i, row := range ranked {
-				if _, ok := vectorRank[row.RecordID]; !ok {
-					vectorRank[row.RecordID] = i + 1
-					vectorScore[row.RecordID] = row.Score
+				if _, ok := vectorRank[row.RecordID]; ok {
+					continue
 				}
+				// Keep the original rank index. A weak vector-only hit is omitted
+				// rather than compacted, so later hits keep the rank they earned.
+				if _, inFTS := ftsRank[row.RecordID]; !inFTS && row.Score < vectorOnlyMinCosine {
+					continue
+				}
+				vectorRank[row.RecordID] = i + 1
 			}
 		}
 	}
@@ -102,15 +111,10 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	for id := range ftsRank {
 		ids = append(ids, id)
 	}
-	for id, score := range vectorScore {
-		if _, ok := ftsRank[id]; ok {
-			continue
+	for id := range vectorRank {
+		if _, ok := ftsRank[id]; !ok {
+			ids = append(ids, id)
 		}
-		if score < vectorOnlyMinCosine {
-			delete(vectorRank, id)
-			continue
-		}
-		ids = append(ids, id)
 	}
 	recs, err := e.lookupRecords(ids)
 	if err != nil {
@@ -170,23 +174,21 @@ func searchFilter(opts Options) (store.RecordFilter, error) {
 		f.ExcludeRetired = true
 		return f, nil
 	}
-	switch opts.Status {
-	case record.StatusProposed, record.StatusAccepted, record.StatusDeprecated, record.StatusSuperseded:
-		f.Status = opts.Status
-		return f, nil
-	default:
+	if !record.ValidStatus(opts.Status) {
 		return f, fmt.Errorf("invalid status %q", opts.Status)
 	}
+	f.Status = opts.Status
+	return f, nil
 }
 
 func hitSource(ftsRank, vectorRank int) string {
 	switch {
 	case vectorRank == 0:
-		return "fts"
+		return SourceFTS
 	case ftsRank == 0:
-		return "vector"
+		return SourceVector
 	default:
-		return "hybrid"
+		return SourceHybrid
 	}
 }
 

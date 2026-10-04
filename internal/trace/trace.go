@@ -11,6 +11,7 @@ import (
 
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/record"
+	"github.com/bwireman/archivist/internal/retrieve"
 )
 
 const followWindow = 30 * time.Minute
@@ -117,7 +118,6 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 	retrieved := map[string]struct{}{}
 	consulted := map[string]struct{}{}
 	var consultedOrder []string
-	appeared := map[string]struct{}{}
 	meta := map[string]idMeta{}
 	cited := map[string]struct{}{}
 
@@ -128,7 +128,6 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 		if id == "" {
 			return
 		}
-		appeared[id] = struct{}{}
 		if prev, ok := meta[id]; ok {
 			if m.title == "" {
 				m.title = prev.title
@@ -175,10 +174,10 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 					for _, h := range hits {
 						ev.ids[h.id] = struct{}{}
 						switch strings.ToLower(h.source) {
-						case "fts":
+						case retrieve.SourceFTS:
 							allVector = false
 							addConsulted(h.id, idMeta{title: h.title, applies: h.applies}, true)
-						case "vector":
+						case retrieve.SourceVector:
 							allFTS = false
 						default:
 							allFTS = false
@@ -283,7 +282,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 					if !currentRule(r) {
 						continue
 					}
-					if _, ok := appeared[r.ID]; ok {
+					if _, ok := consulted[r.ID]; ok {
 						continue
 					}
 					if !r.MatchesPaths(opts.Paths) {
