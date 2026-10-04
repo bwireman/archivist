@@ -14,7 +14,7 @@ func newEmbedCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "embed",
 		Short: "Embed queued records via Ollama",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err

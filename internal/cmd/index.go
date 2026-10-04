@@ -14,7 +14,7 @@ func newIndexCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "index",
 		Short: "Index code structure and git history (no Ollama required)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err
@@ -36,7 +36,7 @@ func newIndexCmd() *cobra.Command {
 			progress, err := idx.Index(cmd.Context(), scope)
 			if err != nil {
 				if errors.Is(err, context.Canceled) {
-					return fmt.Errorf("indexing cancelled")
+					return fmt.Errorf("indexing cancelled: %w", err)
 				}
 				return err
 			}

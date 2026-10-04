@@ -1,3 +1,4 @@
+// Package check matches rule records against a described change.
 package check
 
 import (
@@ -108,7 +109,7 @@ func pathsFromDiff(diff string) []string {
 		return nil
 	}
 	var paths []string
-	for _, line := range strings.Split(diff, "\n") {
+	for line := range strings.SplitSeq(diff, "\n") {
 		line = strings.TrimRight(line, "\r")
 		switch {
 		case strings.HasPrefix(line, "diff --git "):

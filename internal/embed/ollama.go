@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -44,7 +45,10 @@ func (c *OllamaClient) Healthy(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return fmt.Errorf("ollama health check failed: %w", err)
+		}
 		return fmt.Errorf("ollama health check failed: %s", string(body))
 	}
 	return nil
@@ -84,7 +88,10 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		b, _ := io.ReadAll(resp.Body)
+		b, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("embed failed: %w", err)
+		}
 		return nil, fmt.Errorf("embed failed: %s", string(b))
 	}
 	var out embedResponse
@@ -92,7 +99,7 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 		return nil, err
 	}
 	if len(out.Embedding) == 0 {
-		return nil, fmt.Errorf("embed returned an empty vector")
+		return nil, errors.New("embed returned an empty vector")
 	}
 	return out.Embedding, nil
 }
@@ -102,7 +109,7 @@ type FakeEmbedder struct {
 	Dim int
 }
 
-func (f *FakeEmbedder) Embed(ctx context.Context, text string) ([]float32, error) {
+func (f *FakeEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
 	dim := f.Dim
 	if dim == 0 {
 		dim = 8

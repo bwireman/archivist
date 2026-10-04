@@ -1,9 +1,11 @@
+// Package record defines archive records and their markdown form.
 package record
 
 import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -126,7 +128,9 @@ func SlugFromPath(path string) string {
 // NewID generates a stable-looking record id.
 func NewID() string {
 	var b [10]byte
-	_, _ = rand.Read(b[:])
+	if _, err := rand.Read(b[:]); err != nil {
+		panic(err)
+	}
 	return "rec_" + hex.EncodeToString(b[:])
 }
 
@@ -150,13 +154,13 @@ func ContentHash(r *Record) string {
 
 func (r *Record) Validate() error {
 	if r.Type == "" {
-		return fmt.Errorf("record type is required")
+		return errors.New("record type is required")
 	}
 	if !ValidType(r.Type) {
 		return fmt.Errorf("invalid record type %q", r.Type)
 	}
 	if r.Scope == "" {
-		return fmt.Errorf("record scope is required")
+		return errors.New("record scope is required")
 	}
 	switch r.Scope {
 	case ScopeDev, ScopeRepo, ScopeGlobal:
@@ -179,13 +183,13 @@ func (r *Record) Validate() error {
 		}
 	}
 	if r.Title == "" {
-		return fmt.Errorf("record title is required")
+		return errors.New("record title is required")
 	}
 	if r.Slug == "" {
 		r.Slug = SlugFromPath(r.SourcePath)
 	}
 	if r.Slug == "" || r.Slug == "." {
-		return fmt.Errorf("record slug is required")
+		return errors.New("record slug is required")
 	}
 	return nil
 }

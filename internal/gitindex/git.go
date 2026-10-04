@@ -1,3 +1,4 @@
+// Package gitindex reads commit history and gitignore rules.
 package gitindex
 
 import (

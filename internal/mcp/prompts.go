@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -40,7 +41,7 @@ func (p addPrompt) handle(_ context.Context, req mcp.GetPromptRequest) (*mcp.Get
 	args := req.Params.Arguments
 	topic := strings.TrimSpace(args["topic"])
 	if topic == "" {
-		return nil, fmt.Errorf("topic is required")
+		return nil, errors.New("topic is required")
 	}
 	scope := strings.TrimSpace(args["scope"])
 	return mcp.NewGetPromptResult(p.title, []mcp.PromptMessage{

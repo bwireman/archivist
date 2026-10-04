@@ -1,3 +1,4 @@
+// Package publish runs a configured destination command on an export bundle.
 package publish
 
 import (

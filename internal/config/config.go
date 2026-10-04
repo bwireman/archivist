@@ -1,3 +1,4 @@
+// Package config loads and saves .archivist.json.
 package config
 
 import (
@@ -28,9 +29,9 @@ const (
 
 type Config struct {
 	Ollama      OllamaConfig  `json:"ollama"`
-	Index       IndexConfig   `json:"index,omitempty"`
+	Index       IndexConfig   `json:"index,omitzero"`
 	Records     RecordsConfig `json:"records"`
-	Publish     PublishConfig `json:"publish,omitempty"`
+	Publish     PublishConfig `json:"publish,omitzero"`
 	LogCommands bool          `json:"log_commands,omitempty"`
 }
 

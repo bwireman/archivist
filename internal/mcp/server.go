@@ -1,3 +1,4 @@
+// Package mcp serves the archive over MCP stdio.
 package mcp
 
 import (
@@ -132,10 +133,10 @@ func annotate(title string, readOnly, destructive, idempotent bool) mcp.ToolOpti
 func toolAnnotation(title string, readOnly, destructive, idempotent bool) mcp.ToolAnnotation {
 	return mcp.ToolAnnotation{
 		Title:           title,
-		ReadOnlyHint:    mcp.ToBoolPtr(readOnly),
-		DestructiveHint: mcp.ToBoolPtr(destructive),
-		IdempotentHint:  mcp.ToBoolPtr(idempotent),
-		OpenWorldHint:   mcp.ToBoolPtr(false),
+		ReadOnlyHint:    new(readOnly),
+		DestructiveHint: new(destructive),
+		IdempotentHint:  new(idempotent),
+		OpenWorldHint:   new(false),
 	}
 }
 

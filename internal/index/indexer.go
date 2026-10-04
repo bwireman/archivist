@@ -1,3 +1,4 @@
+// Package index walks a checkout into the code map and commit tables.
 package index
 
 import (

@@ -1,12 +1,14 @@
+// Package export writes the generated markdown archive.
 package export
 
 import (
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -83,11 +85,11 @@ func collectRecords(repo, home *store.Store) ([]*record.Record, error) {
 		}
 		all = append(all, recs...)
 	}
-	sort.Slice(all, func(i, j int) bool {
-		if all[i].Type != all[j].Type {
-			return all[i].Type < all[j].Type
+	slices.SortFunc(all, func(a, b *record.Record) int {
+		if a.Type != b.Type {
+			return cmp.Compare(a.Type, b.Type)
 		}
-		return all[i].Title < all[j].Title
+		return cmp.Compare(a.Title, b.Title)
 	})
 	return all, nil
 }

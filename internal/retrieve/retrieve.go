@@ -1,10 +1,13 @@
+// Package retrieve searches records with full-text search and embeddings.
 package retrieve
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"maps"
 	"os"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/bwireman/archivist/internal/embed"
@@ -124,11 +127,11 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	}
 	// Ids come out of map iteration, so break score ties on id to keep the
 	// same query returning the same ordering.
-	sort.Slice(results, func(i, j int) bool {
-		if results[i].Score != results[j].Score {
-			return results[i].Score > results[j].Score
+	slices.SortFunc(results, func(a, b Result) int {
+		if a.Score != b.Score {
+			return cmp.Compare(b.Score, a.Score)
 		}
-		return results[i].Record.ID < results[j].Record.ID
+		return cmp.Compare(a.Record.ID, b.Record.ID)
 	})
 	if len(results) > opts.TopK {
 		results = results[:opts.TopK]
@@ -181,9 +184,7 @@ func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, error) 
 		if err != nil {
 			return nil, err
 		}
-		for id, rec := range found {
-			out[id] = rec
-		}
+		maps.Copy(out, found)
 	}
 	return out, nil
 }

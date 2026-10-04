@@ -1,9 +1,11 @@
+// Package codemap extracts symbols and imports from source files.
 package codemap
 
 import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"unicode"
@@ -117,8 +119,11 @@ func parserFor(lang *sitter.Language) *sitter.Parser {
 func extractTreeSitter(path, content string, spec languageSpec, ext string) (Result, error) {
 	parser := parserFor(spec.lang)
 	tree, err := parser.ParseCtx(context.Background(), nil, []byte(content))
-	if err != nil || tree == nil {
-		return Result{}, fmt.Errorf("parse %s", path)
+	if err != nil {
+		return Result{}, fmt.Errorf("parse %s: %w", path, err)
+	}
+	if tree == nil {
+		return Result{}, fmt.Errorf("parse %s: empty tree", path)
 	}
 	defer tree.Close()
 
@@ -227,12 +232,12 @@ func firstDocLine(lines []string, symLine int) string {
 		if line == "" || strings.HasPrefix(line, "@") {
 			continue
 		}
-		if strings.HasPrefix(line, "//") {
-			doc := strings.TrimSpace(strings.TrimPrefix(line, "//"))
+		if doc, ok := strings.CutPrefix(line, "//"); ok {
+			doc = strings.TrimSpace(doc)
 			return strings.TrimSpace(strings.TrimPrefix(doc, "/"))
 		}
-		if strings.HasPrefix(line, "#") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "#"))
+		if doc, ok := strings.CutPrefix(line, "#"); ok {
+			return strings.TrimSpace(doc)
 		}
 		if !strings.HasPrefix(line, "/*") {
 			break
@@ -257,10 +262,5 @@ func IsBinary(data []byte) bool {
 	if !utf8.Valid(data) {
 		return true
 	}
-	for _, b := range data {
-		if b == 0 {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(data, 0)
 }

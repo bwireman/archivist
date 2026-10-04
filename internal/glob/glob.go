@@ -1,3 +1,4 @@
+// Package glob matches path patterns, including **.
 package glob
 
 import (

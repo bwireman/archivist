@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -93,7 +93,7 @@ func gitLines(repoRoot string, args ...string) ([]string, error) {
 		return nil, err
 	}
 	var lines []string
-	for _, line := range strings.Split(out, "\n") {
+	for line := range strings.SplitSeq(out, "\n") {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			lines = append(lines, line)
@@ -106,8 +106,7 @@ func gitOutput(repoRoot string, args ...string) (string, error) {
 	cmd := exec.Command("git", append([]string{"-C", repoRoot}, args...)...)
 	out, err := cmd.Output()
 	if err != nil {
-		var exit *exec.ExitError
-		if errors.As(err, &exit) {
+		if exit, ok := errors.AsType[*exec.ExitError](err); ok {
 			msg := strings.TrimSpace(string(exit.Stderr))
 			if msg == "" {
 				msg = err.Error()
@@ -129,6 +128,6 @@ func uniqueSorted(paths []string) []string {
 		seen[p] = struct{}{}
 		out = append(out, p)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }

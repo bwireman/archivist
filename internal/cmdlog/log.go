@@ -1,3 +1,4 @@
+// Package cmdlog appends JSONL command traces when logging is enabled.
 package cmdlog
 
 import (
@@ -92,7 +93,7 @@ func (l *Logger) append(e Entry) {
 		return
 	}
 	defer f.Close()
-	_, _ = f.Write(data)
+	_, _ = f.Write(data) // best-effort; a log failure must not fail the command
 }
 
 func clip(v any) any {

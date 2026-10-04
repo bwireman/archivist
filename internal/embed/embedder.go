@@ -1,3 +1,4 @@
+// Package embed calls an embedding model and drains the embed queue.
 package embed
 
 import (

@@ -1,6 +1,7 @@
 package record
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -136,21 +137,17 @@ func splitFrontMatter(content string) (string, string, error) {
 	} else {
 		return "", content, nil
 	}
-	end := strings.Index(rest, "\n---")
-	if end < 0 {
-		return "", content, fmt.Errorf("unclosed front matter")
+	fm, body, ok := strings.Cut(rest, "\n---")
+	if !ok {
+		return "", content, errors.New("unclosed front matter")
 	}
-	fm := rest[:end]
-	body := rest[end+4:]
-	if strings.HasPrefix(body, "\n") {
-		body = body[1:]
-	}
+	body = strings.TrimPrefix(body, "\n")
 	return fm, body, nil
 }
 
 func parseYAMLMap(fm string) map[string]string {
 	out := map[string]string{}
-	for _, line := range strings.Split(fm, "\n") {
+	for line := range strings.SplitSeq(fm, "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
@@ -165,12 +162,12 @@ func parseYAMLMap(fm string) map[string]string {
 }
 
 func splitYAMLLine(line string) (string, string, bool) {
-	i := strings.Index(line, ":")
-	if i < 0 {
+	key, val, ok := strings.Cut(line, ":")
+	if !ok {
 		return "", "", false
 	}
-	key := strings.TrimSpace(line[:i])
-	val := strings.TrimSpace(line[i+1:])
+	key = strings.TrimSpace(key)
+	val = strings.TrimSpace(val)
 	return key, val, key != ""
 }
 
@@ -204,7 +201,7 @@ func parseInlineList(s string) []string {
 		return nil
 	}
 	var out []string
-	for _, part := range strings.Split(s, ",") {
+	for part := range strings.SplitSeq(s, ",") {
 		part = strings.TrimSpace(part)
 		part = unquoteYAML(part)
 		if part != "" {
@@ -226,10 +223,10 @@ func formatInlineList(items []string) string {
 }
 
 func TitleFromBody(body string) string {
-	for _, line := range strings.Split(body, "\n") {
+	for line := range strings.SplitSeq(body, "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "# ") {
-			return strings.TrimSpace(strings.TrimPrefix(line, "# "))
+		if title, ok := strings.CutPrefix(line, "# "); ok {
+			return strings.TrimSpace(title)
 		}
 	}
 	first := strings.TrimSpace(body)

@@ -10,7 +10,7 @@ func newMCPCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "mcp",
 		Short: "Start the MCP server over stdio",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err

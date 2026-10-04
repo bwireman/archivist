@@ -1,3 +1,4 @@
+// Package version reports the archivist build version.
 package version
 
 import "runtime/debug"

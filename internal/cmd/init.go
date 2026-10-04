@@ -15,7 +15,7 @@ func newInitCmd() *cobra.Command {
 		Use:   "init",
 		Short: "Initialize archivist config and data directory",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, err := repoRoot()
 			if err != nil {
 				return err
@@ -58,7 +58,9 @@ func applyInit(root string, cfg *config.Config) error {
 			return err
 		}
 	} else if dir := cfg.Records.GlobalDir(root); dir != "" {
-		_ = os.MkdirAll(dir, 0o755)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
 	}
 	if cfg.Records.WriteDocs {
 		if err := os.MkdirAll(filepath.Join(root, cfg.Records.Export), 0o755); err != nil {
@@ -66,7 +68,9 @@ func applyInit(root string, cfg *config.Config) error {
 		}
 	}
 	if dir := cfg.DevRecordsDir(); dir != "" {
-		_ = os.MkdirAll(dir, 0o755)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
 	}
 	if err := appendGitignore(filepath.Join(root, ".gitignore"), ".archivist/\n"); err != nil {
 		return err

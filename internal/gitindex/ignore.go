@@ -68,7 +68,7 @@ func LoadGitignore(repoRoot string) (*Ignore, error) {
 func ParseGitignore(content string) *Ignore {
 	ig := &Ignore{}
 	var pats []ignorePat
-	for _, line := range strings.Split(content, "\n") {
+	for line := range strings.SplitSeq(content, "\n") {
 		p, ok := parseIgnoreLine(line)
 		if !ok {
 			continue
@@ -166,9 +166,7 @@ func parseIgnoreLine(line string) (ignorePat, bool) {
 	if line == "" || strings.HasPrefix(line, "#") {
 		return ignorePat{}, false
 	}
-	if strings.HasPrefix(line, `\`) {
-		line = line[1:]
-	}
+	line = strings.TrimPrefix(line, `\`)
 	negate := false
 	if strings.HasPrefix(line, "!") {
 		negate = true

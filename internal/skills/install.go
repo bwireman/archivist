@@ -1,3 +1,4 @@
+// Package skills installs agent rules, skills, and the git hook.
 package skills
 
 import (
@@ -10,7 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/bwireman/archivist/internal/version"
@@ -308,7 +309,7 @@ func sortedKeys(files map[string][]byte) []string {
 	for k := range files {
 		keys = append(keys, k)
 	}
-	sort.Strings(keys)
+	slices.Sort(keys)
 	return keys
 }
 

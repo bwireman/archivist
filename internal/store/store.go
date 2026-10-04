@@ -1,6 +1,8 @@
+// Package store persists the archive and code map in SQLite.
 package store
 
 import (
+	"cmp"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -8,13 +10,13 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/bwireman/archivist/internal/record"
 
-	_ "modernc.org/sqlite"
+	_ "modernc.org/sqlite" // register the database/sql driver
 )
 
 const (
@@ -60,7 +62,7 @@ func (s *Store) Close() error {
 // in the filesystem path.
 func sqliteDSN(path string) (string, error) {
 	if strings.ContainsAny(path, "?#") {
-		return "", fmt.Errorf("sqlite path must not contain ? or #")
+		return "", errors.New("sqlite path must not contain ? or #")
 	}
 	q := url.Values{}
 	q.Set("_busy_timeout", "5000")
@@ -268,8 +270,14 @@ func scanRecord(row scanner) (*record.Record, error) {
 	r.Tags = decodeJSONList(tags.String)
 	r.AppliesTo = decodeJSONList(applies.String)
 	r.Supersedes = decodeJSONList(supersedes.String)
-	r.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	r.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	r.CreatedAt, err = time.Parse(time.RFC3339, createdAt)
+	if err != nil {
+		return nil, fmt.Errorf("record %s created_at: %w", r.ID, err)
+	}
+	r.UpdatedAt, err = time.Parse(time.RFC3339, updatedAt)
+	if err != nil {
+		return nil, fmt.Errorf("record %s updated_at: %w", r.ID, err)
+	}
 	return &r, nil
 }
 
@@ -289,7 +297,7 @@ func (s *Store) UpsertRecord(r *record.Record) error {
 		}
 	}
 	if r.ID == "" {
-		return fmt.Errorf("record id is required")
+		return errors.New("record id is required")
 	}
 	if r.ContentHash == "" {
 		r.ContentHash = record.ContentHash(r)
@@ -569,7 +577,7 @@ func (s *Store) RankEmbeddings(query []float32, filter RecordFilter, limit int) 
 	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	sort.Slice(ranked, func(i, j int) bool { return ranked[i].score > ranked[j].score })
+	slices.SortFunc(ranked, func(a, b scored) int { return cmp.Compare(b.score, a.score) })
 	if len(ranked) > limit {
 		ranked = ranked[:limit]
 	}
@@ -616,7 +624,10 @@ FROM embed_queue ORDER BY enqueued_at`
 		if err := rows.Scan(&item.RecordID, &item.TextHash, &at, &item.Attempts, &item.LastError); err != nil {
 			return nil, err
 		}
-		item.EnqueuedAt, _ = time.Parse(time.RFC3339, at)
+		item.EnqueuedAt, err = time.Parse(time.RFC3339, at)
+		if err != nil {
+			return nil, fmt.Errorf("embed queue %s enqueued_at: %w", item.RecordID, err)
+		}
 		out = append(out, item)
 	}
 	return out, rows.Err()

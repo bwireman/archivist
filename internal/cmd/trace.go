@@ -19,7 +19,7 @@ func newTraceCmd() *cobra.Command {
 		Use:   "trace",
 		Short: "Report whether archive lookups showed up in later work",
 		Args:  cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err

@@ -1,8 +1,10 @@
+// Package trace reports whether archive lookups showed up in later work.
 package trace
 
 import (
+	"cmp"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -28,7 +30,7 @@ type Options struct {
 
 // QueryRef is one digest row that came from a tool call.
 type QueryRef struct {
-	At     time.Time `json:"at,omitempty"`
+	At     time.Time `json:"at,omitzero"`
 	Query  string    `json:"query,omitempty"`
 	ID     string    `json:"id,omitempty"`
 	Title  string    `json:"title,omitempty"`
@@ -38,7 +40,7 @@ type QueryRef struct {
 
 // CiteHit is one cite call.
 type CiteHit struct {
-	At     time.Time `json:"at,omitempty"`
+	At     time.Time `json:"at,omitzero"`
 	ID     string    `json:"id"`
 	Effect string    `json:"effect,omitempty"`
 }
@@ -265,8 +267,8 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 						ID: r.ID, Title: r.Title, AppliesTo: append([]string(nil), r.AppliesTo...),
 					})
 				}
-				sort.Slice(rep.MissedRules, func(i, j int) bool {
-					return rep.MissedRules[i].ID < rep.MissedRules[j].ID
+				slices.SortFunc(rep.MissedRules, func(a, b RecordHit) int {
+					return cmp.Compare(a.ID, b.ID)
 				})
 			}
 		}
@@ -663,7 +665,7 @@ func formatCounts(counts map[string]int) string {
 			extra = append(extra, name)
 		}
 	}
-	sort.Strings(extra)
+	slices.Sort(extra)
 	for _, name := range extra {
 		parts = append(parts, fmt.Sprintf("%s %d", name, counts[name]))
 	}

@@ -1,3 +1,4 @@
+// Package archive creates, updates, retires, and imports records.
 package archive
 
 import (

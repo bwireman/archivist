@@ -62,9 +62,10 @@ func (w *Worker) queueDepth() int {
 			continue
 		}
 		d, err := st.QueueDepth()
-		if err == nil {
-			n += d
+		if err != nil {
+			continue
 		}
+		n += d
 	}
 	return n
 }

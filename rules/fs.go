@@ -1,3 +1,4 @@
+// Package rules embeds the always-on agent rule templates.
 package rules
 
 import "embed"

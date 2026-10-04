@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -21,7 +22,7 @@ func newRememberCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remember",
 		Short: "Create a new archive record in SQLite",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err
@@ -181,7 +182,7 @@ func newCheckCmd() *cobra.Command {
 				fmt.Printf("[%s] %s — %s (%s)\n", m.Severity, m.Record.Title, m.Reason, m.Record.SourcePath)
 			}
 			if strict && res.HasViolation {
-				return fmt.Errorf("enforceable rule violations found")
+				return errors.New("enforceable rule violations found")
 			}
 			return nil
 		},

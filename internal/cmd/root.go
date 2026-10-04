@@ -1,7 +1,9 @@
+// Package cmd implements the archivist CLI.
 package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -26,7 +28,7 @@ func NewRoot() *cobra.Command {
 		Short:         "Knowledge archive for design decisions and code structure",
 		SilenceUsage:  true,
 		SilenceErrors: true,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			ver, _ := cmd.Flags().GetBool("version")
 			if ver {
 				fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
@@ -70,7 +72,7 @@ func newVersionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "Print the version",
 		Args:  cobra.NoArgs,
-		Run: func(cmd *cobra.Command, args []string) {
+		Run: func(cmd *cobra.Command, _ []string) {
 			fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
 		},
 	}
@@ -128,7 +130,7 @@ func openStore(root string) (*store.Store, error) {
 func openHomeStore() (*store.Store, error) {
 	path := config.HomeStorePath()
 	if path == "" {
-		return nil, fmt.Errorf("cannot resolve home archive path (set $HOME)")
+		return nil, errors.New("cannot resolve home archive path (set $HOME)")
 	}
 	return store.Open(path)
 }
@@ -146,14 +148,14 @@ func openStores(root string) (*store.Store, *store.Store, error) {
 	return repo, home, nil
 }
 
-func appendGitignore(path, line string) error {
+func appendGitignore(path, line string) (err error) {
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	trimmed := strings.TrimSpace(line)
 	if err == nil {
-		for _, l := range strings.Split(string(data), "\n") {
+		for l := range strings.SplitSeq(string(data), "\n") {
 			if strings.TrimSpace(l) == trimmed {
 				return nil
 			}
@@ -163,9 +165,13 @@ func appendGitignore(path, line string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() {
+		if cerr := f.Close(); err == nil {
+			err = cerr
+		}
+	}()
 	if len(data) > 0 && data[len(data)-1] != '\n' {
-		if _, err := f.WriteString("\n"); err != nil {
+		if _, err = f.WriteString("\n"); err != nil {
 			return err
 		}
 	}
@@ -227,7 +233,7 @@ func newStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show archive and embedder status",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err

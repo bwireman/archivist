@@ -114,7 +114,7 @@ func TestCiteWritesLog(t *testing.T) {
 
 func rememberID(t *testing.T, data []byte) string {
 	t.Helper()
-	for _, line := range strings.Split(strings.TrimSpace(string(data)), "\n") {
+	for line := range strings.SplitSeq(strings.TrimSpace(string(data)), "\n") {
 		var e cmdlog.Entry
 		if err := json.Unmarshal([]byte(line), &e); err != nil {
 			t.Fatal(err)

@@ -119,7 +119,7 @@ func TestDequeueEmbedZeroLimitReturnsAll(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer st.Close()
-	for i := 0; i < 20; i++ {
+	for i := range 20 {
 		rec := &record.Record{
 			ID:         fmt.Sprintf("rec_%02d", i),
 			Slug:       fmt.Sprintf("rec-%02d", i),

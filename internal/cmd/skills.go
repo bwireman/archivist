@@ -15,7 +15,7 @@ func newSkillsCmd() *cobra.Command {
 	install := &cobra.Command{
 		Use:   "install",
 		Short: "Generate host-specific skill files",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			target, _ := cmd.Flags().GetString("target")
 			t, err := skills.ParseTarget(target)
 			if err != nil {

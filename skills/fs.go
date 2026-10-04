@@ -1,3 +1,4 @@
+// Package skills embeds the on-demand agent skill templates.
 package skills
 
 import "embed"

@@ -1,3 +1,4 @@
+// Command archivist is the knowledge-archive CLI.
 package main
 
 import (

@@ -116,7 +116,7 @@ func TestCommandLogMiddlewareWritesJSONL(t *testing.T) {
 	cfg := config.Default()
 	cfg.LogCommands = true
 	s := &Server{RepoRoot: dir, Cfg: cfg}
-	h := s.commandLogMiddleware()(func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	h := s.commandLogMiddleware()(func(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		return mcp.NewToolResultText(`{"ok":true}`), nil
 	})
 	req := mcp.CallToolRequest{}

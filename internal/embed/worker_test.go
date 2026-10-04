@@ -16,7 +16,7 @@ import (
 func TestWorkerOnceDrainsWholeQueue(t *testing.T) {
 	st := openStore(t)
 	const n = 20
-	for i := 0; i < n; i++ {
+	for i := range n {
 		upsertQueued(t, st, fmt.Sprintf("rec_%02d", i), fmt.Sprintf("Title %d", i))
 	}
 	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 8}, Model: "test"}
@@ -113,7 +113,7 @@ func TestWorkerFindsRecordOnOtherStore(t *testing.T) {
 
 func TestWorkerWithoutOnceDrainsQueue(t *testing.T) {
 	st := openStore(t)
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		upsertQueued(t, st, fmt.Sprintf("rec_%d", i), fmt.Sprintf("Title %d", i))
 	}
 	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 8}, Model: "test"}

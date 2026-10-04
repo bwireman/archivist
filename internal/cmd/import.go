@@ -11,7 +11,7 @@ func newImportCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "import",
 		Short: "Upsert typed markdown into SQLite (no prune)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			root, cfg, err := loadEnv()
 			if err != nil {
 				return err

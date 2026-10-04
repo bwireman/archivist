@@ -2,7 +2,7 @@ package store
 
 import (
 	"encoding/binary"
-	"fmt"
+	"errors"
 	"math"
 )
 
@@ -23,11 +23,11 @@ func decodeEmbedding(buf []byte) ([]float32, error) {
 		return nil, nil
 	}
 	if len(buf) < 4 {
-		return nil, fmt.Errorf("invalid embedding blob")
+		return nil, errors.New("invalid embedding blob")
 	}
 	n := binary.LittleEndian.Uint32(buf[:4])
 	if int(n)*4+4 != len(buf) {
-		return nil, fmt.Errorf("embedding size mismatch")
+		return nil, errors.New("embedding size mismatch")
 	}
 	emb := make([]float32, n)
 	for i := range emb {
