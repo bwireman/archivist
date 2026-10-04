@@ -86,10 +86,7 @@ func collectRecords(repo, home *store.Store) ([]*record.Record, error) {
 		all = append(all, recs...)
 	}
 	slices.SortFunc(all, func(a, b *record.Record) int {
-		if a.Type != b.Type {
-			return cmp.Compare(a.Type, b.Type)
-		}
-		return cmp.Compare(a.Title, b.Title)
+		return cmp.Or(cmp.Compare(a.Type, b.Type), cmp.Compare(a.Title, b.Title))
 	})
 	return all, nil
 }

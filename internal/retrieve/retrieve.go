@@ -128,10 +128,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	// Ids come out of map iteration, so break score ties on id to keep the
 	// same query returning the same ordering.
 	slices.SortFunc(results, func(a, b Result) int {
-		if a.Score != b.Score {
-			return cmp.Compare(b.Score, a.Score)
-		}
-		return cmp.Compare(a.Record.ID, b.Record.ID)
+		return cmp.Or(cmp.Compare(b.Score, a.Score), cmp.Compare(a.Record.ID, b.Record.ID))
 	})
 	if len(results) > opts.TopK {
 		results = results[:opts.TopK]

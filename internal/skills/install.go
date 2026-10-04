@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path"
 	"path/filepath"
@@ -305,12 +306,7 @@ func sha256Hex(data []byte) string {
 }
 
 func sortedKeys(files map[string][]byte) []string {
-	keys := make([]string, 0, len(files))
-	for k := range files {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
+	return slices.Sorted(maps.Keys(files))
 }
 
 func ruleFS(repoRoot string) fs.FS {

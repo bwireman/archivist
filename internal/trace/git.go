@@ -119,15 +119,5 @@ func gitOutput(repoRoot string, args ...string) (string, error) {
 }
 
 func uniqueSorted(paths []string) []string {
-	seen := map[string]struct{}{}
-	var out []string
-	for _, p := range paths {
-		if _, ok := seen[p]; ok {
-			continue
-		}
-		seen[p] = struct{}{}
-		out = append(out, p)
-	}
-	slices.Sort(out)
-	return out
+	return slices.Compact(slices.Sorted(slices.Values(paths)))
 }

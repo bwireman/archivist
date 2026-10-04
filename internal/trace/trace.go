@@ -4,6 +4,7 @@ package trace
 import (
 	"cmp"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"time"
@@ -659,14 +660,10 @@ func formatCounts(counts map[string]int) string {
 		seen[name] = true
 		parts = append(parts, fmt.Sprintf("%s %d", name, counts[name]))
 	}
-	var extra []string
-	for name := range counts {
-		if !seen[name] {
-			extra = append(extra, name)
+	for _, name := range slices.Sorted(maps.Keys(counts)) {
+		if seen[name] {
+			continue
 		}
-	}
-	slices.Sort(extra)
-	for _, name := range extra {
 		parts = append(parts, fmt.Sprintf("%s %d", name, counts[name]))
 	}
 	return strings.Join(parts, ", ")

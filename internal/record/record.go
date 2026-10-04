@@ -128,9 +128,7 @@ func SlugFromPath(path string) string {
 // NewID generates a stable-looking record id.
 func NewID() string {
 	var b [10]byte
-	if _, err := rand.Read(b[:]); err != nil {
-		panic(err)
-	}
+	_, _ = rand.Read(b[:]) // never returns an error; crashes if the OS source fails
 	return "rec_" + hex.EncodeToString(b[:])
 }
 

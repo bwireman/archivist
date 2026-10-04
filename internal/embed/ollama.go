@@ -45,11 +45,7 @@ func (c *OllamaClient) Healthy(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return fmt.Errorf("ollama health check failed: %w", err)
-		}
-		return fmt.Errorf("ollama health check failed: %s", string(body))
+		return readAPIError(resp, "ollama health check failed")
 	}
 	return nil
 }
@@ -88,11 +84,7 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		b, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, fmt.Errorf("embed failed: %w", err)
-		}
-		return nil, fmt.Errorf("embed failed: %s", string(b))
+		return nil, readAPIError(resp, "embed failed")
 	}
 	var out embedResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
@@ -102,6 +94,14 @@ func (c *OllamaClient) Embed(ctx context.Context, text string) ([]float32, error
 		return nil, errors.New("embed returned an empty vector")
 	}
 	return out.Embedding, nil
+}
+
+func readAPIError(resp *http.Response, prefix string) error {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("%s: %w", prefix, err)
+	}
+	return fmt.Errorf("%s: %s", prefix, string(body))
 }
 
 // FakeEmbedder is used in tests.

@@ -122,9 +122,6 @@ func extractTreeSitter(path, content string, spec languageSpec, ext string) (Res
 	if err != nil {
 		return Result{}, fmt.Errorf("parse %s: %w", path, err)
 	}
-	if tree == nil {
-		return Result{}, fmt.Errorf("parse %s: empty tree", path)
-	}
 	defer tree.Close()
 
 	root := tree.RootNode()
