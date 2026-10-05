@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -254,65 +255,50 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 		_ = homeDB.Close()
 	})
 	s := New(repo, config.Default(), repoDB, homeDB, nil)
-	remembered := callTool(t, s, "remember", map[string]any{
+	created, _ := callTool(t, s, "remember", map[string]any{
 		"type":  "feature",
 		"scope": "repo",
 		"title": "Zqxcard fixture",
 		"body":  "BODYTOKEN lives here",
-	})
-	var created map[string]string
-	if err := json.Unmarshal([]byte(remembered), &created); err != nil {
-		t.Fatal(err)
+	}).(map[string]any)
+	id, _ := created["id"].(string)
+	if id == "" {
+		t.Fatalf("remember: %#v", created)
 	}
-	id := created["id"]
 
-	compactSearch := callTool(t, s, "search", map[string]any{"query": "Zqxcard"})
-	if strings.Contains(compactSearch, "BODYTOKEN") || strings.Contains(compactSearch, "ContentHash") {
-		t.Fatalf("compact search leaked fields: %s", compactSearch)
+	hits, _ := callTool(t, s, "search", map[string]any{"query": "Zqxcard"}).([]any)
+	if len(hits) != 1 {
+		t.Fatalf("compact search: %#v", hits)
 	}
-	var hits []map[string]any
-	if err := json.Unmarshal([]byte(compactSearch), &hits); err != nil {
-		t.Fatal(err)
+	hit, _ := hits[0].(map[string]any)
+	if hit["title"] != "Zqxcard fixture" {
+		t.Fatalf("compact search: %#v", hit)
 	}
-	if len(hits) != 1 || hits[0]["title"] != "Zqxcard fixture" {
-		t.Fatalf("compact search: %s", compactSearch)
-	}
-	assertJSONKeys(t, hits[0], "id", "slug", "type", "scope", "title", "status", "score", "source")
+	assertJSONKeys(t, hit, "id", "slug", "type", "scope", "title", "status", "score", "source")
 
-	compactGet := callTool(t, s, "get", map[string]any{"id": id})
-	if !strings.Contains(compactGet, "BODYTOKEN") || strings.Contains(compactGet, "ContentHash") {
-		t.Fatalf("compact get: %s", compactGet)
-	}
-	var got map[string]any
-	if err := json.Unmarshal([]byte(compactGet), &got); err != nil {
-		t.Fatal(err)
+	got, _ := callTool(t, s, "get", map[string]any{"id": id}).(map[string]any)
+	if !strings.Contains(fmt.Sprint(got["body"]), "BODYTOKEN") {
+		t.Fatalf("compact get: %#v", got)
 	}
 	assertJSONKeys(t, got, "id", "slug", "type", "scope", "title", "status", "severity", "body", "tags", "applies_to", "superseded_by")
 
-	fullSearch := callTool(t, s, "search", map[string]any{"query": "Zqxcard", "full": true})
-	var fullHits []map[string]any
-	if err := json.Unmarshal([]byte(fullSearch), &fullHits); err != nil {
-		t.Fatal(err)
-	}
+	fullHits, _ := callTool(t, s, "search", map[string]any{"query": "Zqxcard", "full": true}).([]any)
 	if len(fullHits) != 1 {
-		t.Fatalf("full search: %s", fullSearch)
+		t.Fatalf("full search: %#v", fullHits)
 	}
-	rec, _ := fullHits[0]["Record"].(map[string]any)
-	if rec == nil || rec["ContentHash"] == "" || !strings.Contains(fmtBody(rec["Body"]), "BODYTOKEN") {
-		t.Fatalf("full search record: %#v", fullHits[0])
+	fullHit, _ := fullHits[0].(map[string]any)
+	rec, _ := fullHit["Record"].(map[string]any)
+	if rec == nil || rec["ContentHash"] == "" || !strings.Contains(fmt.Sprint(rec["Body"]), "BODYTOKEN") {
+		t.Fatalf("full search record: %#v", fullHit)
 	}
 
-	fullGet := callTool(t, s, "get", map[string]any{"id": id, "full": true})
-	var fullRec map[string]any
-	if err := json.Unmarshal([]byte(fullGet), &fullRec); err != nil {
-		t.Fatal(err)
-	}
-	if fullRec["ContentHash"] == "" || !strings.Contains(fmtBody(fullRec["Body"]), "BODYTOKEN") {
-		t.Fatalf("full get: %s", fullGet)
+	fullRec, _ := callTool(t, s, "get", map[string]any{"id": id, "full": true}).(map[string]any)
+	if fullRec["ContentHash"] == "" || !strings.Contains(fmt.Sprint(fullRec["Body"]), "BODYTOKEN") {
+		t.Fatalf("full get: %#v", fullRec)
 	}
 }
 
-func callTool(t *testing.T, s *Server, name string, args map[string]any) string {
+func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 	t.Helper()
 	req := mcp.CallToolRequest{}
 	req.Params.Name = name
@@ -337,20 +323,7 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) string 
 	if res == nil || res.IsError {
 		t.Fatalf("%s error: %+v", name, res)
 	}
-	var b strings.Builder
-	for _, c := range res.Content {
-		switch tc := c.(type) {
-		case mcp.TextContent:
-			b.WriteString(tc.Text)
-		case *mcp.TextContent:
-			if tc != nil {
-				b.WriteString(tc.Text)
-			}
-		default:
-			t.Fatalf("%s content %T", name, c)
-		}
-	}
-	return b.String()
+	return mcpLogResult(res)
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {
@@ -363,9 +336,4 @@ func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {
 			t.Fatalf("missing %s in %#v", k, m)
 		}
 	}
-}
-
-func fmtBody(v any) string {
-	s, _ := v.(string)
-	return s
 }

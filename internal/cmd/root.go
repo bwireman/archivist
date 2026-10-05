@@ -215,12 +215,16 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			logged := any(results)
+			payload := any(results)
 			if !full {
-				logged = retrieve.ProjectSearch(results)
+				payload = retrieve.ProjectSearch(results)
 			}
-			noteResult(cmd, logged)
-			return writeSearchOutput(cmd.OutOrStdout(), results, asJSON, full)
+			noteResult(cmd, payload)
+			if !asJSON {
+				_, err := fmt.Fprint(cmd.OutOrStdout(), retrieve.FormatResults(results))
+				return err
+			}
+			return writeIndentedJSON(cmd.OutOrStdout(), payload)
 		},
 	}
 	cmd.Flags().IntVar(&topK, "top", retrieve.DefaultTopK, "number of results")
@@ -230,17 +234,6 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	cmd.Flags().BoolVar(&full, "full", false, "with --json, print every stored field instead of the search card")
 	return cmd
-}
-
-func writeSearchOutput(w io.Writer, results []retrieve.Result, asJSON, full bool) error {
-	if !asJSON {
-		_, err := io.WriteString(w, retrieve.FormatResults(results))
-		return err
-	}
-	if full {
-		return writeIndentedJSON(w, results)
-	}
-	return writeIndentedJSON(w, retrieve.ProjectSearch(results))
 }
 
 func newStatusCmd() *cobra.Command {
