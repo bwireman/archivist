@@ -1,12 +1,13 @@
 {
   "version": "0.1.0",
+  "commit": "1cfd175cfe74fe49820427f695a1f83cf64a260d",
   "target": "cursor",
   "rules": {
     "ask.md": {
-      "agents-md": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
-      "claude": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
-      "copilot": "43e6a1f317609d9973013d71fd6c66a3a23d7b69aaf7c4add00878202577d1cf",
-      "cursor": "c73ee2346ac51becac1332ab623ddda832f06b1cef3241df4aa193b3361d9a09"
+      "agents-md": "5459b78c9d0e4abf2d3db30d3284fea9de36717c0a32a5e879b2c287c40e405d",
+      "claude": "5459b78c9d0e4abf2d3db30d3284fea9de36717c0a32a5e879b2c287c40e405d",
+      "copilot": "5459b78c9d0e4abf2d3db30d3284fea9de36717c0a32a5e879b2c287c40e405d",
+      "cursor": "7414d5e27c8e3d22807fbae1298612ccb5de3e265e51abd845d5de68c1ed2e29"
     },
     "cite.md": {
       "agents-md": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
@@ -27,10 +28,10 @@
       "cursor": "f018590c1c559ace69bbc994bfb3a99360aecd4656c32dda98c47703ec4a722f"
     },
     "record.md": {
-      "agents-md": "11288a258b7eecbb3a21c379bbba3ca7f1b0ab01213b5f8f56bf8b71cbbb8105",
-      "claude": "11288a258b7eecbb3a21c379bbba3ca7f1b0ab01213b5f8f56bf8b71cbbb8105",
-      "copilot": "11288a258b7eecbb3a21c379bbba3ca7f1b0ab01213b5f8f56bf8b71cbbb8105",
-      "cursor": "84967dadf0a137e0ca4212eba71b28d2b19b363dcf82099215362ff937000cad"
+      "agents-md": "7918048a3a08626b203997d3798926d390fa527cf8c7f991db21c093542f0d9a",
+      "claude": "7918048a3a08626b203997d3798926d390fa527cf8c7f991db21c093542f0d9a",
+      "copilot": "7918048a3a08626b203997d3798926d390fa527cf8c7f991db21c093542f0d9a",
+      "cursor": "b494bed36e5c540297162cc694b197b43834e1cdeb3459de4171f6881b0966f6"
     },
     "refresh.md": {
       "agents-md": "14aad58b32be9acd017a41115802484e2f4bc77f17a1a66a0b1543d16f48ca84",
@@ -45,8 +46,8 @@
       "cursor": "7e9dc2f055eee2f3a77898cf685c9b823d785ecd023e7d0b81667fb523aacc51"
     },
     "plan-changes/SKILL.md": {
-      "claude": "4c79900d575a7daf76f58a6a8db698e693e138c1776b04a0e62d8e187f9b1f41",
-      "cursor": "4c79900d575a7daf76f58a6a8db698e693e138c1776b04a0e62d8e187f9b1f41"
+      "claude": "d80985c0bffa3dd896dc1fd5233005ce505d039bd7e32db0a37c3c2295af8502",
+      "cursor": "d80985c0bffa3dd896dc1fd5233005ce505d039bd7e32db0a37c3c2295af8502"
     },
     "publish-archive/SKILL.md": {
       "claude": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",

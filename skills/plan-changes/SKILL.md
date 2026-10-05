@@ -1,19 +1,22 @@
 ---
 name: plan-changes
-description: Interview the user about architecture, requirements, and constraints, then propose a change plan grounded in Archivist records. Use when planning work, making a design choice, clarifying requirements, or before implementing something with open trade-offs. Do not use to implement, or to write a record (record-decision, record-rule, record-feature).
+description: >
+  Interview the user, write plans/<slug>.md, run an adversarial review, and
+  stop before phase 1. A later accept only sets Status: accepted. A later
+  continue implements the first pending phase and stops. Use when planning
+  work, or when the user accepts, revises, or continues a file in plans/.
+  The planning turn does not write archive records.
 ---
 
 # Plan a change
 
-Do not implement in this skill. Search the archive before asking; ask before assuming.
-
-The always-on ask rule handles one unsettled user-facing choice or missing preference, then the agent continues and stores a dev-scope record (global when the choice is product-wide). Use this skill when the gap is an architecture interview: where it lives, what done means, and what to avoid, ending in a plan.
+Search the archive before asking. The always-on ask rule handles one unsettled user-facing choice or missing preference. This skill is the full interview. The planning turn stops before phase 1.
 
 ## 1. Source the archive
 
 MCP preferred, else CLI. Do not trust chat memory.
 
-1. `search` the topic. Also filter `--type decision`, `--type rule`, `--type feature`, `--type pitfall`, and `--type guide` when those matter.
+1. `search` the topic. Also filter by decision, rule, feature, pitfall, and guide when those matter.
 2. `get` any current record that looks like the same topic.
 3. `map` the subsystem if you need where it lives.
 4. `check --paths` once likely files are known.
@@ -22,22 +25,24 @@ Cite record titles and ids in later questions and in the plan. If the archive al
 
 ## 2. Ask what is still unknown
 
-Ask only what search did not answer. Cover, as needed:
+Ask only what search did not answer. Cover architecture, requirements, and what to avoid. Use the host's structured-question tool when it has one. Do not proceed to a plan while a blocking question is unanswered.
 
-- **Architecture** — where it lives, what it connects to, alternatives still in play
-- **Requirements** — success criteria, scope, what "done" means
-- **Avoid** — constraints, pitfalls, must-nots (archive `rule` / `pitfall` plus anything the user adds)
+## 3. Write the plan and stop before phase 1
 
-Use the host's structured-question tool if it has one; otherwise ask in chat. Prefer a few concrete options over open-ended essays. Do not proceed to a plan while a blocking question is unanswered.
+Write `plans/<slug>.md` with `Status: proposed` and pending phases under `## Phases`. Each phase has an outcome, files, ordered steps, a verification check, and a sketch where a step is easy to get wrong. The sketch binds that step unless a later message overrides it.
 
-## 3. Propose the plan
+Run an adversarial review with a general read-only subagent, or answer the attack checklist with `Reviewer: self` when the host has none. Bugbot does not satisfy this review. Append the findings under `## Adversarial review`. Leave `Status: proposed` and phase `Status: pending`. Do not call `remember`, `update`, or `retire`. Stop.
 
-Lead with the recommendation. Include:
+## 4. Later messages
 
-- What the archive already decided (and what it did not)
-- The chosen approach and rejected alternatives
-- Files or packages likely touched (`map` / `feature` `applies_to`)
-- Risks and things to avoid
-- Whether a lasting `decision` or `rule` should be written after the user confirms
+Accept is legal only when `## Adversarial review` names `self` or a general read-only subagent name and id, the name is not bugbot, and every checklist item is answered. `go` does not accept and does not run phases.
 
-If the user then chooses among alternatives, follow `record-decision`. If they state a must/must-not, follow `record-rule`. Implementation is a later turn.
+- `accept` or `accepted` while `proposed`, and the review qualifies: set `Status: accepted`. Run no steps. Stop.
+- `revise`: edit the phase bodies, set `Status: proposed` and every phase `Status: pending`, ask which file when several in `plans/` are open, review again, and stop.
+- `reject` or `rejected`: set `Status: rejected`. Stop.
+- `continue` or `next`: implement the first pending phase only when `Status` is `accepted` or `in progress` and the review qualified. Then stop.
+- `continue`, `next`, or `go` while `proposed`: leave the file proposed.
+
+Attack checklist: which gate can be skipped and still look done; which current record contradicts a step; which file would be written unnamed or named and skipped; which later message resumes the wrong phase or runs more than one; whether the review names its reviewer and bugbot is absent.
+
+On continue, if the plan's record slug already exists, `update` that record instead of calling `remember`. Mark the phase `done` only after its verification check passes. One message runs at most one pending phase.

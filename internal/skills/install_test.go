@@ -113,6 +113,14 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(planData), "always-on ask rule") {
 		t.Fatalf("plan-changes skill should leave the short gap to the ask rule: %s", planData)
 	}
+	for _, needle := range []string{"stop before phase 1", "Status: proposed", "one pending phase", "first pending phase"} {
+		if !strings.Contains(string(planData), needle) {
+			t.Fatalf("plan-changes skill missing %q: %s", needle, planData)
+		}
+	}
+	if strings.Contains(string(planData), "Do not implement in this skill") {
+		t.Fatalf("plan-changes skill still bans all implementation: %s", planData)
+	}
 	m := readManifest(t, root)
 	if m.Version != version.Version {
 		t.Fatalf("manifest version %q", m.Version)

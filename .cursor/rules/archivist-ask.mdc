@@ -14,6 +14,8 @@ Ask with a few concrete options when either is true:
 
 If search returns a superseded record and a current one on the same topic, follow the current record.
 
-This rule is the short gap. A full interview — architecture, requirements, what to avoid, then a plan — belongs in the on-demand `plan-changes` skill. After the user answers here, continue the task.
+This rule is the short gap. A full interview — architecture, requirements, what to avoid, then a plan — belongs in the on-demand `plan-changes` skill.
 
-Store the answer once so later sessions on this machine do not ask again. Use scope `dev`: a `decision` when they chose among alternatives, a `rule` when they stated a should or must. Product-wide choices stay scope `global`. Search first; a current dev, repo, or global record on the topic counts as settled.
+On a plan-changes planning turn, do not remember, update, or retire, and do not start phase 1. Interview answers and other archive writes happen only in the accepted phase the plan names. This ban wins over the short-gap store below.
+
+Store a short-gap answer once so later sessions on this machine do not re-ask. Use scope `dev`: a `decision` when they chose among alternatives, a `rule` when they stated a should or must. Product-wide choices stay scope `global`. Search first; a current dev, repo, or global record on the topic counts as settled. After the user answers a short-gap question, continue that task.
