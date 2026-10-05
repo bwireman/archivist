@@ -53,17 +53,19 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
 		annotate("Search archive", true, false, true),
-		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate."),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Default hits omit the body. Pass full=true for every stored field. Call get to read a body."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("scope"),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
 		mcp.WithNumber("top_k"),
+		mcp.WithBoolean("full", mcp.Description("When true, return every stored field. Default is a card without the body.")),
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
 		annotate("Get record", true, false, true),
-		mcp.WithDescription("Get one archive record by id or slug after search."),
+		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field."),
 		mcp.WithString("id", mcp.Required()),
+		mcp.WithBoolean("full", mcp.Description("When true, return every stored field.")),
 	), s.toolGet)
 	srv.AddTool(mcp.NewTool("check",
 		annotate("Check rules", true, false, true),
@@ -223,7 +225,10 @@ func (s *Server) toolSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(results)
+	if req.GetBool("full", false) {
+		return jsonResult(results)
+	}
+	return jsonResult(retrieve.ProjectSearch(results))
 }
 
 func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -231,7 +236,10 @@ func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(rec)
+	if req.GetBool("full", false) {
+		return jsonResult(rec)
+	}
+	return jsonResult(retrieve.ProjectRecord(rec))
 }
 
 func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

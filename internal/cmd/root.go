@@ -185,6 +185,7 @@ func newSearchCmd() *cobra.Command {
 	var scope string
 	var status string
 	var asJSON bool
+	var full bool
 	cmd := &cobra.Command{
 		Use:   "search <query>",
 		Short: "Search the knowledge archive",
@@ -214,12 +215,12 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			noteResult(cmd, results)
-			if asJSON {
-				return writeIndentedJSON(os.Stdout, results)
+			logged := any(results)
+			if !full {
+				logged = retrieve.ProjectSearch(results)
 			}
-			fmt.Print(retrieve.FormatResults(results))
-			return nil
+			noteResult(cmd, logged)
+			return writeSearchOutput(cmd.OutOrStdout(), results, asJSON, full)
 		},
 	}
 	cmd.Flags().IntVar(&topK, "top", retrieve.DefaultTopK, "number of results")
@@ -227,7 +228,19 @@ func newSearchCmd() *cobra.Command {
 	cmd.Flags().StringVar(&scope, "scope", "", "filter by scope: dev|repo|global")
 	cmd.Flags().StringVar(&status, "status", "", "record status: proposed, accepted, deprecated, or superseded; default omits deprecated and superseded")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
+	cmd.Flags().BoolVar(&full, "full", false, "with --json, print every stored field instead of the search card")
 	return cmd
+}
+
+func writeSearchOutput(w io.Writer, results []retrieve.Result, asJSON, full bool) error {
+	if !asJSON {
+		_, err := io.WriteString(w, retrieve.FormatResults(results))
+		return err
+	}
+	if full {
+		return writeIndentedJSON(w, results)
+	}
+	return writeIndentedJSON(w, retrieve.ProjectSearch(results))
 }
 
 func newStatusCmd() *cobra.Command {

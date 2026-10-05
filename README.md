@@ -145,8 +145,8 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 | Tool | Purpose |
 | --- | --- |
-| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `status`, `top_k`). Default omits deprecated and superseded. Use before implementing or writing a record. |
-| `get` | One record by id or slug |
+| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `status`, `top_k`, `full`). Default omits deprecated and superseded, and omits the body. Pass `full` for every stored field. Use before implementing or writing a record. |
+| `get` | One record by id or slug. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass `full` for every stored field. |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`) |
 | `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Distill lasting facts; do not dump chat. No markdown file. |
@@ -171,7 +171,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 Initialize `instructions` are the consult, ask, and record rule templates, so MCP-only hosts still look things up, ask when a choice or preference is unsettled, and distill from conversation.
 
-Tool output is JSON, the same shape as CLI `--json`. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
+Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search omits the body, and get keeps the body while dropping hash, timestamps, provenance, and source path. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
 
 ## Record model
 
@@ -213,7 +213,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
 | `archivist index` | no | Index code map + git history (feeds `map`) |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
-| `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs; `--status` to include a retired status) |
+| `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field) |
 | `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits |
 | `archivist check` | optional | Match rules to a change |
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
@@ -283,7 +283,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 `archivist skills install --target cursor|claude|agents-md|copilot` (`codex` is an alias for `agents-md`) writes:
 
 - **Rules** (always on): consult the archive, cite a retrieved record that changed the work before the turn ends, ask when a user-facing choice or preference is unsettled, distill lasting decisions/rules/features from the conversation (skip chat glut), keep the code map current as source changes (`archivist index`), refresh after changes. Each rule is its own file (`rules/consult.md`, `rules/cite.md`, `rules/ask.md`, `rules/record.md`, `rules/current.md`, `rules/refresh.md`). Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
-- **Skills** (on demand): `init-archive`, `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `init-archive` scans the repo and embeds the gaps so a new archive is searchable. `plan-changes` searches the archive, writes `plans/<slug>.md`, runs an adversarial review, and stops before phase 1. A later accept only sets the plan accepted. A later continue implements the first pending phase. Cursor files come from `archivist skills install --target cursor`. Claude files come from `archivist skills install --target claude`. `agents-md` and Copilot stay rules-only.
+- **Skills** (on demand): `init-archive`, `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `init-archive` scans the repo and embeds the gaps so a new archive is searchable. `plan-changes` searches the archive, writes `.archivist/plans/<slug>.md`, runs an adversarial review, and stops before phase 1. A later accept only sets the plan accepted. A later continue implements the first pending phase. Cursor files come from `archivist skills install --target cursor`. Claude files come from `archivist skills install --target claude`. `agents-md` and Copilot stay rules-only.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
 

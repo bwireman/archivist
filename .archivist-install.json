@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "commit": "1cfd175cfe74fe49820427f695a1f83cf64a260d",
+  "commit": "fb50d49db87d4af7d83f7da8397de88c7d6ec460",
   "target": "cursor",
   "rules": {
     "ask.md": {
@@ -46,8 +46,8 @@
       "cursor": "7e9dc2f055eee2f3a77898cf685c9b823d785ecd023e7d0b81667fb523aacc51"
     },
     "plan-changes/SKILL.md": {
-      "claude": "d80985c0bffa3dd896dc1fd5233005ce505d039bd7e32db0a37c3c2295af8502",
-      "cursor": "d80985c0bffa3dd896dc1fd5233005ce505d039bd7e32db0a37c3c2295af8502"
+      "claude": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79",
+      "cursor": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79"
     },
     "publish-archive/SKILL.md": {
       "claude": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",

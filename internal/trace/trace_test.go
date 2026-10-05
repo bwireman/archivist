@@ -270,6 +270,44 @@ func TestBuildVectorOnlyExcluded(t *testing.T) {
 	}
 }
 
+func TestFlatSearchCardCountsAndOverlaps(t *testing.T) {
+	at := time.Date(2026, 10, 4, 20, 0, 0, 0, time.UTC)
+	card := []any{map[string]any{
+		"id": "rec_hit", "title": "T", "status": "accepted", "source": "hybrid",
+	}}
+	entries := call("search", at, map[string]any{"query": "card"}, card)
+	entries = append(entries, call("get", at.Add(time.Minute), map[string]any{"id": "rec_hit"}, map[string]any{
+		"id": "rec_hit", "title": "T",
+	})...)
+	cat := fakeCat{recs: map[string]*record.Record{
+		"rec_hit": {ID: "rec_hit", Title: "T", Type: record.TypeFeature, Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+	}}
+	rep, err := Build(entries, Options{Since: "HEAD", After: at.Add(-time.Second), Paths: []string{"internal/cmd/foo.go"}}, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.EmptySearches) != 0 {
+		t.Fatalf("empty searches: %+v", rep.EmptySearches)
+	}
+	if len(rep.Overlap) != 1 || rep.Overlap[0].ID != "rec_hit" {
+		t.Fatalf("overlap: %+v", rep.Overlap)
+	}
+	if len(rep.FollowGets) != 1 || rep.FollowGets[0].ID != "rec_hit" {
+		t.Fatalf("follow: %+v", rep.FollowGets)
+	}
+
+	vec := []any{map[string]any{
+		"id": "rec_vec", "title": "V", "status": "accepted", "source": "vector",
+	}}
+	vrep, err := Build(call("search", at, map[string]any{"query": "vec"}, vec), Options{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(vrep.VectorOnly) != 1 || vrep.Retrieved != 0 {
+		t.Fatalf("vector card consulted: vector-only %+v retrieved %d", vrep.VectorOnly, vrep.Retrieved)
+	}
+}
+
 func TestPrepareCite(t *testing.T) {
 	if _, err := PrepareCite(false, "kept it"); err != ErrCiteDisabled {
 		t.Fatalf("got %v", err)

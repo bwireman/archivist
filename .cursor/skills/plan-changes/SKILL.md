@@ -1,10 +1,10 @@
 ---
 name: plan-changes
 description: >
-  Interview the user, write plans/<slug>.md, run an adversarial review, and
+  Interview the user, write .archivist/plans/<slug>.md, run an adversarial review, and
   stop before phase 1. A later accept only sets Status: accepted. A later
   continue implements the first pending phase and stops. Use when planning
-  work, or when the user accepts, revises, or continues a file in plans/.
+  work, or when the user accepts, revises, or continues a file in .archivist/plans/.
   The planning turn does not write archive records.
 ---
 
@@ -29,7 +29,7 @@ Ask only what search did not answer. Cover architecture, requirements, and what 
 
 ## 3. Write the plan and stop before phase 1
 
-Write `plans/<slug>.md` with `Status: proposed` and pending phases under `## Phases`. Each phase has an outcome, files, ordered steps, a verification check, and a sketch where a step is easy to get wrong. The sketch binds that step unless a later message overrides it.
+Write `.archivist/plans/<slug>.md` with `Status: proposed` and pending phases under `## Phases`. Each phase has an outcome, files, ordered steps, a verification check, and a sketch where a step is easy to get wrong. The sketch binds that step unless a later message overrides it.
 
 Run an adversarial review with a general read-only subagent, or answer the attack checklist with `Reviewer: self` when the host has none. Bugbot does not satisfy this review. Append the findings under `## Adversarial review`. Leave `Status: proposed` and phase `Status: pending`. Do not call `remember`, `update`, or `retire`. Stop.
 
@@ -38,7 +38,7 @@ Run an adversarial review with a general read-only subagent, or answer the attac
 Accept is legal only when `## Adversarial review` names `self` or a general read-only subagent name and id, the name is not bugbot, and every checklist item is answered. `go` does not accept and does not run phases.
 
 - `accept` or `accepted` while `proposed`, and the review qualifies: set `Status: accepted`. Run no steps. Stop.
-- `revise`: edit the phase bodies, set `Status: proposed` and every phase `Status: pending`, ask which file when several in `plans/` are open, review again, and stop.
+- `revise`: edit the phase bodies, set `Status: proposed` and every phase `Status: pending`, ask which file when several in `.archivist/plans/` are open, review again, and stop.
 - `reject` or `rejected`: set `Status: rejected`. Stop.
 - `continue` or `next`: implement the first pending phase only when `Status` is `accepted` or `in progress` and the review qualified. Then stop.
 - `continue`, `next`, or `go` while `proposed`: leave the file proposed.

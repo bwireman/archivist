@@ -424,6 +424,9 @@ func parseSearch(result any) ([]hit, string) {
 			continue
 		}
 		h := recordHit(mapField(m, "Record", "record"))
+		if h.id == "" {
+			h = recordHit(m)
+		}
 		h.source = strField(m, "Source", "source")
 		if h.id != "" {
 			hits = append(hits, h)
