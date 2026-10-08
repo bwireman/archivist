@@ -217,15 +217,24 @@ CREATE VIRTUAL TABLE records_fts USING fts5(
 		return err
 	}
 	for _, r := range recs {
-		if _, err := tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags) VALUES (?, ?, ?, ?)`,
-			r.ID, r.Title, r.Body, strings.Join(r.Tags, " ")); err != nil {
+		if err := insertFTS(tx, r.ID, r.Title, r.Body, strings.Join(r.Tags, " ")); err != nil {
 			return err
 		}
 	}
-	if err := tx.Commit(); err != nil {
+	// Same transaction as the new table, so a failed marker cannot rebuild twice.
+	if _, err := tx.Exec(`
+INSERT INTO meta (key, value) VALUES (?, ?)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`, MetaFTSTokenizer, ftsTokenizer); err != nil {
 		return err
 	}
-	return s.SetMeta(MetaFTSTokenizer, ftsTokenizer)
+	return tx.Commit()
+}
+
+func insertFTS(tx *sql.Tx, id, title, body, tags string) error {
+	_, err := tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags) VALUES (?, ?, ?, ?)`,
+		id, title, body, tags)
+	return err
 }
 
 func (s *Store) GetMeta(key string) (string, bool, error) {
@@ -386,9 +395,7 @@ ON CONFLICT(id) DO UPDATE SET
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags) VALUES (?, ?, ?, ?)`,
-		r.ID, r.Title, r.Body, strings.Join(r.Tags, " "))
-	if err != nil {
+	if err = insertFTS(tx, r.ID, r.Title, r.Body, strings.Join(r.Tags, " ")); err != nil {
 		return err
 	}
 
@@ -728,7 +735,7 @@ func (s *Store) SearchFTS(query string, limit int, filter RecordFilter) ([]FTSRe
 	}
 	var strong, weak []FTSResult
 	for _, c := range candidates {
-		if need > 0 && matched[c.RecordID] >= need {
+		if matched[c.RecordID] >= need {
 			strong = append(strong, c)
 			continue
 		}
@@ -754,9 +761,6 @@ func (s *Store) termCoverage(terms []string, filter RecordFilter) (map[string]in
 	q += ` GROUP BY f.record_id`
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
-		if strings.Contains(err.Error(), "fts5: syntax error") {
-			return nil, nil
-		}
 		return nil, err
 	}
 	defer rows.Close()

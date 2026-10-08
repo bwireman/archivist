@@ -41,7 +41,6 @@ var ftsStopwords = map[string]bool{
 	"no": true, "we": true, "our": true, "you": true, "your": true, "i": true,
 }
 
-// contentTerms drops stopwords and repeats from quoted fts5Terms.
 func contentTerms(terms []string) []string {
 	seen := map[string]bool{}
 	var out []string

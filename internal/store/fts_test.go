@@ -153,11 +153,13 @@ func TestOpenRebuildsUnstemmedFTS(t *testing.T) {
 	for _, q := range []string{
 		`DROP TABLE records_fts`,
 		`CREATE VIRTUAL TABLE records_fts USING fts5(record_id UNINDEXED, title, body, tags)`,
-		`DELETE FROM meta WHERE key = 'fts_tokenizer'`,
 	} {
 		if _, err := st.db.Exec(q); err != nil {
 			t.Fatal(err)
 		}
+	}
+	if err := st.SetMeta(MetaFTSTokenizer, ""); err != nil {
+		t.Fatal(err)
 	}
 	if err := st.Close(); err != nil {
 		t.Fatal(err)
