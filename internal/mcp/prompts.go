@@ -50,14 +50,14 @@ func (p addPrompt) handle(_ context.Context, req mcp.GetPromptRequest) (*mcp.Get
 }
 
 func (p addPrompt) text(topic, scope string) string {
-	scopeLine := fmt.Sprintf("Choose scope: %s for this checkout, %s for the product, %s for a personal note.",
-		record.ScopeRepo, record.ScopeGlobal, record.ScopeDev)
+	procedure := "Before remember, search with no scope argument. Search covers repo, global, and dev. If a current record covers the topic, update it and keep its scope. If search shows a gap, pick one scope. dev: about the person or this machine, including a short-gap answer. repo: true only in this checkout. global: true for the product in every checkout."
+	scopeLine := procedure
 	if scope != "" {
-		scopeLine = "Use scope " + scope + "."
+		scopeLine = procedure + " Suggested scope: " + scope + ". Use it only when it matches that procedure."
 	}
 	var b strings.Builder
 	fmt.Fprintf(&b, "Add an Archivist %s about %q.\n\n%s\n\n", p.kind, topic, p.lead)
-	fmt.Fprintf(&b, "1. Call search with type=%s and query=%q. If a current record covers this topic, call update with its id. Do not remember a second accepted record.\n", p.kind, topic)
+	fmt.Fprintf(&b, "1. Call search with type=%s and query=%q. Do not pass scope to search. If a current record covers this topic, call update with its id. Do not remember a second accepted record.\n", p.kind, topic)
 	b.WriteString("2. Distill a short body. Leave out the chat transcript.\n")
 	b.WriteString(p.shape)
 	b.WriteString("\n3. ")

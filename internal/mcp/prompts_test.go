@@ -48,7 +48,9 @@ func TestAddPrompts(t *testing.T) {
 			"search",
 			"update",
 			"remember",
-			"scope repo",
+			"Suggested scope: repo",
+			"true only in this checkout",
+			"Do not pass scope to search.",
 			"embed --once",
 		} {
 			if !strings.Contains(text, needle) {

@@ -14,3 +14,10 @@ This rule is the short gap. A full interview — architecture, requirements, wha
 On a plan-changes planning turn, do not remember, update, or retire, and do not start phase 1. Interview answers and other archive writes happen only in the accepted phase the plan names. This ban wins over the short-gap store below.
 
 Store a short-gap answer once so later sessions on this machine do not re-ask. Use scope `dev`: a `decision` when they chose among alternatives, a `rule` when they stated a should or must. Product-wide choices stay scope `global`. Search first; a current dev, repo, or global record on the topic counts as settled. After the user answers a short-gap question, continue that task.
+
+Before remember, search with no scope argument. Search covers repo, global, and dev.
+If a current record covers the topic, update it and keep its scope.
+If search shows a gap, pick one scope:
+- dev: about the person or this machine, including a short-gap answer
+- repo: true only in this checkout
+- global: true for the product in every checkout

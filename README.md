@@ -158,7 +158,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 ### Prompts
 
-`prompts/list` walks through adding one record. Each prompt takes `topic` (required) and `scope` (`repo`, `global`, or `dev`). The prompt does not write. It tells the client to `search` that type, `update` a current record when one exists, then `remember`.
+`prompts/list` walks through adding one record. Each prompt takes `topic` (required) and optional `scope` (`repo`, `global`, or `dev`). The prompt does not write. It tells the client to call `search` without a scope, update a current record and keep its scope, then `remember` only when search shows a gap. The optional `scope` is a suggestion the procedure can override: `dev` is about the person or this machine, `repo` is true only in this checkout, and `global` is true for the product in every checkout.
 
 | Prompt | Record |
 | --- | --- |

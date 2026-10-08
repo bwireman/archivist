@@ -37,4 +37,13 @@ archivist remember --type feature --scope global --title "..." --applies-to "int
 
 Or MCP `remember` with `type=feature`.
 
-5. Scope: `global` for product capabilities, `repo` for this checkout only, `dev` for personal notes. Then `archivist embed --once` if the body changed. Records live in SQLite; `remember` does not write markdown.
+5. Before remember, search with no scope argument. Search covers repo, global, and dev.
+   If a current record covers the topic, update it and keep its scope.
+   If search shows a gap, pick one scope:
+   - dev: about the person or this machine, including a short-gap answer
+   - repo: true only in this checkout
+   - global: true for the product in every checkout
+
+   The `--scope global` flag in the example is a product capability. It is not the default for every feature.
+
+   Then `archivist embed --once` if the body changed. Records live in SQLite; `remember` does not write markdown.

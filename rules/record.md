@@ -14,4 +14,13 @@ Musts that an accepted plan-changes phase assigns to a named decision and the sk
 
 Skip chat transcripts, restatements of records already on file, ephemeral session state (this chat's errors, "MCP is down"), unverified catalogs, and details that live only in code.
 
-Use MCP `remember` / `update` / `retire` or `archivist remember`. These write SQLite only. Scope: `repo` this checkout, `global` the product, `dev` personal. Markdown under `records.repo` / `records.global` (default `~/.archivist`) / `records.dev` is optional import input, not the live archive.
+Use MCP `remember` / `update` / `retire` or `archivist remember`. These write SQLite only.
+
+Before remember, search with no scope argument. Search covers repo, global, and dev.
+If a current record covers the topic, update it and keep its scope.
+If search shows a gap, pick one scope:
+- dev: about the person or this machine, including a short-gap answer
+- repo: true only in this checkout
+- global: true for the product in every checkout
+
+Markdown under `records.repo` / `records.global` (default `~/.archivist`) / `records.dev` is optional import input, not the live archive.

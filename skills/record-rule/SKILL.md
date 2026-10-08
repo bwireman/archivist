@@ -11,7 +11,16 @@ A `rule` is an enforceable or advisory constraint. It is not a `feature` (how a 
 2. Pick severity: `must`, `must-not`, `should`, `should-not`.
 3. Set `applies_to` path globs so `archivist check` can match touched files.
 4. Keep the body to the constraint and why it matters. No transcript.
-5. Create only if search shows a gap:
+5. Create only if search shows a gap.
+
+   Before remember, search with no scope argument. Search covers repo, global, and dev.
+   If a current record covers the topic, update it and keep its scope.
+   If search shows a gap, pick one scope:
+   - dev: about the person or this machine, including a short-gap answer
+   - repo: true only in this checkout
+   - global: true for the product in every checkout
+
+   The `--scope repo` flag in the example is a checkout-only rule. It is not the default for every rule.
 
 ```bash
 archivist remember --type rule --scope repo --severity must-not --title "..." --applies-to "internal/**" --body "..."

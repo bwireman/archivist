@@ -31,7 +31,14 @@ Skip source bodies, chat logs, generated `docs/archive/`, `.archivist/`, secrets
 
 For each candidate, `search` the topic (filter `--type` when it is clear). If a current record exists, `update` it or leave it. Otherwise follow `record-decision`, `record-rule`, or `record-feature` and `remember` a short body.
 
-Scope: `repo` for this checkout. `global` only when the text is product-wide. Do not use `dev` for a repo scan.
+Before remember, search with no scope argument. Search covers repo, global, and dev.
+If a current record covers the topic, update it and keep its scope.
+If search shows a gap, pick one scope:
+- dev: about the person or this machine, including a short-gap answer
+- repo: true only in this checkout
+- global: true for the product in every checkout
+
+A scan of this checkout does not use `dev`.
 
 ## 4. Embed
 

@@ -17,4 +17,13 @@ archivist remember --type decision --scope repo --title "..." --body "..."
 
 Or MCP `remember` with the same fields.
 
-4. Scope: `repo` this checkout, `global` the product, `dev` personal. Then `archivist embed --once`. Records live in SQLite; `remember` does not write markdown. Use `archivist export` only when `records.write_docs` is true. `records.repo` / `records.global` / `records.dev` are optional import drop folders.
+4. Before remember, search with no scope argument. Search covers repo, global, and dev.
+   If a current record covers the topic, update it and keep its scope.
+   If search shows a gap, pick one scope:
+   - dev: about the person or this machine, including a short-gap answer
+   - repo: true only in this checkout
+   - global: true for the product in every checkout
+
+   The `--scope repo` flag in the example is a checkout-only decision. It is not the default for every decision.
+
+   Then `archivist embed --once`. Records live in SQLite; `remember` does not write markdown. Use `archivist export` only when `records.write_docs` is true. `records.repo` / `records.global` / `records.dev` are optional import drop folders.
