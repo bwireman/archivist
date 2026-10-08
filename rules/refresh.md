@@ -14,13 +14,3 @@ SQLite is the source of truth for records; `remember`/`update`/`retire` write th
 If the turn changed how a capability behaves, update (or create) its `feature` record first.
 
 Source edits also follow the current rule: `archivist index` as the code changes, not only in this end-of-turn sequence.
-
-## Reindex on commit (optional)
-
-`archivist init` and `archivist skills install` write `.githooks/post-commit`, which runs `archivist index` after each commit (code map + git metadata only; no Ollama). Enable it once per clone:
-
-```bash
-git config core.hooksPath .githooks
-```
-
-The hook is a no-op when `.archivist.json` is missing or `archivist` is not on `PATH`. Index failures do not affect the commit. Agents still run the full refresh sequence above when they change records or code during a turn; the hook keeps the map current between commits.

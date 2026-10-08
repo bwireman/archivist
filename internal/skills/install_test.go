@@ -30,9 +30,8 @@ func TestInstallCursor(t *testing.T) {
 	if _, err := os.Stat(skill); err != nil {
 		t.Fatal(err)
 	}
-	hook := filepath.Join(root, ".githooks", "post-commit")
-	if _, err := os.Stat(hook); err != nil {
-		t.Fatal(err)
+	if _, err := os.Stat(filepath.Join(root, ".githooks")); !os.IsNotExist(err) {
+		t.Fatal("install should not write .githooks")
 	}
 	assertManifest(t, root, TargetCursor)
 	consult := fileBytes(t, filepath.Join(root, "rules", "consult.md"))

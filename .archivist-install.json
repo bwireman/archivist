@@ -34,10 +34,10 @@
       "cursor": "877662d5c18e231d64db455dd479c1c4e5cc9dc104ebd02bbd578624637f2056"
     },
     "refresh.md": {
-      "agents-md": "14aad58b32be9acd017a41115802484e2f4bc77f17a1a66a0b1543d16f48ca84",
-      "claude": "14aad58b32be9acd017a41115802484e2f4bc77f17a1a66a0b1543d16f48ca84",
-      "copilot": "14aad58b32be9acd017a41115802484e2f4bc77f17a1a66a0b1543d16f48ca84",
-      "cursor": "8565cd2bef883b6d3cb40545e128ebc7a3d5011cb5309880950821f47b082cb2"
+      "agents-md": "e0fdaeba72bc994012698d6f6156a63e46d8cdd95e9e84c50d8fe4cb4762bb69",
+      "claude": "e0fdaeba72bc994012698d6f6156a63e46d8cdd95e9e84c50d8fe4cb4762bb69",
+      "copilot": "e0fdaeba72bc994012698d6f6156a63e46d8cdd95e9e84c50d8fe4cb4762bb69",
+      "cursor": "d4d354a95fb022d096d3121d1740b0c0252bab22507c22b3cabc8725b1fb7ba9"
     }
   },
   "skills": {
@@ -66,8 +66,8 @@
       "cursor": "9d881d8e20b47e60641224188c24c5193c72a1fffe0276299161e6d9db75f6ee"
     },
     "refresh-archive/SKILL.md": {
-      "claude": "4b7290836eee6045868002e8530ad7ab1edf3ad0a552188f31b5a842a504de6b",
-      "cursor": "4b7290836eee6045868002e8530ad7ab1edf3ad0a552188f31b5a842a504de6b"
+      "claude": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7",
+      "cursor": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7"
     }
   }
 }
