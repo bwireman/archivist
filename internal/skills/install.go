@@ -1,4 +1,4 @@
-// Package skills installs agent rules, skills, and the git hook.
+// Package skills installs agent rules and skills.
 package skills
 
 import (
