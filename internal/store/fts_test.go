@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bwireman/archivist/internal/record"
@@ -26,8 +27,8 @@ func TestFTS5Query(t *testing.T) {
 		{"honor gitignore", `"honor" "gitignore"`},
 	}
 	for _, tt := range tests {
-		if got := fts5Query(tt.in); got != tt.want {
-			t.Errorf("fts5Query(%q) = %q, want %q", tt.in, got, tt.want)
+		if got := strings.Join(fts5Terms(tt.in), " "); got != tt.want {
+			t.Errorf("fts5Terms(%q) = %q, want %q", tt.in, got, tt.want)
 		}
 	}
 }

@@ -52,7 +52,6 @@ func newTraceCmd() *cobra.Command {
 	return cmd
 }
 
-// buildTrace reads entries at or after after; --since replaces it with the git join time.
 func buildTrace(root string, cfg *config.Config, since string, after time.Time) (*trace.Report, error) {
 	path := config.CommandsLogPath(root)
 	if _, err := os.Stat(path); err != nil {

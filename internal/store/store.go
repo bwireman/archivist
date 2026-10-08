@@ -194,23 +194,8 @@ func (s *Store) ensureFTS() error {
 	if err != nil || have == ftsTokenizer {
 		return err
 	}
-	rows, err := s.db.Query(`SELECT id, title, body, tags FROM records`)
+	recs, err := s.AllRecords()
 	if err != nil {
-		return err
-	}
-	type ftsRow struct{ id, title, body, tags string }
-	var recs []ftsRow
-	for rows.Next() {
-		var r ftsRow
-		var tags sql.NullString
-		if err := rows.Scan(&r.id, &r.title, &r.body, &tags); err != nil {
-			_ = rows.Close()
-			return err
-		}
-		r.tags = strings.Join(decodeJSONList(tags.String), " ")
-		recs = append(recs, r)
-	}
-	if err := rows.Close(); err != nil {
 		return err
 	}
 
@@ -233,17 +218,14 @@ CREATE VIRTUAL TABLE records_fts USING fts5(
 	}
 	for _, r := range recs {
 		if _, err := tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags) VALUES (?, ?, ?, ?)`,
-			r.id, r.title, r.body, r.tags); err != nil {
+			r.ID, r.Title, r.Body, strings.Join(r.Tags, " ")); err != nil {
 			return err
 		}
 	}
-	if _, err := tx.Exec(`
-INSERT INTO meta (key, value) VALUES (?, ?)
-ON CONFLICT(key) DO UPDATE SET value = excluded.value
-`, MetaFTSTokenizer, ftsTokenizer); err != nil {
+	if err := tx.Commit(); err != nil {
 		return err
 	}
-	return tx.Commit()
+	return s.SetMeta(MetaFTSTokenizer, ftsTokenizer)
 }
 
 func (s *Store) GetMeta(key string) (string, bool, error) {
@@ -731,21 +713,18 @@ func (s *Store) SearchFTS(query string, limit int, filter RecordFilter) ([]FTSRe
 	if err != nil || len(out) > 0 || len(terms) == 1 {
 		return out, err
 	}
-	candidates, err := s.matchFTS(strings.Join(terms, " OR "), 0, filter)
+	content := contentTerms(terms)
+	if len(content) == 0 {
+		return nil, nil
+	}
+	candidates, err := s.matchFTS(strings.Join(content, " OR "), 0, filter)
 	if err != nil || len(candidates) == 0 {
 		return nil, err
 	}
-	content := contentTerms(terms)
 	need := minShouldMatch(len(content))
-	matched := map[string]int{}
-	for _, t := range content {
-		hits, err := s.matchFTS(t, 0, filter)
-		if err != nil {
-			return nil, err
-		}
-		for _, h := range hits {
-			matched[h.RecordID]++
-		}
+	matched, err := s.termCoverage(content, filter)
+	if err != nil {
+		return nil, err
 	}
 	var strong, weak []FTSResult
 	for _, c := range candidates {
@@ -757,6 +736,40 @@ func (s *Store) SearchFTS(query string, limit int, filter RecordFilter) ([]FTSRe
 		weak = append(weak, c)
 	}
 	return append(strong[:min(limit, len(strong))], weak[:min(limit, len(weak))]...), nil
+}
+
+func (s *Store) termCoverage(terms []string, filter RecordFilter) (map[string]int, error) {
+	var b strings.Builder
+	args := make([]any, 0, len(terms)+4)
+	b.WriteString(`SELECT f.record_id, COUNT(*) FROM (`)
+	for i, t := range terms {
+		if i > 0 {
+			b.WriteString(` UNION ALL `)
+		}
+		b.WriteString(`SELECT record_id FROM records_fts WHERE records_fts MATCH ?`)
+		args = append(args, t)
+	}
+	b.WriteString(`) f JOIN records r ON r.id = f.record_id WHERE 1=1`)
+	q, args := appendRecordFilter(b.String(), args, filter)
+	q += ` GROUP BY f.record_id`
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		if strings.Contains(err.Error(), "fts5: syntax error") {
+			return nil, nil
+		}
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var id string
+		var n int
+		if err := rows.Scan(&id, &n); err != nil {
+			return nil, err
+		}
+		out[id] = n
+	}
+	return out, rows.Err()
 }
 
 func (s *Store) matchFTS(query string, limit int, filter RecordFilter) ([]FTSResult, error) {

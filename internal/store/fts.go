@@ -31,11 +31,6 @@ func fts5Terms(q string) []string {
 	return tokens
 }
 
-// fts5Query combines fts5Terms with implicit AND.
-func fts5Query(q string) string {
-	return strings.Join(fts5Terms(q), " ")
-}
-
 var ftsStopwords = map[string]bool{
 	"a": true, "an": true, "and": true, "are": true, "as": true, "at": true, "be": true,
 	"before": true, "after": true, "by": true, "for": true, "from": true, "how": true,
@@ -65,5 +60,8 @@ func contentTerms(terms []string) []string {
 // as a keyword hit after the all-terms match came back empty: two thirds,
 // and at least two when the query has two or more.
 func minShouldMatch(n int) int {
-	return max(min(2, n), (2*n+2)/3)
+	if n <= 2 {
+		return n
+	}
+	return (2*n + 2) / 3
 }
