@@ -118,6 +118,23 @@ func (r RecordsConfig) withDefaults() RecordsConfig {
 	return r
 }
 
+// Canonical returns path as a cleaned absolute path with symlinks resolved.
+// A path that does not exist yet is returned cleaned and absolute so init can create it.
+func Canonical(path string) (string, error) {
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	resolved, err := filepath.EvalSymlinks(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return abs, nil
+		}
+		return "", err
+	}
+	return resolved, nil
+}
+
 func expandHomePath(p string) (string, bool) {
 	p = strings.TrimSpace(p)
 	if p != "~" && !strings.HasPrefix(p, "~/") {

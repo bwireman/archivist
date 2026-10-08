@@ -293,6 +293,36 @@ func TestResolvedBaseURLEnv(t *testing.T) {
 	}
 }
 
+func TestCanonicalResolvesSymlink(t *testing.T) {
+	real := t.TempDir()
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	got, err := config.Canonical(link)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.EvalSymlinks(real)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("canonical %q want %q", got, want)
+	}
+}
+
+func TestCanonicalMissingPath(t *testing.T) {
+	missing := filepath.Join(t.TempDir(), "new-repo")
+	got, err := config.Canonical(missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != missing {
+		t.Fatalf("canonical %q want %q", got, missing)
+	}
+}
+
 func TestDataDir(t *testing.T) {
 	dir := t.TempDir()
 	if got := config.DataDir(dir); got != filepath.Join(dir, ".archivist") {

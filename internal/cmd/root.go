@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/bwireman/archivist/internal/config"
@@ -104,11 +103,7 @@ func warnStaleRules(cmd *cobra.Command, _ []string) error {
 }
 
 func repoRoot() (string, error) {
-	abs, err := filepath.Abs(repoPath)
-	if err != nil {
-		return "", err
-	}
-	return abs, nil
+	return config.Canonical(repoPath)
 }
 
 func loadEnv() (string, *config.Config, error) {

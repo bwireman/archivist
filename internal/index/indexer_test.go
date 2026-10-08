@@ -63,6 +63,26 @@ func TestIndexCodeMap(t *testing.T) {
 	}
 }
 
+func TestIndexSymlinkedRoot(t *testing.T) {
+	real := t.TempDir()
+	writeFile(t, real, "foo.go", "package foo\n\nfunc Bar() {}\n")
+	link := filepath.Join(t.TempDir(), "link")
+	if err := os.Symlink(real, link); err != nil {
+		t.Fatal(err)
+	}
+	idx, st, _ := newIndexer(t, link)
+	if _, err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SymbolsForFile("foo.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) == 0 {
+		t.Fatal("expected symbols from symlinked root")
+	}
+}
+
 func TestIndexGleamCodeMap(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")

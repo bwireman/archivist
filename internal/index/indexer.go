@@ -31,6 +31,12 @@ type Indexer struct {
 }
 
 func (idx *Indexer) Index(ctx context.Context, scopePath string) (Progress, error) {
+	resolved, err := config.Canonical(idx.RepoRoot)
+	if err != nil {
+		return idx.progress, err
+	}
+	idx.RepoRoot = resolved
+
 	root := idx.RepoRoot
 	if scopePath != "" {
 		root = filepath.Join(idx.RepoRoot, scopePath)
