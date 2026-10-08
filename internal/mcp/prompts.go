@@ -50,7 +50,9 @@ func (p addPrompt) handle(_ context.Context, req mcp.GetPromptRequest) (*mcp.Get
 }
 
 func (p addPrompt) text(topic, scope string) string {
-	procedure := "Before remember, search with no scope argument. Search covers repo, global, and dev. If a current record covers the topic, update it and keep its scope. If search shows a gap, pick one scope. dev: about the person or this machine, including a short-gap answer. repo: true only in this checkout. global: true for the product in every checkout."
+	procedure := fmt.Sprintf("Before remember, search with no scope argument. Search covers %s, %s, and %s. If a current record covers the topic, update it and keep its scope. If search shows a gap, pick one scope. %s: about the person or this machine, including a short-gap answer. %s: true only in this checkout. %s: true for the product in every checkout.",
+		record.ScopeRepo, record.ScopeGlobal, record.ScopeDev,
+		record.ScopeDev, record.ScopeRepo, record.ScopeGlobal)
 	scopeLine := procedure
 	if scope != "" {
 		scopeLine = procedure + " Suggested scope: " + scope + ". Use it only when it matches that procedure."
