@@ -62,6 +62,7 @@ type Report struct {
 	LoggingOff bool `json:"logging_off,omitempty"`
 	Empty      bool `json:"empty,omitempty"`
 
+	After  time.Time      `json:"after,omitzero"`
 	Counts map[string]int `json:"counts,omitempty"`
 
 	EmptySearches     []QueryRef `json:"empty_searches,omitempty"`
@@ -113,7 +114,7 @@ var skippedCommand = map[string]bool{
 // A search result marked truncated is incomplete and is left out of follow-through.
 // Vector-only search hits stay in follow-through and out of the consulted set.
 func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
-	rep := &Report{Counts: map[string]int{}}
+	rep := &Report{After: opts.After, Counts: map[string]int{}}
 	var searches []searchEvent
 	retrieved := map[string]struct{}{}
 	consulted := map[string]struct{}{}
@@ -622,6 +623,9 @@ func Format(r *Report) string {
 	if r.Empty {
 		b.WriteString("log_commands is true; no commands logged yet\n")
 		return b.String()
+	}
+	if !r.After.IsZero() && r.Since == "" {
+		fmt.Fprintf(&b, "Window: since %s; --all reads the whole log\n", r.After.UTC().Format(time.RFC3339))
 	}
 	fmt.Fprintf(&b, "%s\n", formatCounts(r.Counts))
 	writeRefs(&b, "Empty searches", r.EmptySearches, func(q QueryRef) string {

@@ -5,12 +5,11 @@ import (
 	"unicode"
 )
 
-// fts5Query turns a natural-language or path-like string into an FTS5 MATCH
-// expression. Punctuation is tokenized away so it cannot be parsed as
-// operators, column filters, or phrases. Each remaining token is quoted so
-// AND/OR/NOT/NEAR in the input are terms, not syntax. Tokens are combined
-// with implicit AND.
-func fts5Query(q string) string {
+// fts5Terms turns a natural-language or path-like string into quoted FTS5
+// terms. Punctuation is tokenized away so it cannot be parsed as operators,
+// column filters, or phrases. Each remaining token is quoted so AND/OR/NOT/NEAR
+// in the input are terms, not syntax.
+func fts5Terms(q string) []string {
 	var tokens []string
 	var cur strings.Builder
 	flush := func() {
@@ -29,5 +28,42 @@ func fts5Query(q string) string {
 		flush()
 	}
 	flush()
-	return strings.Join(tokens, " ")
+	return tokens
+}
+
+// fts5Query combines fts5Terms with implicit AND.
+func fts5Query(q string) string {
+	return strings.Join(fts5Terms(q), " ")
+}
+
+var ftsStopwords = map[string]bool{
+	"a": true, "an": true, "and": true, "are": true, "as": true, "at": true, "be": true,
+	"before": true, "after": true, "by": true, "for": true, "from": true, "how": true,
+	"in": true, "into": true, "is": true, "it": true, "its": true, "of": true, "on": true,
+	"or": true, "that": true, "the": true, "this": true, "to": true, "was": true,
+	"what": true, "when": true, "where": true, "which": true, "who": true, "why": true,
+	"will": true, "with": true, "without": true, "do": true, "does": true, "not": true,
+	"no": true, "we": true, "our": true, "you": true, "your": true, "i": true,
+}
+
+// contentTerms drops stopwords and repeats from quoted fts5Terms.
+func contentTerms(terms []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, t := range terms {
+		word := strings.ToLower(strings.Trim(t, `"`))
+		if ftsStopwords[word] || seen[word] {
+			continue
+		}
+		seen[word] = true
+		out = append(out, t)
+	}
+	return out
+}
+
+// minShouldMatch is how many of n content terms a record must contain to count
+// as a keyword hit after the all-terms match came back empty: two thirds,
+// and at least two when the query has two or more.
+func minShouldMatch(n int) int {
+	return max(min(2, n), (2*n+2)/3)
 }

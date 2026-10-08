@@ -78,6 +78,130 @@ func TestSearchFTSAcceptsPunctuation(t *testing.T) {
 	}
 }
 
+func TestSearchFTSFallsBackToAnyTerm(t *testing.T) {
+	st, rec := openFTSStore(t)
+	hits, err := st.SearchFTS("billing subagent", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].RecordID != rec.ID || !hits[0].AnyTerm {
+		t.Fatalf("fallback hits = %+v, want %s marked AnyTerm", hits, rec.ID)
+	}
+
+	hits, err = st.SearchFTS("subagent", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("single missing term hits = %+v", hits)
+	}
+}
+
+func TestMinShouldMatch(t *testing.T) {
+	for n, want := range map[int]int{0: 0, 1: 1, 2: 2, 3: 2, 4: 3, 5: 4, 6: 4} {
+		if got := minShouldMatch(n); got != want {
+			t.Errorf("minShouldMatch(%d) = %d, want %d", n, got, want)
+		}
+	}
+}
+
+func TestSearchFTSTwoThirdsOfContentTerms(t *testing.T) {
+	st, rec := openFTSStore(t)
+	hits, err := st.SearchFTS("how billing works with records", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].RecordID != rec.ID || hits[0].AnyTerm {
+		t.Fatalf("2 of 3 content terms should be a hit: %+v", hits)
+	}
+
+	hits, err = st.SearchFTS("billing widget subagent", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || !hits[0].AnyTerm {
+		t.Fatalf("1 of 3 content terms should stay AnyTerm: %+v", hits)
+	}
+}
+
+func TestSearchFTSStems(t *testing.T) {
+	st, rec := openFTSStore(t)
+	hits, err := st.SearchFTS("decision", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].RecordID != rec.ID {
+		t.Fatalf("decision should match decisions: %+v", hits)
+	}
+}
+
+func TestOpenRebuildsUnstemmedFTS(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &record.Record{
+		ID: "rec_old", Slug: "old", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Billing decisions", Status: record.StatusAccepted, Body: "body",
+		SourcePath: "docs/decisions/old.md", Tags: []string{"payments"},
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`DROP TABLE records_fts`,
+		`CREATE VIRTUAL TABLE records_fts USING fts5(record_id UNINDEXED, title, body, tags)`,
+		`DELETE FROM meta WHERE key = 'fts_tokenizer'`,
+	} {
+		if _, err := st.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	st, err = Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	for _, q := range []string{"decision", "payments"} {
+		hits, err := st.SearchFTS(q, 10, RecordFilter{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) != 1 || hits[0].RecordID != rec.ID {
+			t.Fatalf("rebuilt fts %q hits = %+v", q, hits)
+		}
+	}
+}
+
+func TestSearchFTSPrefersAllTerms(t *testing.T) {
+	st, rec := openFTSStore(t)
+	other := &record.Record{
+		ID:         "rec_other",
+		Slug:       "other",
+		Type:       record.TypeDecision,
+		Scope:      record.ScopeRepo,
+		Title:      "Billing retries",
+		Status:     record.StatusAccepted,
+		Body:       "Unrelated.",
+		SourcePath: "docs/decisions/other.md",
+	}
+	if err := st.UpsertRecord(other); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := st.SearchFTS("billing qwen3", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].RecordID != rec.ID || hits[0].AnyTerm {
+		t.Fatalf("all-terms hits = %+v, want only %s", hits, rec.ID)
+	}
+}
+
 func TestSearchFTSDoesNotTreatSQLAsStatements(t *testing.T) {
 	st, rec := openFTSStore(t)
 	payloads := []string{

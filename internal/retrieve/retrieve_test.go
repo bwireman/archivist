@@ -145,6 +145,65 @@ func TestSearchKeepsSameSlugAcrossTypes(t *testing.T) {
 	}
 }
 
+func TestSearchAnyTermOnlyBoostsVectorHits(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	boosted := &record.Record{
+		ID: "rec_boosted", Slug: "review", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Review every commit", Status: record.StatusAccepted, Body: "review the diff",
+		SourcePath: "docs/decisions/review.md",
+	}
+	plain := &record.Record{
+		ID: "rec_plain", Slug: "plain", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Unrelated close vector", Status: record.StatusAccepted, Body: "nothing shared",
+		SourcePath: "docs/decisions/plain.md",
+	}
+	noise := &record.Record{
+		ID: "rec_noise", Slug: "noise", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Commit noise", Status: record.StatusAccepted, Body: "commit appears here",
+		SourcePath: "docs/decisions/noise.md",
+	}
+	for _, rec := range []*record.Record{boosted, plain, noise} {
+		if err := st.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// {1,3} against query {1,0} is about 0.32, under the floor.
+	vecs := map[string][]float32{
+		boosted.ID: {0.9, 0.1},
+		plain.ID:   {1, 0},
+		noise.ID:   {1, 3},
+	}
+	for id, vec := range vecs {
+		if err := st.SetRecordVector(id, "test", vec); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	engine := &retrieve.Engine{Repo: st}
+	query := "review commit subagent"
+	results, err := engine.Search(context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{Query: query, TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || results[0].Record.ID != boosted.ID || results[0].Source != "hybrid" || results[1].Record.ID != plain.ID {
+		t.Fatalf("any-term should boost the vector hit and drop the weak one: %+v", results)
+	}
+
+	// boosted has 2 of 3 terms (a keyword hit); noise has 1 (any-term only).
+	keywordOnly, err := engine.Search(context.Background(), nil, retrieve.Options{Query: query, TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(keywordOnly) != 1 || keywordOnly[0].Record.ID != boosted.ID {
+		t.Fatalf("keyword-only should keep the 2-of-3 hit and drop any-term noise: %+v", keywordOnly)
+	}
+}
+
 func TestSearchDropsWeakVectorOnlyAndRetired(t *testing.T) {
 	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
 	if err != nil {

@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
@@ -12,8 +13,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const traceDefaultWindow = 7 * 24 * time.Hour
+
 func newTraceCmd() *cobra.Command {
 	var since string
+	var all bool
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "trace",
@@ -24,7 +28,14 @@ func newTraceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			rep, err := buildTrace(root, cfg, since)
+			if all && since != "" {
+				return fmt.Errorf("--all and --since cannot be combined")
+			}
+			var after time.Time
+			if !all && since == "" {
+				after = time.Now().Add(-traceDefaultWindow)
+			}
+			rep, err := buildTrace(root, cfg, since, after)
 			if err != nil {
 				return err
 			}
@@ -36,11 +47,13 @@ func newTraceCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&since, "since", "", "git rev or RFC3339 time; join retrieved records to paths changed since then")
+	cmd.Flags().BoolVar(&all, "all", false, "read the whole log instead of the last 7 days")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }
 
-func buildTrace(root string, cfg *config.Config, since string) (*trace.Report, error) {
+// buildTrace reads entries at or after after; --since replaces it with the git join time.
+func buildTrace(root string, cfg *config.Config, since string, after time.Time) (*trace.Report, error) {
 	path := config.CommandsLogPath(root)
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
@@ -55,7 +68,7 @@ func buildTrace(root string, cfg *config.Config, since string) (*trace.Report, e
 	if err != nil {
 		return nil, err
 	}
-	opts := trace.Options{Since: since}
+	opts := trace.Options{Since: since, After: after}
 	var cat trace.Catalog
 	if since != "" {
 		join, err := trace.GitChanged(root, since)

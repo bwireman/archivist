@@ -57,7 +57,10 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	}
 	rankLimit := opts.TopK * 3
 
+	// anyTermRank holds hits from the any-term retry. They only add rank to
+	// vector hits that already cleared the floor; on their own they are noise.
 	ftsRank := map[string]int{}
+	anyTermRank := map[string]int{}
 	for _, st := range []*store.Store{e.Repo, e.Home} {
 		if st == nil {
 			continue
@@ -67,8 +70,12 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			return nil, err
 		}
 		for i, fr := range ftsResults {
-			if _, ok := ftsRank[fr.RecordID]; !ok {
-				ftsRank[fr.RecordID] = i + 1
+			rank := ftsRank
+			if fr.AnyTerm {
+				rank = anyTermRank
+			}
+			if _, ok := rank[fr.RecordID]; !ok {
+				rank[fr.RecordID] = i + 1
 			}
 		}
 	}
@@ -130,10 +137,14 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 		if !ok {
 			continue
 		}
+		kw := ftsRank[id]
+		if kw == 0 {
+			kw = anyTermRank[id]
+		}
 		candidate := Result{
 			Record: rec,
-			Score:  rrfScore(ftsRank[id], vectorRank[id]),
-			Source: hitSource(ftsRank[id], vectorRank[id]),
+			Score:  rrfScore(kw, vectorRank[id]),
+			Source: hitSource(kw, vectorRank[id]),
 		}
 		key := string(rec.Type) + "/" + rec.Slug
 		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {

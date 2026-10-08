@@ -22,7 +22,11 @@ import (
 const (
 	MetaLastIndexedAt  = "last_indexed_at"
 	MetaCodemapVersion = "codemap_version"
+	MetaFTSTokenizer   = "fts_tokenizer"
 )
+
+// ftsTokenizer is a constant, so concatenating it into CREATE VIRTUAL TABLE is safe.
+const ftsTokenizer = "porter unicode61"
 
 type Store struct {
 	db *sql.DB
@@ -183,14 +187,63 @@ func (s *Store) purgeOrphans() error {
 	return err
 }
 
+// ensureFTS rebuilds records_fts from records when its tokenizer is not
+// ftsTokenizer, including stores created before stemming.
 func (s *Store) ensureFTS() error {
-	_, err := s.db.Exec(`
-CREATE VIRTUAL TABLE IF NOT EXISTS records_fts USING fts5(
+	have, _, err := s.GetMeta(MetaFTSTokenizer)
+	if err != nil || have == ftsTokenizer {
+		return err
+	}
+	rows, err := s.db.Query(`SELECT id, title, body, tags FROM records`)
+	if err != nil {
+		return err
+	}
+	type ftsRow struct{ id, title, body, tags string }
+	var recs []ftsRow
+	for rows.Next() {
+		var r ftsRow
+		var tags sql.NullString
+		if err := rows.Scan(&r.id, &r.title, &r.body, &tags); err != nil {
+			_ = rows.Close()
+			return err
+		}
+		r.tags = strings.Join(decodeJSONList(tags.String), " ")
+		recs = append(recs, r)
+	}
+	if err := rows.Close(); err != nil {
+		return err
+	}
+
+	tx, err := s.db.Begin()
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.Exec(`DROP TABLE IF EXISTS records_fts`); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`
+CREATE VIRTUAL TABLE records_fts USING fts5(
     record_id UNINDEXED,
-    title, body, tags
+    title, body, tags,
+    tokenize = '` + ftsTokenizer + `'
 );
-`)
-	return err
+`); err != nil {
+		return err
+	}
+	for _, r := range recs {
+		if _, err := tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags) VALUES (?, ?, ?, ?)`,
+			r.id, r.title, r.body, r.tags); err != nil {
+			return err
+		}
+	}
+	if _, err := tx.Exec(`
+INSERT INTO meta (key, value) VALUES (?, ?)
+ON CONFLICT(key) DO UPDATE SET value = excluded.value
+`, MetaFTSTokenizer, ftsTokenizer); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 func (s *Store) GetMeta(key string) (string, bool, error) {
@@ -662,21 +715,62 @@ UPDATE embed_queue SET attempts = attempts + 1, last_error = ? WHERE record_id =
 type FTSResult struct {
 	RecordID string
 	Score    float64
+	AnyTerm  bool // below minShouldMatch; matched only by the any-term retry
 }
 
+// SearchFTS matches every term first. When that finds nothing and the query has
+// more than one term, records containing minShouldMatch of the non-stopword
+// terms are hits, in bm25 order. Records that match fewer terms follow, marked
+// AnyTerm.
 func (s *Store) SearchFTS(query string, limit int, filter RecordFilter) ([]FTSResult, error) {
-	query = fts5Query(query)
-	if query == "" {
+	terms := fts5Terms(query)
+	if len(terms) == 0 {
 		return nil, nil
 	}
+	out, err := s.matchFTS(strings.Join(terms, " "), limit, filter)
+	if err != nil || len(out) > 0 || len(terms) == 1 {
+		return out, err
+	}
+	candidates, err := s.matchFTS(strings.Join(terms, " OR "), 0, filter)
+	if err != nil || len(candidates) == 0 {
+		return nil, err
+	}
+	content := contentTerms(terms)
+	need := minShouldMatch(len(content))
+	matched := map[string]int{}
+	for _, t := range content {
+		hits, err := s.matchFTS(t, 0, filter)
+		if err != nil {
+			return nil, err
+		}
+		for _, h := range hits {
+			matched[h.RecordID]++
+		}
+	}
+	var strong, weak []FTSResult
+	for _, c := range candidates {
+		if need > 0 && matched[c.RecordID] >= need {
+			strong = append(strong, c)
+			continue
+		}
+		c.AnyTerm = true
+		weak = append(weak, c)
+	}
+	return append(strong[:min(limit, len(strong))], weak[:min(limit, len(weak))]...), nil
+}
+
+func (s *Store) matchFTS(query string, limit int, filter RecordFilter) ([]FTSResult, error) {
 	q := `
 SELECT f.record_id, bm25(records_fts) as score
 FROM records_fts f
 JOIN records r ON r.id = f.record_id
 WHERE records_fts MATCH ?`
 	q, args := appendRecordFilter(q, []any{query}, filter)
-	q += ` ORDER BY score LIMIT ?`
-	args = append(args, limit)
+	q += ` ORDER BY score`
+	if limit > 0 {
+		q += ` LIMIT ?`
+		args = append(args, limit)
+	}
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		if strings.Contains(err.Error(), "fts5: syntax error") {
