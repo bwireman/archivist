@@ -28,7 +28,7 @@ type Manifest struct {
 	Commit  string                       `json:"commit,omitempty"`
 	Target  string                       `json:"target"`
 	Rules   map[string]map[string]string `json:"rules"`
-	Skills  map[string]map[string]string `json:"skills"`
+	Skills  map[string]map[string]string `json:"skills,omitempty"`
 }
 
 type Target string
@@ -245,8 +245,8 @@ func writeManifest(repoRoot string, target Target, rules, skillFiles map[string]
 		Version: version.Version,
 		Commit:  version.Revision(),
 		Target:  string(target),
-		Rules:   hashRulesByTarget(rules),
-		Skills:  hashSkillsByTarget(skillFiles),
+		Rules:   hashRules(target, rules),
+		Skills:  hashSkills(target, skillFiles),
 	}
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -256,8 +256,25 @@ func writeManifest(repoRoot string, target Target, rules, skillFiles map[string]
 	return writeFile(filepath.Join(repoRoot, ManifestFile), string(data))
 }
 
-func hashTargets() []Target {
-	return []Target{TargetCursor, TargetClaude, TargetAgentsMD, TargetCopilot}
+func hashRules(target Target, rules map[string][]byte) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	for _, name := range sortedKeys(rules) {
+		out[name] = map[string]string{
+			string(target): sha256Hex([]byte(renderRule(target, name, rules[name]))),
+		}
+	}
+	return out
+}
+
+func hashSkills(target Target, files map[string][]byte) map[string]map[string]string {
+	if target != TargetCursor && target != TargetClaude {
+		return nil
+	}
+	out := map[string]map[string]string{}
+	for _, rel := range sortedKeys(files) {
+		out[rel] = map[string]string{string(target): sha256Hex(files[rel])}
+	}
+	return out
 }
 
 func renderRule(target Target, name string, data []byte) string {
@@ -267,34 +284,6 @@ func renderRule(target Target, name string, data []byte) string {
 		return wrapCursorRule(body, stem)
 	}
 	return body
-}
-
-func hashRulesByTarget(rules map[string][]byte) map[string]map[string]string {
-	out := map[string]map[string]string{}
-	for _, name := range sortedKeys(rules) {
-		per := map[string]string{}
-		for _, t := range hashTargets() {
-			per[string(t)] = sha256Hex([]byte(renderRule(t, name, rules[name])))
-		}
-		out[name] = per
-	}
-	return out
-}
-
-func hashSkillsByTarget(files map[string][]byte) map[string]map[string]string {
-	out := map[string]map[string]string{}
-	for _, rel := range sortedKeys(files) {
-		sum := sha256Hex(files[rel])
-		per := map[string]string{}
-		for _, t := range hashTargets() {
-			if t == TargetAgentsMD || t == TargetCopilot {
-				continue
-			}
-			per[string(t)] = sum
-		}
-		out[rel] = per
-	}
-	return out
 }
 
 func sha256Hex(data []byte) string {

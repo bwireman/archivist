@@ -44,17 +44,15 @@ func TestInstallCursor(t *testing.T) {
 	if m.Rules["consult.md"][string(TargetCursor)] == wantPlain {
 		t.Fatal("cursor wrap should change the consult hash")
 	}
-	for _, host := range []Target{TargetClaude, TargetAgentsMD, TargetCopilot} {
-		if m.Rules["consult.md"][string(host)] != wantPlain {
-			t.Fatalf("%s consult hash %q want %q", host, m.Rules["consult.md"][string(host)], wantPlain)
-		}
+	if len(m.Rules["consult.md"]) != 1 {
+		t.Fatalf("consult hashes %v, want only cursor", m.Rules["consult.md"])
 	}
 	skillSum := fileSHA256(t, filepath.Join(root, "skills", "record-decision", "SKILL.md"))
 	if m.Skills["record-decision/SKILL.md"][string(TargetCursor)] != skillSum {
 		t.Fatalf("cursor skill hash %q", m.Skills["record-decision/SKILL.md"][string(TargetCursor)])
 	}
-	if _, ok := m.Skills["record-decision/SKILL.md"][string(TargetAgentsMD)]; ok {
-		t.Fatal("agents-md should not list skill hashes")
+	if len(m.Skills["record-decision/SKILL.md"]) != 1 {
+		t.Fatalf("skill hashes %v, want only cursor", m.Skills["record-decision/SKILL.md"])
 	}
 }
 
@@ -159,21 +157,15 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	}
 	for _, name := range []string{"ask.md", "cite.md", "consult.md", "current.md", "record.md", "refresh.md"} {
 		hosts := m.Rules[name]
-		if hosts[string(TargetCursor)] == "" || hosts[string(TargetClaude)] == "" || hosts[string(TargetAgentsMD)] == "" || hosts[string(TargetCopilot)] == "" {
-			t.Fatalf("missing per-host rule hashes for %s: %v", name, hosts)
-		}
-		if hosts[string(TargetCursor)] == hosts[string(TargetClaude)] {
-			t.Fatalf("%s cursor hash should differ from claude", name)
-		}
-		if hosts[string(TargetClaude)] != hosts[string(TargetAgentsMD)] || hosts[string(TargetClaude)] != hosts[string(TargetCopilot)] {
-			t.Fatalf("%s concatenated hosts should share a hash: %v", name, hosts)
+		if len(hosts) != 1 || hosts[string(TargetCursor)] == "" {
+			t.Fatalf("rule %s hashes %v, want only cursor", name, hosts)
 		}
 	}
-	if m.Skills["record-decision/SKILL.md"][string(TargetCursor)] == "" || m.Skills["record-decision/SKILL.md"][string(TargetClaude)] == "" {
-		t.Fatalf("missing skill hashes: %v", m.Skills)
+	if len(m.Skills["record-decision/SKILL.md"]) != 1 || m.Skills["record-decision/SKILL.md"][string(TargetCursor)] == "" {
+		t.Fatalf("skill hashes %v, want only cursor", m.Skills["record-decision/SKILL.md"])
 	}
-	if m.Skills["plan-changes/SKILL.md"][string(TargetCursor)] == "" || m.Skills["plan-changes/SKILL.md"][string(TargetClaude)] == "" {
-		t.Fatalf("missing plan-changes skill hashes: %v", m.Skills)
+	if len(m.Skills["plan-changes/SKILL.md"]) != 1 || m.Skills["plan-changes/SKILL.md"][string(TargetCursor)] == "" {
+		t.Fatalf("plan-changes hashes %v, want only cursor", m.Skills["plan-changes/SKILL.md"])
 	}
 	initSkill := filepath.Join(root, ".cursor", "skills", "init-archive", "SKILL.md")
 	initData, err := os.ReadFile(initSkill)
@@ -183,8 +175,8 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(initData), "Scan") || !strings.Contains(string(initData), "archivist embed --once") {
 		t.Fatalf("init-archive skill should scan then embed: %s", initData)
 	}
-	if m.Skills["init-archive/SKILL.md"][string(TargetCursor)] == "" || m.Skills["init-archive/SKILL.md"][string(TargetClaude)] == "" {
-		t.Fatalf("missing init-archive skill hashes: %v", m.Skills)
+	if len(m.Skills["init-archive/SKILL.md"]) != 1 || m.Skills["init-archive/SKILL.md"][string(TargetCursor)] == "" {
+		t.Fatalf("init-archive hashes %v, want only cursor", m.Skills["init-archive/SKILL.md"])
 	}
 }
 
@@ -205,6 +197,10 @@ func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 		t.Fatal("agents-md should not install cursor skills")
 	}
 	assertManifest(t, root, TargetAgentsMD)
+	m := readManifest(t, root)
+	if len(m.Skills) != 0 {
+		t.Fatalf("agents-md should not record skill hashes: %v", m.Skills)
+	}
 }
 
 func TestCursorRuleDescriptions(t *testing.T) {
@@ -313,11 +309,23 @@ func assertManifest(t *testing.T, root string, target Target) {
 		t.Fatal("expected rule hashes")
 	}
 	for name, hosts := range m.Rules {
-		for _, host := range hashTargets() {
-			if hosts[string(host)] == "" {
-				t.Fatalf("rule %s missing %s hash", name, host)
+		if len(hosts) != 1 || hosts[string(target)] == "" {
+			t.Fatalf("rule %s hashes %v, want only %s", name, hosts, target)
+		}
+	}
+	if target == TargetCursor || target == TargetClaude {
+		if len(m.Skills) == 0 {
+			t.Fatal("expected skill hashes")
+		}
+		for rel, hosts := range m.Skills {
+			if len(hosts) != 1 || hosts[string(target)] == "" {
+				t.Fatalf("skill %s hashes %v, want only %s", rel, hosts, target)
 			}
 		}
+		return
+	}
+	if len(m.Skills) != 0 {
+		t.Fatalf("skills %v, want none for %s", m.Skills, target)
 	}
 }
 

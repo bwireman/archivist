@@ -287,7 +287,7 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.
 
-Every install also writes `.archivist-install.json` with the CLI version, the binary’s git commit (ldflags `Commit`, otherwise Go’s `vcs.revision`), the host this run installed, and SHA-256 hashes of **each rule as rendered for every target** (`cursor`, `claude`, `agents-md`, `copilot`). Cursor hashes the wrapped `.mdc`; the others hash the trimmed rule body. Skills are hashed for `cursor` and `claude` only. `--target codex` is an alias for `agents-md`.
+Every install also writes `.archivist-install.json` with the CLI version, the binary’s git commit (ldflags `Commit`, otherwise Go’s `vcs.revision`), the host this run installed, and SHA-256 hashes of the rules and skills that run wrote. Cursor hashes the wrapped `.mdc`; other hosts hash the trimmed rule body. `agents-md` and `copilot` record no skill hashes. `--target codex` is an alias for `agents-md`.
 
 Every command compares those installed rule files with the templates this binary would write (a checkout-local `rules/` directory still overrides the embedded copies). When they differ, or the manifest cannot be read, archivist prints a reminder to run `archivist skills install --target <host>` on stderr and continues. No manifest means rules were never installed, so it stays quiet.
 

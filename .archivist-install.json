@@ -1,72 +1,46 @@
 {
   "version": "0.1.0",
-  "commit": "842163eb089f0be35667065ef8da514edfa90abe",
   "target": "cursor",
   "rules": {
     "ask.md": {
-      "agents-md": "f0f3c3f410f3d62ad9471b7ae6d020fa65319b401ea1782b74738cd8d3721246",
-      "claude": "f0f3c3f410f3d62ad9471b7ae6d020fa65319b401ea1782b74738cd8d3721246",
-      "copilot": "f0f3c3f410f3d62ad9471b7ae6d020fa65319b401ea1782b74738cd8d3721246",
       "cursor": "9546f07e1a99ec58bf287937e6fb18628f7f023a680609e43d07ed4ffdb7e9a3"
     },
     "cite.md": {
-      "agents-md": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
-      "claude": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
-      "copilot": "53e05bbc25db357fb365d929deefcec889fb30535713227e0b5e4a476ca39fed",
       "cursor": "ed92687e0d5e92c094c11c63b855f92c46c890e952ea8e7192396d9b508ba7be"
     },
     "consult.md": {
-      "agents-md": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
-      "claude": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
-      "copilot": "a7f298cec2d1eeb3230dc4b98590039cac8baf8136dea8c5494f59094952fd1d",
       "cursor": "f11cfb8c0d95f8a3d7fb6d82fc68de145748265299a7394504abfd0746c8839f"
     },
     "current.md": {
-      "agents-md": "1997cc10acb939115864c260cee70e0897d37aaebc9c582d37bf04e65ae98c42",
-      "claude": "1997cc10acb939115864c260cee70e0897d37aaebc9c582d37bf04e65ae98c42",
-      "copilot": "1997cc10acb939115864c260cee70e0897d37aaebc9c582d37bf04e65ae98c42",
       "cursor": "f018590c1c559ace69bbc994bfb3a99360aecd4656c32dda98c47703ec4a722f"
     },
     "record.md": {
-      "agents-md": "502d72484c7a81af2b2e5b4c3bb695c33e27cfe9795d40bc326e9ecda603a74e",
-      "claude": "502d72484c7a81af2b2e5b4c3bb695c33e27cfe9795d40bc326e9ecda603a74e",
-      "copilot": "502d72484c7a81af2b2e5b4c3bb695c33e27cfe9795d40bc326e9ecda603a74e",
       "cursor": "877662d5c18e231d64db455dd479c1c4e5cc9dc104ebd02bbd578624637f2056"
     },
     "refresh.md": {
-      "agents-md": "e0fdaeba72bc994012698d6f6156a63e46d8cdd95e9e84c50d8fe4cb4762bb69",
-      "claude": "e0fdaeba72bc994012698d6f6156a63e46d8cdd95e9e84c50d8fe4cb4762bb69",
-      "copilot": "e0fdaeba72bc994012698d6f6156a63e46d8cdd95e9e84c50d8fe4cb4762bb69",
       "cursor": "d4d354a95fb022d096d3121d1740b0c0252bab22507c22b3cabc8725b1fb7ba9"
     }
   },
   "skills": {
     "init-archive/SKILL.md": {
-      "claude": "f88f916e41f3f9ee6bd5e406e067ec136d6d214270b5d389d851cfdd38ad579c",
       "cursor": "f88f916e41f3f9ee6bd5e406e067ec136d6d214270b5d389d851cfdd38ad579c"
     },
     "plan-changes/SKILL.md": {
-      "claude": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79",
       "cursor": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79"
     },
     "publish-archive/SKILL.md": {
-      "claude": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",
       "cursor": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9"
     },
     "record-decision/SKILL.md": {
-      "claude": "aac779e7c5beadd379eba121d4411c2c4df0054226b6455216b90130cabf9df8",
       "cursor": "aac779e7c5beadd379eba121d4411c2c4df0054226b6455216b90130cabf9df8"
     },
     "record-feature/SKILL.md": {
-      "claude": "4a5aa640c84cce42923e478ec041d0595e845284ffe6934fe52d8fa7b911a17f",
       "cursor": "4a5aa640c84cce42923e478ec041d0595e845284ffe6934fe52d8fa7b911a17f"
     },
     "record-rule/SKILL.md": {
-      "claude": "9d881d8e20b47e60641224188c24c5193c72a1fffe0276299161e6d9db75f6ee",
       "cursor": "9d881d8e20b47e60641224188c24c5193c72a1fffe0276299161e6d9db75f6ee"
     },
     "refresh-archive/SKILL.md": {
-      "claude": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7",
       "cursor": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7"
     }
   }
