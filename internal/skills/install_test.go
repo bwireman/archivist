@@ -38,21 +38,15 @@ func TestInstallCursor(t *testing.T) {
 	wantCursor := sha256Hex([]byte(renderRule(TargetCursor, "consult.md", consult)))
 	wantPlain := sha256Hex([]byte(renderRule(TargetClaude, "consult.md", consult)))
 	m := readManifest(t, root)
-	if m.Rules["consult.md"][string(TargetCursor)] != wantCursor {
-		t.Fatalf("cursor consult hash %q want %q", m.Rules["consult.md"][string(TargetCursor)], wantCursor)
+	if m.Rules["consult.md"] != wantCursor {
+		t.Fatalf("cursor consult hash %q want %q", m.Rules["consult.md"], wantCursor)
 	}
-	if m.Rules["consult.md"][string(TargetCursor)] == wantPlain {
+	if m.Rules["consult.md"] == wantPlain {
 		t.Fatal("cursor wrap should change the consult hash")
 	}
-	if len(m.Rules["consult.md"]) != 1 {
-		t.Fatalf("consult hashes %v, want only cursor", m.Rules["consult.md"])
-	}
 	skillSum := fileSHA256(t, filepath.Join(root, "skills", "record-decision", "SKILL.md"))
-	if m.Skills["record-decision/SKILL.md"][string(TargetCursor)] != skillSum {
-		t.Fatalf("cursor skill hash %q", m.Skills["record-decision/SKILL.md"][string(TargetCursor)])
-	}
-	if len(m.Skills["record-decision/SKILL.md"]) != 1 {
-		t.Fatalf("skill hashes %v, want only cursor", m.Skills["record-decision/SKILL.md"])
+	if m.Skills["record-decision/SKILL.md"] != skillSum {
+		t.Fatalf("cursor skill hash %q", m.Skills["record-decision/SKILL.md"])
 	}
 }
 
@@ -155,17 +149,11 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if !strings.Contains(string(citeData), "Cite an Archivist record") {
 		t.Fatalf("cite rule description missing: %s", citeData)
 	}
-	for _, name := range []string{"ask.md", "cite.md", "consult.md", "current.md", "record.md", "refresh.md"} {
-		hosts := m.Rules[name]
-		if len(hosts) != 1 || hosts[string(TargetCursor)] == "" {
-			t.Fatalf("rule %s hashes %v, want only cursor", name, hosts)
+	assertManifest(t, root, TargetCursor)
+	for _, rel := range []string{"record-decision/SKILL.md", "plan-changes/SKILL.md", "init-archive/SKILL.md"} {
+		if m.Skills[rel] == "" {
+			t.Fatalf("missing skill hash %s", rel)
 		}
-	}
-	if len(m.Skills["record-decision/SKILL.md"]) != 1 || m.Skills["record-decision/SKILL.md"][string(TargetCursor)] == "" {
-		t.Fatalf("skill hashes %v, want only cursor", m.Skills["record-decision/SKILL.md"])
-	}
-	if len(m.Skills["plan-changes/SKILL.md"]) != 1 || m.Skills["plan-changes/SKILL.md"][string(TargetCursor)] == "" {
-		t.Fatalf("plan-changes hashes %v, want only cursor", m.Skills["plan-changes/SKILL.md"])
 	}
 	initSkill := filepath.Join(root, ".cursor", "skills", "init-archive", "SKILL.md")
 	initData, err := os.ReadFile(initSkill)
@@ -174,9 +162,6 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	}
 	if !strings.Contains(string(initData), "Scan") || !strings.Contains(string(initData), "archivist embed --once") {
 		t.Fatalf("init-archive skill should scan then embed: %s", initData)
-	}
-	if len(m.Skills["init-archive/SKILL.md"]) != 1 || m.Skills["init-archive/SKILL.md"][string(TargetCursor)] == "" {
-		t.Fatalf("init-archive hashes %v, want only cursor", m.Skills["init-archive/SKILL.md"])
 	}
 }
 
@@ -197,10 +182,6 @@ func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 		t.Fatal("agents-md should not install cursor skills")
 	}
 	assertManifest(t, root, TargetAgentsMD)
-	m := readManifest(t, root)
-	if len(m.Skills) != 0 {
-		t.Fatalf("agents-md should not record skill hashes: %v", m.Skills)
-	}
 }
 
 func TestCursorRuleDescriptions(t *testing.T) {
@@ -269,6 +250,16 @@ func TestRulesStale(t *testing.T) {
 	if !strings.Contains(StaleRulesNotice(target), "--target cursor") {
 		t.Fatal(StaleRulesNotice(target))
 	}
+
+	legacy := t.TempDir()
+	legacyBody := []byte(`{"version":"0.1.0","target":"agents-md","rules":{"consult.md":{"agents-md":"abc","cursor":"def"}}}`)
+	if err := os.WriteFile(filepath.Join(legacy, ManifestFile), legacyBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	stale, target, err = RulesStale(legacy)
+	if err != nil || !stale || target != string(TargetAgentsMD) {
+		t.Fatalf("legacy manifest: stale=%v target=%q err=%v", stale, target, err)
+	}
 }
 
 func TestParseTargetCodexIsAgentsMD(t *testing.T) {
@@ -308,18 +299,18 @@ func assertManifest(t *testing.T, root string, target Target) {
 	if len(m.Rules) == 0 {
 		t.Fatal("expected rule hashes")
 	}
-	for name, hosts := range m.Rules {
-		if len(hosts) != 1 || hosts[string(target)] == "" {
-			t.Fatalf("rule %s hashes %v, want only %s", name, hosts, target)
+	for name, sum := range m.Rules {
+		if sum == "" {
+			t.Fatalf("rule %s missing hash", name)
 		}
 	}
-	if target == TargetCursor || target == TargetClaude {
+	if installsSkills(target) {
 		if len(m.Skills) == 0 {
 			t.Fatal("expected skill hashes")
 		}
-		for rel, hosts := range m.Skills {
-			if len(hosts) != 1 || hosts[string(target)] == "" {
-				t.Fatalf("skill %s hashes %v, want only %s", rel, hosts, target)
+		for rel, sum := range m.Skills {
+			if sum == "" {
+				t.Fatalf("skill %s missing hash", rel)
 			}
 		}
 		return

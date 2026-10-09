@@ -2,46 +2,20 @@
   "version": "0.1.0",
   "target": "cursor",
   "rules": {
-    "ask.md": {
-      "cursor": "9546f07e1a99ec58bf287937e6fb18628f7f023a680609e43d07ed4ffdb7e9a3"
-    },
-    "cite.md": {
-      "cursor": "ed92687e0d5e92c094c11c63b855f92c46c890e952ea8e7192396d9b508ba7be"
-    },
-    "consult.md": {
-      "cursor": "f11cfb8c0d95f8a3d7fb6d82fc68de145748265299a7394504abfd0746c8839f"
-    },
-    "current.md": {
-      "cursor": "f018590c1c559ace69bbc994bfb3a99360aecd4656c32dda98c47703ec4a722f"
-    },
-    "record.md": {
-      "cursor": "877662d5c18e231d64db455dd479c1c4e5cc9dc104ebd02bbd578624637f2056"
-    },
-    "refresh.md": {
-      "cursor": "d4d354a95fb022d096d3121d1740b0c0252bab22507c22b3cabc8725b1fb7ba9"
-    }
+    "ask.md": "9546f07e1a99ec58bf287937e6fb18628f7f023a680609e43d07ed4ffdb7e9a3",
+    "cite.md": "ed92687e0d5e92c094c11c63b855f92c46c890e952ea8e7192396d9b508ba7be",
+    "consult.md": "f11cfb8c0d95f8a3d7fb6d82fc68de145748265299a7394504abfd0746c8839f",
+    "current.md": "f018590c1c559ace69bbc994bfb3a99360aecd4656c32dda98c47703ec4a722f",
+    "record.md": "877662d5c18e231d64db455dd479c1c4e5cc9dc104ebd02bbd578624637f2056",
+    "refresh.md": "d4d354a95fb022d096d3121d1740b0c0252bab22507c22b3cabc8725b1fb7ba9"
   },
   "skills": {
-    "init-archive/SKILL.md": {
-      "cursor": "f88f916e41f3f9ee6bd5e406e067ec136d6d214270b5d389d851cfdd38ad579c"
-    },
-    "plan-changes/SKILL.md": {
-      "cursor": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79"
-    },
-    "publish-archive/SKILL.md": {
-      "cursor": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9"
-    },
-    "record-decision/SKILL.md": {
-      "cursor": "aac779e7c5beadd379eba121d4411c2c4df0054226b6455216b90130cabf9df8"
-    },
-    "record-feature/SKILL.md": {
-      "cursor": "4a5aa640c84cce42923e478ec041d0595e845284ffe6934fe52d8fa7b911a17f"
-    },
-    "record-rule/SKILL.md": {
-      "cursor": "9d881d8e20b47e60641224188c24c5193c72a1fffe0276299161e6d9db75f6ee"
-    },
-    "refresh-archive/SKILL.md": {
-      "cursor": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7"
-    }
+    "init-archive/SKILL.md": "f88f916e41f3f9ee6bd5e406e067ec136d6d214270b5d389d851cfdd38ad579c",
+    "plan-changes/SKILL.md": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79",
+    "publish-archive/SKILL.md": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",
+    "record-decision/SKILL.md": "aac779e7c5beadd379eba121d4411c2c4df0054226b6455216b90130cabf9df8",
+    "record-feature/SKILL.md": "4a5aa640c84cce42923e478ec041d0595e845284ffe6934fe52d8fa7b911a17f",
+    "record-rule/SKILL.md": "9d881d8e20b47e60641224188c24c5193c72a1fffe0276299161e6d9db75f6ee",
+    "refresh-archive/SKILL.md": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7"
   }
 }

@@ -24,11 +24,11 @@ import (
 const ManifestFile = ".archivist-install.json"
 
 type Manifest struct {
-	Version string                       `json:"version"`
-	Commit  string                       `json:"commit,omitempty"`
-	Target  string                       `json:"target"`
-	Rules   map[string]map[string]string `json:"rules"`
-	Skills  map[string]map[string]string `json:"skills,omitempty"`
+	Version string            `json:"version"`
+	Commit  string            `json:"commit,omitempty"`
+	Target  string            `json:"target"`
+	Rules   map[string]string `json:"rules"`
+	Skills  map[string]string `json:"skills,omitempty"`
 }
 
 type Target string
@@ -68,12 +68,12 @@ func Install(repoRoot string, target Target) error {
 	if err := installRules(repoRoot, target, rules); err != nil {
 		return err
 	}
-	switch target {
-	case TargetAgentsMD, TargetCopilot:
-	default:
+	if installsSkills(target) {
 		if err := installSkills(repoRoot, target, skillFiles); err != nil {
 			return err
 		}
+	} else {
+		skillFiles = nil
 	}
 	return writeManifest(repoRoot, target, rules, skillFiles)
 }
@@ -174,7 +174,7 @@ func RulesStale(repoRoot string) (stale bool, target string, err error) {
 		var syn *json.SyntaxError
 		var typ *json.UnmarshalTypeError
 		if errors.As(err, &syn) || errors.As(err, &typ) {
-			return true, "", nil
+			return true, manifestTarget(repoRoot), nil
 		}
 		return false, "", err
 	}
@@ -221,6 +221,25 @@ func loadManifest(repoRoot string) (Manifest, error) {
 	return m, nil
 }
 
+// manifestTarget reads the host from a manifest whose rule hashes use an
+// older shape. A syntax error returns "".
+func manifestTarget(repoRoot string) string {
+	data, err := os.ReadFile(filepath.Join(repoRoot, ManifestFile))
+	if err != nil {
+		return ""
+	}
+	var head struct {
+		Target string `json:"target"`
+	}
+	if json.Unmarshal(data, &head) != nil {
+		return ""
+	}
+	if _, err := ParseTarget(head.Target); err != nil {
+		return ""
+	}
+	return head.Target
+}
+
 func installSkills(repoRoot string, target Target, skillFiles map[string][]byte) error {
 	for _, rel := range sortedKeys(skillFiles) {
 		name := path.Dir(rel)
@@ -246,7 +265,7 @@ func writeManifest(repoRoot string, target Target, rules, skillFiles map[string]
 		Commit:  version.Revision(),
 		Target:  string(target),
 		Rules:   hashRules(target, rules),
-		Skills:  hashSkills(target, skillFiles),
+		Skills:  hashSkills(skillFiles),
 	}
 	data, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -256,23 +275,30 @@ func writeManifest(repoRoot string, target Target, rules, skillFiles map[string]
 	return writeFile(filepath.Join(repoRoot, ManifestFile), string(data))
 }
 
-func hashRules(target Target, rules map[string][]byte) map[string]map[string]string {
-	out := map[string]map[string]string{}
+func installsSkills(target Target) bool {
+	switch target {
+	case TargetCursor, TargetClaude:
+		return true
+	default:
+		return false
+	}
+}
+
+func hashRules(target Target, rules map[string][]byte) map[string]string {
+	out := map[string]string{}
 	for _, name := range sortedKeys(rules) {
-		out[name] = map[string]string{
-			string(target): sha256Hex([]byte(renderRule(target, name, rules[name]))),
-		}
+		out[name] = sha256Hex([]byte(renderRule(target, name, rules[name])))
 	}
 	return out
 }
 
-func hashSkills(target Target, files map[string][]byte) map[string]map[string]string {
-	if target != TargetCursor && target != TargetClaude {
+func hashSkills(files map[string][]byte) map[string]string {
+	if len(files) == 0 {
 		return nil
 	}
-	out := map[string]map[string]string{}
+	out := map[string]string{}
 	for _, rel := range sortedKeys(files) {
-		out[rel] = map[string]string{string(target): sha256Hex(files[rel])}
+		out[rel] = sha256Hex(files[rel])
 	}
 	return out
 }
