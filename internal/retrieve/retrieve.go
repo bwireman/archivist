@@ -55,9 +55,8 @@ type Engine struct {
 }
 
 type searchStore struct {
-	db    *store.Store
-	root  string
-	extra bool
+	db   *store.Store
+	root string
 }
 
 func (e *Engine) searchStores() []searchStore {
@@ -75,7 +74,7 @@ func (e *Engine) searchStores() []searchStore {
 		if ex.DB == nil {
 			continue
 		}
-		out = append(out, searchStore{db: ex.DB, root: ex.Root, extra: true})
+		out = append(out, searchStore{db: ex.DB, root: ex.Root})
 	}
 	return out
 }
@@ -177,7 +176,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			Source:  hitSource(kw, vectorRank[id]),
 			Archive: archiveRoot,
 		}
-		key := overlayKey(archiveRoot, archiveRoot != "", rec)
+		key := overlayKey(archiveRoot, rec)
 		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {
 			continue
 		}
@@ -234,9 +233,9 @@ func hitSource(ftsRank, vectorRank int) string {
 	}
 }
 
-func overlayKey(root string, extra bool, rec *record.Record) string {
+func overlayKey(root string, rec *record.Record) string {
 	base := string(rec.Type) + "/" + rec.Slug
-	if extra {
+	if root != "" {
 		return root + "\x00" + base
 	}
 	return base
@@ -246,45 +245,27 @@ func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, map[str
 	out := make(map[string]*record.Record, len(ids))
 	archives := map[string]string{}
 	remaining := ids
-	take := func(found map[string]*record.Record, root string) {
+	for _, src := range e.searchStores() {
+		if len(remaining) == 0 {
+			break
+		}
+		found, err := src.db.GetRecordsByIDs(remaining)
+		if err != nil {
+			return nil, nil, err
+		}
 		next := make([]string, 0, len(remaining))
 		for _, id := range remaining {
-			if rec, ok := found[id]; ok {
-				out[id] = rec
-				if root != "" {
-					archives[id] = root
-				}
-			} else {
+			rec, ok := found[id]
+			if !ok {
 				next = append(next, id)
+				continue
+			}
+			out[id] = rec
+			if src.root != "" {
+				archives[id] = src.root
 			}
 		}
 		remaining = next
-	}
-	if e != nil && e.Repo != nil && len(remaining) > 0 {
-		found, err := e.Repo.GetRecordsByIDs(remaining)
-		if err != nil {
-			return nil, nil, err
-		}
-		take(found, "")
-	}
-	if e != nil && e.Home != nil && len(remaining) > 0 {
-		found, err := e.Home.GetRecordsByIDs(remaining)
-		if err != nil {
-			return nil, nil, err
-		}
-		take(found, "")
-	}
-	if e != nil {
-		for _, ex := range e.Extras {
-			if ex.DB == nil || len(remaining) == 0 {
-				continue
-			}
-			found, err := ex.DB.GetRecordsByIDs(remaining)
-			if err != nil {
-				return nil, nil, err
-			}
-			take(found, ex.Root)
-		}
 	}
 	return out, archives, nil
 }

@@ -91,39 +91,34 @@ func openExisting(path string, dsnFn func(string) (string, error)) (*Store, erro
 	return &Store{db: db}, nil
 }
 
-// sqliteDSN builds a modernc DSN whose query keys are driver-validated
-// (ints/bools/enums). Do not use _pragma: those values are executed as raw
-// PRAGMA SQL. '?' and '#' would start a DSN query string, so they are rejected
-// in the filesystem path.
 func sqliteDSN(path string) (string, error) {
-	if strings.ContainsAny(path, "?#") {
-		return "", errors.New("sqlite path must not contain ? or #")
-	}
-	q := url.Values{}
-	q.Set("_busy_timeout", "5000")
-	q.Set("_foreign_keys", "on")
-	q.Set("_journal_mode", "WAL")
-	return path + "?" + q.Encode(), nil
+	return sqliteDSNMode(path, "")
 }
 
 func sqliteDSNReadOnly(path string) (string, error) {
-	return sqliteDSNMode(path, "ro", false)
+	return sqliteDSNMode(path, "ro")
 }
 
 func sqliteDSNExisting(path string) (string, error) {
-	return sqliteDSNMode(path, "rw", false)
+	return sqliteDSNMode(path, "rw")
 }
 
-func sqliteDSNMode(path, mode string, journal bool) (string, error) {
+// sqliteDSNMode builds a modernc DSN whose query keys are driver-validated
+// (ints/bools/enums). Do not use _pragma: those values are executed as raw
+// PRAGMA SQL. '?' and '#' would start a DSN query string, so they are rejected
+// in the filesystem path. An empty mode is the read-write opener used by Open,
+// which sets WAL. ro and rw do not set the journal mode.
+func sqliteDSNMode(path, mode string) (string, error) {
 	if strings.ContainsAny(path, "?#") {
 		return "", errors.New("sqlite path must not contain ? or #")
 	}
 	q := url.Values{}
-	q.Set("mode", mode)
 	q.Set("_busy_timeout", "5000")
 	q.Set("_foreign_keys", "on")
-	if journal {
+	if mode == "" {
 		q.Set("_journal_mode", "WAL")
+	} else {
+		q.Set("mode", mode)
 	}
 	return path + "?" + q.Encode(), nil
 }

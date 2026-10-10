@@ -91,17 +91,13 @@ func (s *Service) contextStore(scope record.Scope, archiveRoot string) (*store.S
 }
 
 func (s *Service) matchExtra(archiveRoot string) (string, error) {
-	canon, err := config.Canonical(archiveRoot)
+	canon, err := config.ResolveCheckout(s.RepoRoot, archiveRoot)
 	if err != nil {
 		return "", err
 	}
 	for _, root := range s.ExtraRoots {
-		got, err := config.Canonical(root)
-		if err != nil {
-			return "", err
-		}
-		if got == canon {
-			return got, nil
+		if root == canon {
+			return root, nil
 		}
 	}
 	return "", fmt.Errorf("archive %s is not a configured extra", canon)

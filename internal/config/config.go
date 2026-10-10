@@ -250,6 +250,27 @@ func StorePath(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir, DefaultIndexDB)
 }
 
+// ResolveCheckout cleans a checkout path the same way ArchiveRoots does:
+// trim, expand ~/, and resolve a relative path against repoRoot.
+func ResolveCheckout(repoRoot, raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", fmt.Errorf("archives entry is empty")
+	}
+	p := raw
+	if expanded, ok := expandHomePath(p); ok {
+		p = expanded
+	}
+	if !filepath.IsAbs(p) {
+		p = filepath.Join(repoRoot, p)
+	}
+	root, err := Canonical(p)
+	if err != nil {
+		return "", fmt.Errorf("archives path %s: %w", raw, err)
+	}
+	return root, nil
+}
+
 // ArchiveRoots resolves c.Archives to canonical checkout roots. Each entry must
 // be a directory other than repoRoot that already contains .archivist/index.db.
 // The listed checkout's own archives list is not read.
@@ -264,20 +285,9 @@ func (c *Config) ArchiveRoots(repoRoot string) ([]string, error) {
 	seen := map[string]struct{}{}
 	var out []string
 	for _, raw := range c.Archives {
-		raw = strings.TrimSpace(raw)
-		if raw == "" {
-			return nil, fmt.Errorf("archives entry is empty")
-		}
-		p := raw
-		if expanded, ok := expandHomePath(p); ok {
-			p = expanded
-		}
-		if !filepath.IsAbs(p) {
-			p = filepath.Join(repoRoot, p)
-		}
-		root, err := Canonical(p)
+		root, err := ResolveCheckout(repoRoot, raw)
 		if err != nil {
-			return nil, fmt.Errorf("archives path %s: %w", raw, err)
+			return nil, err
 		}
 		if root == primary {
 			return nil, fmt.Errorf("archives path %s is the primary checkout", root)

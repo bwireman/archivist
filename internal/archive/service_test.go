@@ -264,6 +264,58 @@ func TestRememberWritesTheContextDatabase(t *testing.T) {
 	}
 }
 
+func TestRememberRelativeArchiveMatchesConfig(t *testing.T) {
+	parent := t.TempDir()
+	repo := filepath.Join(parent, "hub")
+	extra := filepath.Join(parent, "other")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	extraDB, err := store.Open(config.StorePath(extra))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := extraDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	canon, err := config.Canonical(extra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc.ExtraRoots = []string{canon}
+	id, err := svc.Remember(&record.Record{
+		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Sibling",
+		Body: "about the other checkout", Status: record.StatusAccepted,
+	}, "../other")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok, err := repoDB.GetRecordByID(id); err != nil || ok {
+		t.Fatalf("primary contains id ok=%v err=%v", ok, err)
+	}
+	ro, err := store.OpenReadOnly(config.StorePath(extra))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ro.Close()
+	if _, ok, err := ro.GetRecordByID(id); err != nil || !ok {
+		t.Fatalf("extra missing id ok=%v err=%v", ok, err)
+	}
+}
+
 func TestUpdateAndRetireStayInExtra(t *testing.T) {
 	repo := t.TempDir()
 	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
