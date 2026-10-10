@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 
@@ -323,6 +324,8 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 		res, err = s.toolCite(context.Background(), req)
 	case "status":
 		res, err = s.toolStatus(context.Background(), req)
+	case "map":
+		res, err = s.toolMap(context.Background(), req)
 	default:
 		t.Fatalf("unknown tool %s", name)
 	}
@@ -433,6 +436,113 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 	if count < 1 {
 		t.Fatalf("extra record_count %#v", row)
 	}
+}
+
+func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
+	repo := t.TempDir()
+	repoDB, err := store.Open(config.StorePath(repo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	if err := repoDB.ReplaceFileMap(
+		store.FileRecord{Path: "primary.go", ContentHash: "p", IndexedAt: now},
+		[]store.Symbol{{Name: "PrimaryWidget", Kind: "function_declaration", Line: 1, Exported: true}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := repoDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	extra := t.TempDir()
+	extraPath := config.StorePath(extra)
+	extraDB, err := store.Open(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := extraDB.ReplaceFileMap(
+		store.FileRecord{Path: "extra.go", ContentHash: "e", IndexedAt: now},
+		[]store.Symbol{{Name: "ExtraWidget", Kind: "function_declaration", Line: 2, Exported: true}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := extraDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ro, err := store.OpenReadOnly(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ro.Close()
+	canon, err := config.Canonical(extra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	primary, err := store.Open(config.StorePath(repo))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer primary.Close()
+	s := New(repo, config.Default(), primary, nil, nil)
+	s.Archive.Extras = []archive.Extra{{Root: canon, DB: ro}}
+
+	got := callTool(t, s, "map", map[string]any{"query": "Widget"}).(map[string]any)
+	names := symbolNames(t, got["symbols"])
+	if !containsString(names, "PrimaryWidget") || containsString(names, "ExtraWidget") {
+		t.Fatalf("top-level symbols %v", names)
+	}
+	archives, _ := got["archives"].([]any)
+	if len(archives) != 1 {
+		t.Fatalf("archives %#v", got["archives"])
+	}
+	row, _ := archives[0].(map[string]any)
+	if row["root"] != canon {
+		t.Fatalf("root %#v", row["root"])
+	}
+	extraNames := symbolNames(t, row["symbols"])
+	if !containsString(extraNames, "ExtraWidget") || containsString(extraNames, "PrimaryWidget") {
+		t.Fatalf("extra symbols %v", extraNames)
+	}
+	after, err := os.ReadFile(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("map changed the extra database")
+	}
+
+	plain := New(repo, config.Default(), primary, nil, nil)
+	noExtra := callTool(t, plain, "map", map[string]any{"query": "Widget"}).(map[string]any)
+	if _, ok := noExtra["archives"]; ok {
+		t.Fatalf("archives field present: %#v", noExtra["archives"])
+	}
+}
+
+func symbolNames(t *testing.T, raw any) []string {
+	t.Helper()
+	rows, _ := raw.([]any)
+	var names []string
+	for _, row := range rows {
+		sym, _ := row.(map[string]any)
+		name, _ := sym["name"].(string)
+		names = append(names, name)
+	}
+	return names
+}
+
+func containsString(list []string, want string) bool {
+	for _, s := range list {
+		if s == want {
+			return true
+		}
+	}
+	return false
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {

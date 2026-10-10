@@ -76,7 +76,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
 		annotate("Explore code map", true, false, true),
-		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. Run `archivist index` first."),
+		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Run `archivist index` in a checkout before reading its map."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
 	), s.toolMap)
@@ -261,9 +261,23 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 
 func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	limit := int(req.GetFloat("limit", float64(store.DefaultExploreLimit)))
-	res, err := s.RepoDB.ExploreCode(req.GetString("query", ""), limit)
+	query := req.GetString("query", "")
+	primary, err := s.RepoDB.ExploreCode(query, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
+	}
+	res := store.MapResult{CodeSearch: primary}
+	if s.Archive != nil {
+		for _, ex := range s.Archive.Extras {
+			if ex.DB == nil {
+				continue
+			}
+			section, err := ex.DB.ExploreCode(query, limit)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			res.Archives = append(res.Archives, store.RootedCodeSearch{Root: ex.Root, CodeSearch: section})
+		}
 	}
 	return jsonResult(res)
 }

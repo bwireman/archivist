@@ -1103,6 +1103,19 @@ type CodeSearch struct {
 	Commits   []CommitRecord `json:"commits,omitempty"`
 }
 
+// RootedCodeSearch is one listed checkout's code map.
+type RootedCodeSearch struct {
+	Root string `json:"root"`
+	CodeSearch
+}
+
+// MapResult is the primary checkout's code map. Archives is omitted when no
+// extra checkouts are configured.
+type MapResult struct {
+	CodeSearch
+	Archives []RootedCodeSearch `json:"archives,omitempty"`
+}
+
 // DefaultExploreLimit is the row cap for each section of ExploreCode when the
 // caller does not pass a positive limit.
 const DefaultExploreLimit = 30

@@ -19,31 +19,52 @@ func newMapCmd() *cobra.Command {
 		Short: "Explore the code map: symbols, imports, importers, and commits",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			root, err := repoRoot()
+			root, cfg, err := loadEnv()
 			if err != nil {
 				return err
 			}
-			repo, err := openStore(root)
+			repo, home, extras, err := openReadArchives(root, cfg)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
+			defer home.Close()
+			defer closeExtras(extras)
 
-			res, err := repo.ExploreCode(strings.Join(args, " "), limit)
+			query := strings.Join(args, " ")
+			primary, err := repo.ExploreCode(query, limit)
 			if err != nil {
 				return err
+			}
+			res := store.MapResult{CodeSearch: primary}
+			for _, ex := range extras {
+				section, err := ex.DB.ExploreCode(query, limit)
+				if err != nil {
+					return err
+				}
+				res.Archives = append(res.Archives, store.RootedCodeSearch{Root: ex.Root, CodeSearch: section})
 			}
 			noteResult(cmd, res)
 			if asJSON {
 				return writeIndentedJSON(cmd.OutOrStdout(), res)
 			}
-			fmt.Fprint(cmd.OutOrStdout(), formatCodeSearch(res))
+			fmt.Fprint(cmd.OutOrStdout(), formatMap(res))
 			return nil
 		},
 	}
 	cmd.Flags().IntVar(&limit, "limit", DefaultMapLimit, "max rows per section")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
+}
+
+func formatMap(res store.MapResult) string {
+	var b strings.Builder
+	b.WriteString(formatCodeSearch(res.CodeSearch))
+	for _, extra := range res.Archives {
+		fmt.Fprintf(&b, "\n# %s\n", extra.Root)
+		b.WriteString(formatCodeSearch(extra.CodeSearch))
+	}
+	return b.String()
 }
 
 func formatCodeSearch(res store.CodeSearch) string {
