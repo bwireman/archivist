@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
+	"slices"
 	"testing"
 	"time"
 
@@ -36,7 +37,7 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 	}
 	got := runMap(t, root, "Widget")
 	names := mapSymbolNames(t, got["symbols"])
-	if !containsString(names, "PrimaryWidget") || containsString(names, "ExtraWidget") {
+	if !slices.Contains(names, "PrimaryWidget") || slices.Contains(names, "ExtraWidget") {
 		t.Fatalf("top-level symbols %v", names)
 	}
 	archives, _ := got["archives"].([]any)
@@ -50,7 +51,7 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 		t.Fatalf("root %#v", row["root"])
 	}
 	extraNames := mapSymbolNames(t, row["symbols"])
-	if !containsString(extraNames, "ExtraWidget") || containsString(extraNames, "PrimaryWidget") {
+	if !slices.Contains(extraNames, "ExtraWidget") || slices.Contains(extraNames, "PrimaryWidget") {
 		t.Fatalf("extra symbols %v", extraNames)
 	}
 	emptyRow, _ := archives[1].(map[string]any)
@@ -122,15 +123,6 @@ func mapSymbolNames(t *testing.T, raw any) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-func containsString(list []string, want string) bool {
-	for _, s := range list {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }
 
 func mustRead(t *testing.T, path string) []byte {

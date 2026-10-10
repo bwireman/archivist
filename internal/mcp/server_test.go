@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -494,7 +495,7 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 
 	got := callTool(t, s, "map", map[string]any{"query": "Widget"}).(map[string]any)
 	names := symbolNames(t, got["symbols"])
-	if !containsString(names, "PrimaryWidget") || containsString(names, "ExtraWidget") {
+	if !slices.Contains(names, "PrimaryWidget") || slices.Contains(names, "ExtraWidget") {
 		t.Fatalf("top-level symbols %v", names)
 	}
 	archives, _ := got["archives"].([]any)
@@ -506,7 +507,7 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 		t.Fatalf("root %#v", row["root"])
 	}
 	extraNames := symbolNames(t, row["symbols"])
-	if !containsString(extraNames, "ExtraWidget") || containsString(extraNames, "PrimaryWidget") {
+	if !slices.Contains(extraNames, "ExtraWidget") || slices.Contains(extraNames, "PrimaryWidget") {
 		t.Fatalf("extra symbols %v", extraNames)
 	}
 	after, err := os.ReadFile(extraPath)
@@ -534,15 +535,6 @@ func symbolNames(t *testing.T, raw any) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-func containsString(list []string, want string) bool {
-	for _, s := range list {
-		if s == want {
-			return true
-		}
-	}
-	return false
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {
