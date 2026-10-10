@@ -143,15 +143,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 ### Several checkouts
 
-Claude Code keeps one MCP process on the checkout it started in. That checkout's `.archivist.json` may list other checkout roots:
-
-```json
-{
-  "archives": ["../other-repo", "/absolute/path/to/another"]
-}
-```
-
-Search reads each listed `.archivist/index.db` as an extra place to search. A new record is written to the database selected by context: the home store for global and dev, this checkout when the repo record is about it, and `remember --archive <root>` when the repo record is about that listed checkout. The row is inserted only there. Update and retire change the database that already holds the id. Nothing is copied between archives. The process does not infer the target from a later working directory.
+Claude Code keeps one MCP process on the checkout it started in. List the other checkouts in that checkout's `.archivist.json` under `archives`. See [Extra archives](#extra-archives) for the path rules and which commands read or write them.
 
 ### Tools
 
@@ -160,7 +152,7 @@ Search reads each listed `.archivist/index.db` as an extra place to search. A ne
 | `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `status`, `top_k`, `full`). Default omits deprecated and superseded, and omits the body. Pass `full` for every stored field. Use before implementing or writing a record. |
 | `get` | One record by id or slug. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass `full` for every stored field. |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
-| `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`) |
+| `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`). The top level is this checkout. Listed `archives` are returned under `archives` and are not indexed by this call. |
 | `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Optional `archive` is the listed checkout a repo record is about; omit it when that context is the process checkout. Distill lasting facts; do not dump chat. No markdown file. |
 | `update` | Amend title, body, or status in place (prefer over a parallel `remember`) |
 | `retire` | Mark superseded when a later choice replaces it |
@@ -212,7 +204,7 @@ tags: [billing]
   - `guide` — a how-to procedure
   - `map` — structural notes (`docs/archive/map.md` is the generated code map)
   - `pitfall` — a confirmed gotcha
-- **scope**: `repo` lives in `.archivist/index.db`; `global` and `dev` live in `~/.archivist/archive.db`. Logical `source_path` prefixes follow `records.repo` (default `docs/decisions`), `records.global` (default `~/.archivist`), and `records.dev` (default `~/.archivist/records`). Those directories are import drop folders, not required files.
+- **scope**: `repo` lives in the checkout's `.archivist/index.db` (this checkout, or a listed extra when the record is about that checkout); `global` and `dev` live in `~/.archivist/archive.db`. Logical `source_path` prefixes follow `records.repo` (default `docs/decisions`), `records.global` (default `~/.archivist`), and `records.dev` (default `~/.archivist/records`). Those directories are import drop folders, not required files.
 - **severity** (rules): `must`, `must-not`, `should`, `should-not`
 
 Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a subsystem behaves. Encode a design choice as a `decision`, a constraint as a `rule`.
@@ -223,20 +215,20 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | --- | --- | --- |
 | `archivist init` | no | Config, SQLite dirs, optional import drop folders |
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
-| `archivist index` | no | Index code map + git history (feeds `map`) |
+| `archivist index` | no | Index this checkout's code map + git history (feeds `map`). Does not walk `archives`. |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
-| `archivist search <query>` | optional | Hybrid FTS + vector search (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field) |
-| `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits |
+| `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field) |
+| `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits. Also reads listed `archives`; does not index them. |
 | `archivist check` | optional | Match rules to a change |
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
 | `archivist trace` | no | Digest `commands.log`; `--since` joins consulted records to a git diff |
-| `archivist remember` | no | Create a record in SQLite (no markdown file) |
+| `archivist remember` | no | Create a record in SQLite (no markdown file). `--archive` names a listed checkout when the repo record is about that checkout. |
 | `archivist update` / `retire` | no | Amend or supersede |
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |
 | `archivist publish <name>` | no | Bundle + configured shell command |
 | `archivist mcp` | optional | MCP server (primary agent API) |
 | `archivist skills install --target cursor` | no | Always-on rules + on-demand skills |
-| `archivist status` | no | Archive + queue status |
+| `archivist status` | no | Archive + queue status. Listed archives are counted separately from this checkout. |
 
 ## Optional markdown export
 
@@ -277,7 +269,8 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
       "team-wiki": { "command": ["./scripts/push.sh", "{{bundle}}"] }
     }
   },
-  "log_commands": true
+  "log_commands": true,
+  "archives": ["../other-repo", "~/src/another-repo"]
 }
 ```
 
@@ -286,9 +279,24 @@ Do not hand-edit `docs/archive/`; regenerate with `archivist export`. Run `archi
 - Empty `records.dev` is `~/.archivist/records`.
 - Empty `records.global` is `~/.archivist` (import walk for top-level `.md`, skip `records/` and `archive.db`). Set a checkout-relative directory (this repo uses `docs/global-decisions`) if you want an in-repo import drop folder for product-wide records. SQLite remains canonical; committing markdown is optional.
 - `records.write_docs` (default false) controls whether `archivist export` writes `records.export`. `--bundle` and publish ignore the flag.
-- SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`.
+- SQLite paths are not configurable: `.archivist/index.db` and `~/.archivist/archive.db`. `archives` lists checkout roots, not database files.
 - `log_commands` (default false) appends JSONL lines to `.archivist/commands.log` for archive CLI commands and MCP tools: one `dir=in` line with arguments, one `dir=out` line with the parsed result or error (CLI and MCP, clipped at 64KiB). `init`, `version`, `skills`, `trace`, and the `mcp` process itself are not logged (MCP tools still are, including `cite`). Logging never fails the command. `archivist cite` errors when the flag is off. `archivist trace` reads the log and, with `--since`, reports consulted records (get, cite, check, and hybrid or keyword search hits) whose `applies_to` overlaps the diff. Vector-only search hits are listed and left out of that join.
 - `.gitignore` is always honored. `.git` and `.archivist` are always skipped.
+
+### Extra archives
+
+Put `archives` in the `.archivist.json` of the checkout the MCP process starts in (its cwd, or `--path`). Each entry is another checkout's root. Archivist opens `<root>/.archivist/index.db` there.
+
+```json
+"archives": ["../other-repo", "/absolute/path/to/another", "~/src/third"]
+```
+
+- A relative path is resolved from that checkout, not from a later working directory. `~/…` and absolute paths are accepted.
+- Run `archivist init` in the other checkout first. The database file must already exist. Archivist does not create it.
+- The list cannot name this checkout, repeat a path, or point at a file. A listed checkout's own `archives` list is not followed.
+- `search`, `get`, `cite`, `status`, and `map` read those databases. An extra search hit includes `archive` (that checkout's root). `map` keeps this checkout at the top level and adds each listed checkout under `archives`; that field is omitted when the list is empty. `map` does not run `index` on them. To fill an extra code map, run `archivist --path <that-checkout> index` there.
+- `check`, `index`, `import`, and `embed` stay on this checkout. Global and dev records stay in `~/.archivist/archive.db`.
+- A new repo record about this checkout omits `--archive` (MCP `archive`). A new repo record about a listed checkout passes that same path and is inserted only there. `update` and `retire` change the database that already holds the id. Nothing is copied between archives.
 
 ## Agent rules and skills
 
