@@ -10,6 +10,8 @@ import (
 
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/record"
+	"github.com/bwireman/archivist/internal/store"
 )
 
 func TestTraceLoggingOff(t *testing.T) {
@@ -165,6 +167,52 @@ func TestCiteWritesLog(t *testing.T) {
 	}
 	if !strings.Contains(string(data), `"command":"archivist cite"`) || !strings.Contains(string(data), "kept the choice") {
 		t.Fatalf("log:\n%s", data)
+	}
+}
+
+func TestCiteExtraIDWhenReadOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	extra := t.TempDir()
+	seedCheckoutRecord(t, extra, &record.Record{
+		ID: "rec_cite_extra", Slug: "cite-extra", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Cite extra", Body: "elsewhere", Status: record.StatusAccepted,
+		SourcePath: "docs/decisions/cite-extra.md",
+	})
+	path := config.StorePath(extra)
+	if err := os.Chmod(path, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	cfg := config.Default()
+	cfg.LogCommands = true
+	cfg.Archives = []string{extra}
+	if err := config.Save(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	cmd := NewRoot()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--path", root, "cite", "rec_cite_extra", "--effect", "used the extra"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("%v\n%s", err, buf.String())
+	}
+	if !strings.Contains(buf.String(), "rec_cite_extra") {
+		t.Fatalf("cite output: %s", buf.String())
+	}
+	if err := os.Chmod(path, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	n, err := db.RecordCount()
+	if err != nil || n != 1 {
+		t.Fatalf("extra count %d err=%v", n, err)
 	}
 }
 

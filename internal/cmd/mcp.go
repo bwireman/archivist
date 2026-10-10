@@ -15,14 +15,18 @@ func newMCPCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, extras, err := openReadArchives(root, cfg)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
 			defer home.Close()
+			defer closeExtras(extras)
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
 			srv := mcpsrv.New(root, cfg, repo, home, embedder)
+			srv.Engine.Extras = retrieveExtras(extras)
+			srv.Archive.Extras = extras
+			srv.Archive.ExtraRoots = extraRoots(extras)
 			return mcpsrv.ServeStdio(srv)
 		},
 	}

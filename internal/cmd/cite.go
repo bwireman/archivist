@@ -3,7 +3,6 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 
 	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/trace"
@@ -26,22 +25,26 @@ func newCiteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, extras, err := openReadArchives(root, cfg)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
 			defer home.Close()
-			rec, err := archive.New(root, cfg, repo, home).Get(args[0])
+			defer closeExtras(extras)
+			svc := archive.New(root, cfg, repo, home)
+			svc.Extras = extras
+			rec, err := svc.Get(args[0])
 			if err != nil {
 				return err
 			}
 			noted := map[string]string{"id": rec.ID, "effect": effect}
 			noteResult(cmd, noted)
+			out := cmd.OutOrStdout()
 			if asJSON {
-				return json.NewEncoder(os.Stdout).Encode(noted)
+				return json.NewEncoder(out).Encode(noted)
 			}
-			fmt.Printf("Cited %s\n", rec.ID)
+			fmt.Fprintf(out, "Cited %s\n", rec.ID)
 			return nil
 		},
 	}

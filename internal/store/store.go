@@ -60,6 +60,37 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// OpenReadOnly opens an existing database for reads. It does not create the
+// file, parent directories, schema, or orphan cleanup.
+func OpenReadOnly(path string) (*Store, error) {
+	return openExisting(path, sqliteDSNReadOnly)
+}
+
+// OpenExisting opens an existing database for writes. It does not create the
+// file, parent directories, schema, or orphan cleanup.
+func OpenExisting(path string) (*Store, error) {
+	return openExisting(path, sqliteDSNExisting)
+}
+
+func openExisting(path string, dsnFn func(string) (string, error)) (*Store, error) {
+	if _, err := os.Stat(path); err != nil {
+		return nil, err
+	}
+	dsn, err := dsnFn(path)
+	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("open sqlite: %w", err)
+	}
+	return &Store{db: db}, nil
+}
+
 // sqliteDSN builds a modernc DSN whose query keys are driver-validated
 // (ints/bools/enums). Do not use _pragma: those values are executed as raw
 // PRAGMA SQL. '?' and '#' would start a DSN query string, so they are rejected
@@ -72,6 +103,28 @@ func sqliteDSN(path string) (string, error) {
 	q.Set("_busy_timeout", "5000")
 	q.Set("_foreign_keys", "on")
 	q.Set("_journal_mode", "WAL")
+	return path + "?" + q.Encode(), nil
+}
+
+func sqliteDSNReadOnly(path string) (string, error) {
+	return sqliteDSNMode(path, "ro", false)
+}
+
+func sqliteDSNExisting(path string) (string, error) {
+	return sqliteDSNMode(path, "rw", false)
+}
+
+func sqliteDSNMode(path, mode string, journal bool) (string, error) {
+	if strings.ContainsAny(path, "?#") {
+		return "", errors.New("sqlite path must not contain ? or #")
+	}
+	q := url.Values{}
+	q.Set("mode", mode)
+	q.Set("_busy_timeout", "5000")
+	q.Set("_foreign_keys", "on")
+	if journal {
+		q.Set("_journal_mode", "WAL")
+	}
 	return path + "?" + q.Encode(), nil
 }
 

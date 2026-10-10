@@ -90,6 +90,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("severity"),
 		mcp.WithString("applies_to"),
 		mcp.WithString("tags"),
+		mcp.WithString("archive", mcp.Description("listed checkout this repo record is about; omit when that context is the process checkout")),
 	), s.toolRemember)
 	srv.AddTool(mcp.NewTool("update",
 		annotate("Update record", false, true, true),
@@ -247,7 +248,7 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if p := req.GetString("paths", ""); p != "" {
 		paths = check.SplitPathList(p)
 	}
-	res, err := check.Run(ctx, s.Engine, s.Embedder, check.Options{
+	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB}, s.Embedder, check.Options{
 		Description: req.GetString("description", ""),
 		Paths:       paths,
 		Diff:        req.GetString("diff", ""),
@@ -284,7 +285,7 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 	if tags := req.GetString("tags", ""); tags != "" {
 		rec.Tags = check.SplitPathList(tags)
 	}
-	id, err := s.Archive.Remember(rec)
+	id, err := s.Archive.Remember(rec, req.GetString("archive", ""))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -354,6 +355,17 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 		"record_count": count,
 		"queue_depth":  queue,
 		"embedder_ok":  health.EmbedderOK,
+	}
+	if s.Archive != nil && len(s.Archive.Extras) > 0 {
+		extras := make([]map[string]any, 0, len(s.Archive.Extras))
+		for _, ex := range s.Archive.Extras {
+			if ex.DB == nil {
+				continue
+			}
+			n, _ := ex.DB.RecordCount()
+			extras = append(extras, map[string]any{"root": ex.Root, "record_count": n})
+		}
+		status["extras"] = extras
 	}
 	if health.EmbedderError != "" {
 		status["embedder_error"] = health.EmbedderError

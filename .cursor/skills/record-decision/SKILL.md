@@ -21,7 +21,7 @@ Or MCP `remember` with the same fields.
    If a current record covers the topic, update it and keep its scope.
    If search shows a gap, pick one scope:
    - dev: about the person or this machine, including a short-gap answer
-   - repo: true only in this checkout
+   - repo: true only in the checkout the record is about. Write the row to that checkout's database. The process checkout is the context when archive is empty. archive names a listed extra root when the record is about that checkout.
    - global: true for the product in every checkout
 
    The `--scope repo` flag in the example is a checkout-only decision. It is not the default for every decision.

@@ -5,7 +5,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -37,14 +36,48 @@ type Options struct {
 }
 
 type Result struct {
-	Record *record.Record
-	Score  float64
-	Source string // "fts", "vector", "hybrid"
+	Record  *record.Record
+	Score   float64
+	Source  string // "fts", "vector", "hybrid"
+	Archive string // extra checkout root; empty for the primary checkout and the home store
+}
+
+// Extra is one listed checkout opened for search.
+type Extra struct {
+	Root string
+	DB   *store.Store
 }
 
 type Engine struct {
-	Repo *store.Store
-	Home *store.Store
+	Repo   *store.Store
+	Home   *store.Store
+	Extras []Extra
+}
+
+type searchStore struct {
+	db    *store.Store
+	root  string
+	extra bool
+}
+
+func (e *Engine) searchStores() []searchStore {
+	if e == nil {
+		return nil
+	}
+	var out []searchStore
+	if e.Repo != nil {
+		out = append(out, searchStore{db: e.Repo})
+	}
+	if e.Home != nil {
+		out = append(out, searchStore{db: e.Home})
+	}
+	for _, ex := range e.Extras {
+		if ex.DB == nil {
+			continue
+		}
+		out = append(out, searchStore{db: ex.DB, root: ex.Root, extra: true})
+	}
+	return out
 }
 
 func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Options) ([]Result, error) {
@@ -61,10 +94,8 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	// vector hits that already cleared the floor; on their own they are noise.
 	ftsRank := map[string]int{}
 	anyTermRank := map[string]int{}
-	for _, st := range []*store.Store{e.Repo, e.Home} {
-		if st == nil {
-			continue
-		}
+	for _, src := range e.searchStores() {
+		st := src.db
 		ftsResults, err := st.SearchFTS(opts.Query, rankLimit, filter)
 		if err != nil {
 			return nil, err
@@ -92,10 +123,8 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 
 	vectorRank := map[string]int{}
 	if len(qEmb) > 0 {
-		for _, st := range []*store.Store{e.Repo, e.Home} {
-			if st == nil {
-				continue
-			}
+		for _, src := range e.searchStores() {
+			st := src.db
 			ranked, err := st.RankEmbeddings(qEmb, filter, rankLimit)
 			if err != nil {
 				return nil, err
@@ -123,7 +152,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			ids = append(ids, id)
 		}
 	}
-	recs, err := e.lookupRecords(ids)
+	recs, archives, err := e.lookupRecords(ids)
 	if err != nil {
 		return nil, err
 	}
@@ -141,12 +170,14 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 		if kw == 0 {
 			kw = anyTermRank[id]
 		}
+		archiveRoot := archives[id]
 		candidate := Result{
-			Record: rec,
-			Score:  rrfScore(kw, vectorRank[id]),
-			Source: hitSource(kw, vectorRank[id]),
+			Record:  rec,
+			Score:   rrfScore(kw, vectorRank[id]),
+			Source:  hitSource(kw, vectorRank[id]),
+			Archive: archiveRoot,
 		}
-		key := string(rec.Type) + "/" + rec.Slug
+		key := overlayKey(archiveRoot, archiveRoot != "", rec)
 		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {
 			continue
 		}
@@ -203,32 +234,59 @@ func hitSource(ftsRank, vectorRank int) string {
 	}
 }
 
-func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, error) {
+func overlayKey(root string, extra bool, rec *record.Record) string {
+	base := string(rec.Type) + "/" + rec.Slug
+	if extra {
+		return root + "\x00" + base
+	}
+	return base
+}
+
+func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, map[string]string, error) {
 	out := make(map[string]*record.Record, len(ids))
+	archives := map[string]string{}
 	remaining := ids
-	if e.Repo != nil {
-		found, err := e.Repo.GetRecordsByIDs(remaining)
-		if err != nil {
-			return nil, err
-		}
+	take := func(found map[string]*record.Record, root string) {
 		next := make([]string, 0, len(remaining))
 		for _, id := range remaining {
 			if rec, ok := found[id]; ok {
 				out[id] = rec
+				if root != "" {
+					archives[id] = root
+				}
 			} else {
 				next = append(next, id)
 			}
 		}
 		remaining = next
 	}
-	if e.Home != nil && len(remaining) > 0 {
+	if e != nil && e.Repo != nil && len(remaining) > 0 {
+		found, err := e.Repo.GetRecordsByIDs(remaining)
+		if err != nil {
+			return nil, nil, err
+		}
+		take(found, "")
+	}
+	if e != nil && e.Home != nil && len(remaining) > 0 {
 		found, err := e.Home.GetRecordsByIDs(remaining)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-		maps.Copy(out, found)
+		take(found, "")
 	}
-	return out, nil
+	if e != nil {
+		for _, ex := range e.Extras {
+			if ex.DB == nil || len(remaining) == 0 {
+				continue
+			}
+			found, err := ex.DB.GetRecordsByIDs(remaining)
+			if err != nil {
+				return nil, nil, err
+			}
+			take(found, ex.Root)
+		}
+	}
+	return out, archives, nil
 }
 
 func rrfScore(ftsRank, vectorRank int) float64 {
@@ -251,6 +309,9 @@ func FormatResults(results []Result) string {
 		}
 		fmt.Fprintf(&b, "%d. [%.4f] %s/%s %s\n   %s\n",
 			i+1, r.Score, r.Record.Type, r.Record.Scope, r.Record.Title, r.Record.SourcePath)
+		if r.Archive != "" {
+			fmt.Fprintf(&b, "   %s\n", r.Archive)
+		}
 	}
 	if len(results) == 0 {
 		b.WriteString("No results.\n")

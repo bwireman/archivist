@@ -33,6 +33,7 @@ type Config struct {
 	Records     RecordsConfig `json:"records"`
 	Publish     PublishConfig `json:"publish,omitzero"`
 	LogCommands bool          `json:"log_commands,omitempty"`
+	Archives    []string      `json:"archives,omitempty"` // other checkout roots; each opens <root>/.archivist/index.db
 }
 
 type PublishConfig struct {
@@ -247,6 +248,59 @@ func DataDir(repoRoot string) string {
 
 func StorePath(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir, DefaultIndexDB)
+}
+
+// ArchiveRoots resolves c.Archives to canonical checkout roots. Each entry must
+// be a directory other than repoRoot that already contains .archivist/index.db.
+// The listed checkout's own archives list is not read.
+func (c *Config) ArchiveRoots(repoRoot string) ([]string, error) {
+	if c == nil || len(c.Archives) == 0 {
+		return nil, nil
+	}
+	primary, err := Canonical(repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	var out []string
+	for _, raw := range c.Archives {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			return nil, fmt.Errorf("archives entry is empty")
+		}
+		p := raw
+		if expanded, ok := expandHomePath(p); ok {
+			p = expanded
+		}
+		if !filepath.IsAbs(p) {
+			p = filepath.Join(repoRoot, p)
+		}
+		root, err := Canonical(p)
+		if err != nil {
+			return nil, fmt.Errorf("archives path %s: %w", raw, err)
+		}
+		if root == primary {
+			return nil, fmt.Errorf("archives path %s is the primary checkout", root)
+		}
+		if _, ok := seen[root]; ok {
+			return nil, fmt.Errorf("duplicate archives path %s", root)
+		}
+		seen[root] = struct{}{}
+		info, err := os.Stat(root)
+		if err != nil {
+			return nil, fmt.Errorf("archives path %s: %w", root, err)
+		}
+		if !info.IsDir() {
+			return nil, fmt.Errorf("archives path %s is not a directory", root)
+		}
+		db := StorePath(root)
+		dbInfo, err := os.Stat(db)
+		if err != nil || dbInfo.IsDir() {
+			return nil, fmt.Errorf("archives path %s has no .archivist/index.db", root)
+		}
+		out = append(out, root)
+	}
+	return out, nil
 }
 
 func CommandsLogPath(repoRoot string) string {

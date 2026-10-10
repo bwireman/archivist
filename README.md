@@ -141,6 +141,18 @@ Same stdio command. In Claude Desktop (`claude_desktop_config.json`):
 
 Any client that can spawn a process can use `archivist mcp` the same way.
 
+### Several checkouts
+
+Claude Code keeps one MCP process on the checkout it started in. That checkout's `.archivist.json` may list other checkout roots:
+
+```json
+{
+  "archives": ["../other-repo", "/absolute/path/to/another"]
+}
+```
+
+Search reads each listed `.archivist/index.db` as an extra place to search. A new record is written to the database selected by context: the home store for global and dev, this checkout when the repo record is about it, and `remember --archive <root>` when the repo record is about that listed checkout. The row is inserted only there. Update and retire change the database that already holds the id. Nothing is copied between archives. The process does not infer the target from a later working directory.
+
 ### Tools
 
 | Tool | Purpose |
@@ -149,7 +161,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 | `get` | One record by id or slug. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass `full` for every stored field. |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`) |
-| `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Distill lasting facts; do not dump chat. No markdown file. |
+| `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Optional `archive` is the listed checkout a repo record is about; omit it when that context is the process checkout. Distill lasting facts; do not dump chat. No markdown file. |
 | `update` | Amend title, body, or status in place (prefer over a parallel `remember`) |
 | `retire` | Mark superseded when a later choice replaces it |
 | `cite` | Optional. Record that a retrieved record changed the work (`id`, one-line `effect`). Requires `log_commands`. |
@@ -158,7 +170,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 ### Prompts
 
-`prompts/list` walks through adding one record. Each prompt takes `topic` (required) and optional `scope` (`repo`, `global`, or `dev`). The prompt does not write. It tells the client to call `search` without a scope, update a current record and keep its scope, then `remember` only when search shows a gap. The optional `scope` is a suggestion the procedure can override: `dev` is about the person or this machine, `repo` is true only in this checkout, and `global` is true for the product in every checkout.
+`prompts/list` walks through adding one record. Each prompt takes `topic` (required) and optional `scope` (`repo`, `global`, or `dev`). The prompt does not write. It tells the client to call `search` without a scope, update a current record and keep its scope, then `remember` only when search shows a gap. The optional `scope` is a suggestion the procedure can override: `dev` is about the person or this machine, `repo` is true only in the checkout the record is about, and `global` is true for the product in every checkout. Write a repo row to that checkout's database. The process checkout is the context when `archive` is empty. `archive` names a listed extra root when the record is about that checkout.
 
 | Prompt | Record |
 | --- | --- |

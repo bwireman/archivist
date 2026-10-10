@@ -2,6 +2,7 @@
 package archive
 
 import (
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,11 +12,20 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
+// Extra is a listed checkout. DB is the read-only open used by Get.
+// Writes use OpenExisting on Root and do not use DB.
+type Extra struct {
+	Root string
+	DB   *store.Store
+}
+
 type Service struct {
-	RepoRoot string
-	Records  config.RecordsConfig
-	RepoDB   *store.Store
-	HomeDB   *store.Store
+	RepoRoot   string
+	Records    config.RecordsConfig
+	RepoDB     *store.Store
+	HomeDB     *store.Store
+	Extras     []Extra
+	ExtraRoots []string
 }
 
 func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store) *Service {
@@ -26,7 +36,7 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store) *Serv
 	return &Service{RepoRoot: repoRoot, Records: recs, RepoDB: repoDB, HomeDB: homeDB}
 }
 
-func (s *Service) Remember(rec *record.Record) (string, error) {
+func (s *Service) Remember(rec *record.Record, archiveRoot string) (string, error) {
 	if rec.Slug == "" {
 		rec.Slug = slugify(rec.Title)
 	}
@@ -40,7 +50,14 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 		return "", err
 	}
 
-	st := s.storeFor(rec.Scope)
+	// Context picks one store. Never upsert the same row into a second store.
+	st, closeFn, err := s.contextStore(rec.Scope, archiveRoot)
+	if err != nil {
+		return "", err
+	}
+	if closeFn != nil {
+		defer closeFn()
+	}
 	if st == nil {
 		return "", fmt.Errorf("no store for scope %s", rec.Scope)
 	}
@@ -52,11 +69,74 @@ func (s *Service) Remember(rec *record.Record) (string, error) {
 	return rec.ID, nil
 }
 
+func (s *Service) contextStore(scope record.Scope, archiveRoot string) (*store.Store, func(), error) {
+	if scope == record.ScopeGlobal || scope == record.ScopeDev {
+		if strings.TrimSpace(archiveRoot) != "" {
+			return nil, nil, errors.New("global and dev records are written to the home store")
+		}
+		return s.HomeDB, nil, nil
+	}
+	if strings.TrimSpace(archiveRoot) == "" {
+		return s.RepoDB, nil, nil
+	}
+	root, err := s.matchExtra(archiveRoot)
+	if err != nil {
+		return nil, nil, err
+	}
+	db, err := store.OpenExisting(config.StorePath(root))
+	if err != nil {
+		return nil, nil, err
+	}
+	return db, func() { _ = db.Close() }, nil
+}
+
+func (s *Service) matchExtra(archiveRoot string) (string, error) {
+	canon, err := config.Canonical(archiveRoot)
+	if err != nil {
+		return "", err
+	}
+	for _, root := range s.ExtraRoots {
+		got, err := config.Canonical(root)
+		if err != nil {
+			return "", err
+		}
+		if got == canon {
+			return got, nil
+		}
+	}
+	return "", fmt.Errorf("archive %s is not a configured extra", canon)
+}
+
 func (s *Service) Update(id string, fn func(*record.Record) error) error {
-	rec, st, err := s.find(id)
+	rec, st, ok, err := s.findPrimary(id)
 	if err != nil {
 		return err
 	}
+	if ok {
+		return s.writeRecord(st, rec, fn)
+	}
+	for _, root := range s.ExtraRoots {
+		db, err := store.OpenExisting(config.StorePath(root))
+		if err != nil {
+			return err
+		}
+		got, found, err := db.GetRecordByID(id)
+		if err != nil {
+			_ = db.Close()
+			return err
+		}
+		if !found {
+			_ = db.Close()
+			continue
+		}
+		err = s.writeRecord(db, got, fn)
+		_ = db.Close()
+		return err
+	}
+	return fmt.Errorf("record not found: %s", id)
+}
+
+func (s *Service) writeRecord(st *store.Store, rec *record.Record, fn func(*record.Record) error) error {
 	if err := fn(rec); err != nil {
 		return err
 	}
@@ -76,31 +156,49 @@ func (s *Service) Retire(id, supersededBy string) error {
 }
 
 func (s *Service) Get(idOrSlug string) (*record.Record, error) {
-	rec, _, err := s.find(idOrSlug)
-	return rec, err
+	rec, _, ok, err := s.findPrimary(idOrSlug)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return rec, nil
+	}
+	for _, ex := range s.Extras {
+		if ex.DB == nil {
+			continue
+		}
+		got, found, err := ex.DB.GetRecordByID(idOrSlug)
+		if err != nil {
+			return nil, err
+		}
+		if found {
+			return got, nil
+		}
+	}
+	return nil, fmt.Errorf("record not found: %s", idOrSlug)
 }
 
-func (s *Service) find(idOrSlug string) (*record.Record, *store.Store, error) {
+func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bool, error) {
 	for _, st := range []*store.Store{s.RepoDB, s.HomeDB} {
 		if st == nil {
 			continue
 		}
 		rec, ok, err := st.GetRecordByID(idOrSlug)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 		if ok {
-			return rec, st, nil
+			return rec, st, true, nil
 		}
 		rec, ok, err = st.GetRecordBySlug(idOrSlug)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, false, err
 		}
 		if ok {
-			return rec, st, nil
+			return rec, st, true, nil
 		}
 	}
-	return nil, nil, fmt.Errorf("record not found: %s", idOrSlug)
+	return nil, nil, false, nil
 }
 
 func (s *Service) storeFor(scope record.Scope) *store.Store {

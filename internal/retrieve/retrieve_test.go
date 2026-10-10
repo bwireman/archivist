@@ -281,3 +281,78 @@ func TestSearchDropsWeakVectorOnlyAndRetired(t *testing.T) {
 		t.Fatal("expected invalid status")
 	}
 }
+
+func TestSearchExtraKeepsSameSlug(t *testing.T) {
+	repo, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	extraPath := filepath.Join(t.TempDir(), "extra.db")
+	extra, err := store.Open(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	defer extra.Close()
+	primary := &record.Record{
+		ID: "rec_primary", Slug: "shared-slug", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Sharedslug primary", Status: record.StatusAccepted, Body: "sharedslug token",
+		SourcePath: "docs/decisions/shared-slug.md",
+	}
+	other := &record.Record{
+		ID: "rec_extra", Slug: "shared-slug", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Sharedslug extra", Status: record.StatusAccepted, Body: "sharedslug token",
+		SourcePath: "docs/decisions/shared-slug.md",
+	}
+	if err := repo.UpsertRecord(primary); err != nil {
+		t.Fatal(err)
+	}
+	if err := extra.UpsertRecord(other); err != nil {
+		t.Fatal(err)
+	}
+	beforeRepo, _ := repo.RecordCount()
+	beforeExtra, _ := extra.RecordCount()
+	root := filepath.Dir(filepath.Dir(extraPath))
+	engine := &retrieve.Engine{Repo: repo, Extras: []retrieve.Extra{{Root: root, DB: extra}}}
+	results, err := engine.Search(context.Background(), nil, retrieve.Options{Query: "sharedslug", TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, r := range results {
+		got[r.Record.ID] = r.Archive
+	}
+	if _, ok := got["rec_primary"]; !ok {
+		t.Fatalf("missing primary: %+v", results)
+	}
+	if got["rec_primary"] != "" {
+		t.Fatalf("primary archive %q", got["rec_primary"])
+	}
+	if got["rec_extra"] != root {
+		t.Fatalf("extra archive %q results %+v", got["rec_extra"], results)
+	}
+	cards := retrieve.ProjectSearch(results)
+	for _, card := range cards {
+		if card.ID == "rec_primary" && card.Archive != "" {
+			t.Fatalf("primary card archive %q", card.Archive)
+		}
+		if card.ID == "rec_extra" && card.Archive != root {
+			t.Fatalf("extra card %+v", card)
+		}
+	}
+	empty := retrieve.ProjectSearch([]retrieve.Result{{
+		Record: &record.Record{
+			ID: "rec_1", Slug: "one", Type: record.TypeFeature, Scope: record.ScopeGlobal,
+			Title: "Card", Status: record.StatusAccepted,
+		},
+		Source: retrieve.SourceHybrid,
+	}})
+	if empty[0].Archive != "" {
+		t.Fatal("empty archive should stay unset")
+	}
+	afterRepo, _ := repo.RecordCount()
+	afterExtra, _ := extra.RecordCount()
+	if beforeRepo != afterRepo || beforeExtra != afterExtra {
+		t.Fatalf("counts changed %d/%d -> %d/%d", beforeRepo, beforeExtra, afterRepo, afterExtra)
+	}
+}

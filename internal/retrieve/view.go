@@ -5,14 +5,15 @@ import "github.com/bwireman/archivist/internal/record"
 // SearchCard is the default JSON hit for MCP search and CLI search --json.
 // Source is the retrieval channel (fts, vector, or hybrid), not a file path.
 type SearchCard struct {
-	ID     string        `json:"id"`
-	Slug   string        `json:"slug"`
-	Type   record.Type   `json:"type"`
-	Scope  record.Scope  `json:"scope"`
-	Title  string        `json:"title"`
-	Status record.Status `json:"status"`
-	Score  float64       `json:"score"`
-	Source string        `json:"source"`
+	ID      string        `json:"id"`
+	Slug    string        `json:"slug"`
+	Type    record.Type   `json:"type"`
+	Scope   record.Scope  `json:"scope"`
+	Title   string        `json:"title"`
+	Status  record.Status `json:"status"`
+	Score   float64       `json:"score"`
+	Source  string        `json:"source"`
+	Archive string        `json:"archive,omitempty"`
 }
 
 // RecordCard is the default JSON body for MCP get.
@@ -38,6 +39,7 @@ func ProjectSearch(results []Result) []SearchCard {
 		cards = append(cards, SearchCard{
 			ID: r.Record.ID, Slug: r.Record.Slug, Type: r.Record.Type, Scope: r.Record.Scope,
 			Title: r.Record.Title, Status: r.Record.Status, Score: r.Score, Source: r.Source,
+			Archive: r.Archive,
 		})
 	}
 	return cards

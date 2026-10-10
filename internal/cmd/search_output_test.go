@@ -132,6 +132,85 @@ func runSearch(t *testing.T, root string, args ...string) string {
 	return stdout.String()
 }
 
+func TestSearchReadsListedArchive(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	extra := t.TempDir()
+	seedCheckoutRecord(t, extra, &record.Record{
+		ID: "rec_listed", Slug: "listed-hit", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Listedhit token", Body: "from the extra", Status: record.StatusAccepted,
+		SourcePath: "docs/decisions/listed-hit.md",
+	})
+	path := config.StorePath(extra)
+	if err := os.Chmod(path, 0o444); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
+	cfg := config.Default()
+	cfg.Archives = []string{extra}
+	if err := config.Save(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	cmd := NewRoot()
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"--path", root, "search", "--json", "Listedhit"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("%v\n%s", err, stderr.String())
+	}
+	if !strings.Contains(stdout.String(), "rec_listed") || !strings.Contains(stdout.String(), extra) && !strings.Contains(stdout.String(), mustCanonCmd(t, extra)) {
+		t.Fatalf("search json: %s", stdout.String())
+	}
+}
+
+func TestSearchMissingExtraErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	missing := t.TempDir()
+	cfg := config.Default()
+	cfg.Archives = []string{missing}
+	if err := config.Save(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	cmd := NewRoot()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--path", root, "search", "anything"})
+	err := cmd.Execute()
+	canon := mustCanonCmd(t, missing)
+	if err == nil || (!strings.Contains(err.Error(), missing) && !strings.Contains(err.Error(), canon)) {
+		t.Fatalf("err=%v", err)
+	}
+	if _, statErr := os.Stat(filepath.Join(missing, ".archivist")); !os.IsNotExist(statErr) {
+		t.Fatal("search created .archivist")
+	}
+}
+
+func mustCanonCmd(t *testing.T, path string) string {
+	t.Helper()
+	got, err := config.Canonical(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
+}
+
+func seedCheckoutRecord(t *testing.T, dir string, rec *record.Record) {
+	t.Helper()
+	db, err := store.Open(config.StorePath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	if err := db.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func readCommandsLog(t *testing.T, root string) string {
 	t.Helper()
 	b, err := os.ReadFile(config.CommandsLogPath(root))

@@ -49,7 +49,7 @@ func TestAddPrompts(t *testing.T) {
 			"update",
 			"remember",
 			"Suggested scope: repo",
-			"true only in this checkout",
+			"archive names a listed extra root",
 			"Do not pass scope to search.",
 			"embed --once",
 		} {

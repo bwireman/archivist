@@ -11,8 +11,11 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
+	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/record"
+	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/store"
 	ruletmpl "github.com/bwireman/archivist/rules"
 )
@@ -314,6 +317,12 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 		res, err = s.toolSearch(context.Background(), req)
 	case "get":
 		res, err = s.toolGet(context.Background(), req)
+	case "check":
+		res, err = s.toolCheck(context.Background(), req)
+	case "cite":
+		res, err = s.toolCite(context.Background(), req)
+	case "status":
+		res, err = s.toolStatus(context.Background(), req)
 	default:
 		t.Fatalf("unknown tool %s", name)
 	}
@@ -324,6 +333,106 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 		t.Fatalf("%s error: %+v", name, res)
 	}
 	return mcpLogResult(res)
+}
+
+func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
+	repo := t.TempDir()
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	extraDir := t.TempDir()
+	extraPath := config.StorePath(extraDir)
+	extraDB, err := store.Open(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rule := &record.Record{
+		ID: "rec_extra_rule", Slug: "extra-only-rule", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Zedextra rule only", Body: "Zedextra rule only applies in the other checkout",
+		Status: record.StatusAccepted, Severity: record.SeverityMust,
+		SourcePath: "docs/decisions/extra-only-rule.md",
+	}
+	if err := extraDB.UpsertRecord(rule); err != nil {
+		t.Fatal(err)
+	}
+	if err := extraDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ro, err := store.OpenReadOnly(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ro.Close()
+	canon, err := config.Canonical(extraDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.LogCommands = true
+	s := New(repo, cfg, repoDB, homeDB, nil)
+	s.Engine.Extras = []retrieve.Extra{{Root: canon, DB: ro}}
+	s.Archive.Extras = []archive.Extra{{Root: canon, DB: ro}}
+	s.Archive.ExtraRoots = []string{canon}
+
+	checked := callTool(t, s, "check", map[string]any{"description": "Zedextra rule only"})
+	raw, err := json.Marshal(checked)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(raw), "rec_extra_rule") {
+		t.Fatalf("check saw extra rule: %s", raw)
+	}
+
+	before, err := ro.RecordCount()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cited := callTool(t, s, "cite", map[string]any{"id": "rec_extra_rule", "effect": "kept the extra rule"}).(map[string]any)
+	if cited["id"] != "rec_extra_rule" {
+		t.Fatalf("cite %#v", cited)
+	}
+	after, err := ro.RecordCount()
+	if err != nil || after != before {
+		t.Fatalf("cite changed extra count %d -> %d err=%v", before, after, err)
+	}
+
+	created := callTool(t, s, "remember", map[string]any{
+		"type": "decision", "scope": "repo", "title": "Written extra", "body": "only there",
+		"archive": canon,
+	}).(map[string]any)
+	id, _ := created["id"].(string)
+	if id == "" {
+		t.Fatalf("remember %#v", created)
+	}
+	if _, ok, err := repoDB.GetRecordByID(id); err != nil || ok {
+		t.Fatalf("primary has remembered id ok=%v err=%v", ok, err)
+	}
+
+	status := callTool(t, s, "status", map[string]any{}).(map[string]any)
+	if status["record_count"] != float64(0) && status["record_count"] != 0 {
+		t.Fatalf("record_count %#v", status["record_count"])
+	}
+	extras, _ := status["extras"].([]any)
+	if len(extras) != 1 {
+		t.Fatalf("status %#v", status)
+	}
+	row, _ := extras[0].(map[string]any)
+	if row["root"] != canon {
+		t.Fatalf("extra status %#v", row)
+	}
+	count, _ := row["record_count"].(float64)
+	if count < 1 {
+		t.Fatalf("extra record_count %#v", row)
+	}
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {

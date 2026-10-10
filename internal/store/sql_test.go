@@ -1,6 +1,8 @@
 package store
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -39,5 +41,36 @@ func TestSqliteDSN(t *testing.T) {
 	}
 	if _, err := sqliteDSN("/tmp/foo#bar.db"); err == nil {
 		t.Fatal("expected error for # in path")
+	}
+}
+
+func TestOpenReadOnlyDoesNotCreate(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "missing.db")
+	if _, err := OpenReadOnly(path); err == nil {
+		t.Fatal("expected error")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("OpenReadOnly created a file")
+	}
+	if _, err := OpenExisting(path); err == nil {
+		t.Fatal("expected error")
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatal("OpenExisting created a file")
+	}
+	ro, err := sqliteDSNReadOnly("/tmp/archive.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(ro, "mode=ro") || strings.Contains(ro, "_journal_mode") {
+		t.Fatalf("read-only dsn: %s", ro)
+	}
+	rw, err := sqliteDSNExisting("/tmp/archive.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(rw, "mode=rw") || strings.Contains(rw, "_journal_mode") {
+		t.Fatalf("existing dsn: %s", rw)
 	}
 }

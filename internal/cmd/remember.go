@@ -16,7 +16,7 @@ import (
 )
 
 func newRememberCmd() *cobra.Command {
-	var recType, scope, title, body, severity string
+	var recType, scope, title, body, severity, archiveRoot string
 	var appliesTo, tags []string
 	var asJSON bool
 	cmd := &cobra.Command{
@@ -33,7 +33,12 @@ func newRememberCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
+			roots, err := cfg.ArchiveRoots(root)
+			if err != nil {
+				return err
+			}
 			svc := archive.New(root, cfg, repo, home)
+			svc.ExtraRoots = roots
 			rec := &record.Record{
 				Type:      record.Type(recType),
 				Scope:     record.Scope(scope),
@@ -44,7 +49,7 @@ func newRememberCmd() *cobra.Command {
 				AppliesTo: appliesTo,
 				Tags:      tags,
 			}
-			id, err := svc.Remember(rec)
+			id, err := svc.Remember(rec, archiveRoot)
 			if err != nil {
 				return err
 			}
@@ -63,6 +68,7 @@ func newRememberCmd() *cobra.Command {
 	cmd.Flags().StringVar(&severity, "severity", "", "rule severity")
 	cmd.Flags().StringSliceVar(&appliesTo, "applies-to", nil, "path globs")
 	cmd.Flags().StringSliceVar(&tags, "tags", nil, "tags")
+	cmd.Flags().StringVar(&archiveRoot, "archive", "", "listed checkout this repo record is about; omit when that context is the process checkout")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	_ = cmd.MarkFlagRequired("title")
 	_ = cmd.MarkFlagRequired("body")
@@ -87,7 +93,12 @@ func newUpdateCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
+			roots, err := cfg.ArchiveRoots(root)
+			if err != nil {
+				return err
+			}
 			svc := archive.New(root, cfg, repo, home)
+			svc.ExtraRoots = roots
 			err = svc.Update(args[0], func(r *record.Record) error {
 				archive.PatchText(r, title, body, status)
 				return nil
@@ -128,7 +139,12 @@ func newRetireCmd() *cobra.Command {
 			}
 			defer repo.Close()
 			defer home.Close()
+			roots, err := cfg.ArchiveRoots(root)
+			if err != nil {
+				return err
+			}
 			svc := archive.New(root, cfg, repo, home)
+			svc.ExtraRoots = roots
 			if err := svc.Retire(args[0], supersededBy); err != nil {
 				return err
 			}

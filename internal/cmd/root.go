@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
@@ -143,6 +144,58 @@ func openStores(root string) (*store.Store, *store.Store, error) {
 	return repo, home, nil
 }
 
+// openReadArchives opens the primary and home stores and each configured extra
+// with OpenReadOnly. newMCPCmd, search, cite, and status use this. It does not
+// call store.Open or store.OpenExisting on an extra.
+func openReadArchives(root string, cfg *config.Config) (*store.Store, *store.Store, []archive.Extra, error) {
+	repo, home, err := openStores(root)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	roots, err := cfg.ArchiveRoots(root)
+	if err != nil {
+		_ = repo.Close()
+		_ = home.Close()
+		return nil, nil, nil, err
+	}
+	var extras []archive.Extra
+	for _, extraRoot := range roots {
+		db, err := store.OpenReadOnly(config.StorePath(extraRoot))
+		if err != nil {
+			_ = repo.Close()
+			_ = home.Close()
+			closeExtras(extras)
+			return nil, nil, nil, fmt.Errorf("archive %s: %w", extraRoot, err)
+		}
+		extras = append(extras, archive.Extra{Root: extraRoot, DB: db})
+	}
+	return repo, home, extras, nil
+}
+
+func closeExtras(extras []archive.Extra) {
+	for _, ex := range extras {
+		if ex.DB != nil {
+			_ = ex.DB.Close()
+		}
+	}
+}
+
+func extraRoots(extras []archive.Extra) []string {
+	roots := make([]string, 0, len(extras))
+	for _, ex := range extras {
+		roots = append(roots, ex.Root)
+	}
+	return roots
+}
+
+func retrieveExtras(extras []archive.Extra) []retrieve.Extra {
+	out := make([]retrieve.Extra, 0, len(extras))
+	for _, ex := range extras {
+		out = append(out, retrieve.Extra{Root: ex.Root, DB: ex.DB})
+	}
+	return out
+}
+
 func appendGitignore(path, line string) (err error) {
 	data, err := os.ReadFile(path)
 	if err != nil && !os.IsNotExist(err) {
@@ -190,15 +243,16 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, extras, err := openReadArchives(root, cfg)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
 			defer home.Close()
+			defer closeExtras(extras)
 
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home}
+			engine := &retrieve.Engine{Repo: repo, Home: home, Extras: retrieveExtras(extras)}
 			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " "), Status: record.Status(status)}
 			if recType != "" {
 				opts.Type = record.Type(recType)
@@ -241,12 +295,13 @@ func newStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, extras, err := openReadArchives(root, cfg)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
 			defer home.Close()
+			defer closeExtras(extras)
 
 			health := embed.CheckHealth(cmd.Context(), cfg)
 			recCount, _ := repo.RecordCount()
@@ -256,15 +311,20 @@ func newStatusCmd() *cobra.Command {
 			homeQueue, _ := home.QueueDepth()
 			lastIdx, hasIdx, _ := repo.LastIndexedAt()
 
+			type extraCount struct {
+				Root        string `json:"root"`
+				RecordCount int    `json:"record_count"`
+			}
 			type status struct {
-				Version       string `json:"version"`
-				EmbedderOK    bool   `json:"embedder_ok"`
-				EmbedderError string `json:"embedder_error,omitempty"`
-				RecordCount   int    `json:"record_count"`
-				FileCount     int    `json:"file_count"`
-				QueueDepth    int    `json:"queue_depth"`
-				HomeQueue     int    `json:"home_queue_depth"`
-				LastIndexedAt string `json:"last_indexed_at,omitempty"`
+				Version       string       `json:"version"`
+				EmbedderOK    bool         `json:"embedder_ok"`
+				EmbedderError string       `json:"embedder_error,omitempty"`
+				RecordCount   int          `json:"record_count"`
+				FileCount     int          `json:"file_count"`
+				QueueDepth    int          `json:"queue_depth"`
+				HomeQueue     int          `json:"home_queue_depth"`
+				LastIndexedAt string       `json:"last_indexed_at,omitempty"`
+				Extras        []extraCount `json:"extras,omitempty"`
 			}
 			s := status{
 				Version:       version.Version,
@@ -275,24 +335,32 @@ func newStatusCmd() *cobra.Command {
 				QueueDepth:    queue + homeQueue,
 				HomeQueue:     homeQueue,
 			}
+			for _, ex := range extras {
+				n, _ := ex.DB.RecordCount()
+				s.Extras = append(s.Extras, extraCount{Root: ex.Root, RecordCount: n})
+			}
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
 			noteResult(cmd, s)
+			out := cmd.OutOrStdout()
 			if asJSON {
-				return writeIndentedJSON(os.Stdout, s)
+				return writeIndentedJSON(out, s)
 			}
-			fmt.Printf("Version: %s\n", version.String())
-			fmt.Printf("Embeddings (Ollama): ")
+			fmt.Fprintf(out, "Version: %s\n", version.String())
+			fmt.Fprintf(out, "Embeddings (Ollama): ")
 			if s.EmbedderOK {
-				fmt.Println("ok")
+				fmt.Fprintln(out, "ok")
 			} else {
-				fmt.Println("unavailable -", s.EmbedderError)
+				fmt.Fprintln(out, "unavailable -", s.EmbedderError)
 			}
-			fmt.Printf("Records: %d, code files: %d\n", s.RecordCount, s.FileCount)
-			fmt.Printf("Embed queue: %d\n", s.QueueDepth)
+			fmt.Fprintf(out, "Records: %d, code files: %d\n", s.RecordCount, s.FileCount)
+			fmt.Fprintf(out, "Embed queue: %d\n", s.QueueDepth)
 			if hasIdx {
-				fmt.Printf("Last indexed: %s\n", s.LastIndexedAt)
+				fmt.Fprintf(out, "Last indexed: %s\n", s.LastIndexedAt)
+			}
+			for _, ex := range s.Extras {
+				fmt.Fprintf(out, "Extra archive: %s (%d records)\n", ex.Root, ex.RecordCount)
 			}
 			return nil
 		},

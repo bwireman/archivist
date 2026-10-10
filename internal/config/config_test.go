@@ -5,9 +5,11 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/store"
 )
 
 func fullConfig() *config.Config {
@@ -328,6 +330,68 @@ func TestDataDir(t *testing.T) {
 	if got := config.DataDir(dir); got != filepath.Join(dir, ".archivist") {
 		t.Fatalf("data dir: %q", got)
 	}
+}
+
+func TestArchiveRoots(t *testing.T) {
+	primary := t.TempDir()
+	extra := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(extra, ".archivist"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	db, err := store.Open(config.StorePath(extra))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(t.TempDir(), "not-opened")
+	if err := os.WriteFile(filepath.Join(extra, config.DefaultConfigName), []byte(`{"archives":["`+nested+`"]}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Default()
+	cfg.Archives = []string{extra}
+	got, err := cfg.ArchiveRoots(primary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := config.Canonical(extra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0] != want {
+		t.Fatalf("roots %v", got)
+	}
+	if _, err := os.Stat(nested); !os.IsNotExist(err) {
+		t.Fatal("nested archives path was created")
+	}
+
+	cfg.Archives = []string{primary}
+	if _, err := cfg.ArchiveRoots(primary); err == nil {
+		t.Fatal("expected primary path to be rejected")
+	}
+	cfg.Archives = []string{extra, extra}
+	if _, err := cfg.ArchiveRoots(primary); err == nil {
+		t.Fatal("expected duplicate path to be rejected")
+	}
+	empty := t.TempDir()
+	cfg.Archives = []string{empty}
+	if _, err := cfg.ArchiveRoots(primary); err == nil || !strings.Contains(err.Error(), empty) && !strings.Contains(err.Error(), mustCanon(t, empty)) {
+		t.Fatalf("missing index.db: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(empty, ".archivist")); !os.IsNotExist(err) {
+		t.Fatal("created .archivist")
+	}
+}
+
+func mustCanon(t *testing.T, path string) string {
+	t.Helper()
+	got, err := config.Canonical(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return got
 }
 
 func TestNormalizeOllamaHostWithoutScheme(t *testing.T) {
