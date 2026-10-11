@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -37,16 +36,13 @@ func TestVersionFlagAndCommand(t *testing.T) {
 }
 
 func TestBuiltBinaryPrintsHashAndBuildTime(t *testing.T) {
-	root := moduleRoot(t)
 	bin := filepath.Join(t.TempDir(), "archivist")
-	build := exec.Command("go", "build", "-o", bin, "./cmd/archivist")
-	build.Dir = root
+	build := exec.Command("go", "build", "-o", bin, "github.com/bwireman/archivist/cmd/archivist")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build: %v\n%s", err, out)
 	}
 
 	cmd := exec.Command(bin, "version")
-	cmd.Dir = root
 	var stdout, stderr bytes.Buffer
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
@@ -62,23 +58,5 @@ func TestBuiltBinaryPrintsHashAndBuildTime(t *testing.T) {
 	}
 	if _, err := time.Parse(time.RFC3339, fields[4]); err != nil {
 		t.Fatalf("build time %q: %v", fields[4], err)
-	}
-}
-
-func moduleRoot(t *testing.T) string {
-	t.Helper()
-	dir, err := os.Getwd()
-	if err != nil {
-		t.Fatal(err)
-	}
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			t.Fatal("go.mod not found")
-		}
-		dir = parent
 	}
 }
