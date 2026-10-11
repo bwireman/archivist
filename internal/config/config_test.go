@@ -184,6 +184,9 @@ func TestLoadOmitsRecordsUsesDefaults(t *testing.T) {
 	if loaded.Ollama.EmbedModel != "nomic-embed-text" {
 		t.Fatalf("model: %q", loaded.Ollama.EmbedModel)
 	}
+	if loaded.Ollama.BaseURL != "" {
+		t.Fatalf("base_url: %q", loaded.Ollama.BaseURL)
+	}
 }
 
 func TestLoadWriteDocsTrue(t *testing.T) {
@@ -287,13 +290,10 @@ func TestStorePaths(t *testing.T) {
 	}
 }
 
-func TestLoadEmptyBaseURLHonorsOllamaHost(t *testing.T) {
-	t.Setenv("OLLAMA_HOST", "127.0.0.1:11434")
+func TestLoadEmptyBaseURLStaysEmpty(t *testing.T) {
 	for _, raw := range []string{
 		`{"ollama": {"base_url": ""}}`,
 		`{"ollama": {"base_url": "   "}}`,
-		`{"ollama": {"embed_model": "nomic-embed-text"}}`,
-		`{}`,
 	} {
 		dir := t.TempDir()
 		if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), []byte(raw), 0o644); err != nil {
@@ -306,31 +306,6 @@ func TestLoadEmptyBaseURLHonorsOllamaHost(t *testing.T) {
 		if strings.TrimSpace(loaded.Ollama.BaseURL) != "" {
 			t.Fatalf("stored base_url %q for %s", loaded.Ollama.BaseURL, raw)
 		}
-		if got := loaded.Ollama.ResolvedBaseURL(); got != "http://127.0.0.1:11434" {
-			t.Fatalf("resolved %q for %s", got, raw)
-		}
-	}
-
-	dir := t.TempDir()
-	raw := []byte(`{"ollama": {"base_url": "http://ollama.example:11434"}}`)
-	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := config.Load(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := loaded.Ollama.ResolvedBaseURL(); got != "http://ollama.example:11434" {
-		t.Fatalf("explicit: %q", got)
-	}
-
-	missing := t.TempDir()
-	loaded, err = config.Load(missing)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got := loaded.Ollama.ResolvedBaseURL(); got != "http://127.0.0.1:11434" {
-		t.Fatalf("missing file: %q", got)
 	}
 }
 
