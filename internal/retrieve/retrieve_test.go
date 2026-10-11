@@ -74,7 +74,7 @@ func TestSearchReturnsEveryScope(t *testing.T) {
 	}
 	defer home.Close()
 
-	// UpsertRecord requires an id. Three slugs, so overlayWins does not collapse them.
+	// Three slugs, so overlayWins does not collapse them.
 	records := []*record.Record{
 		{
 			ID: "rec_alpha", Slug: "alpha", Type: record.TypeDecision, Scope: record.ScopeRepo,
