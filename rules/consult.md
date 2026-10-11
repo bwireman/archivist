@@ -2,7 +2,7 @@
 
 Before implementing, researching, or changing architecture, look things up in this order. Do not guess APIs, defaults, or past decisions. When the user recalls a past choice or constraint, search the archive; do not trust chat memory.
 
-1. Archivist MCP (preferred) or CLI: `archivist search "..."`, `archivist search --type feature "..."`, `archivist check --paths ...`. SQLite is the live archive.
+1. Archivist MCP (preferred) or CLI: `archivist search "..."`, `archivist search --type feature "..."`, `archivist check --paths ...`. SQLite is the live archive. Do not pass scope. Search reads repo, global, and dev.
 2. Generated export tree when MCP is unavailable and `records.write_docs` is true: `docs/archive/INDEX.md`, then type digests (`rules.md`, `features.md`, …) and `docs/archive/records/<scope>/<type>/`. To load markdown from disk into SQLite, run `archivist import` (optional on clone; never deletes DB-only records).
 3. Code last
 

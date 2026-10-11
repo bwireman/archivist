@@ -59,7 +59,7 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 
 | Tool | Purpose |
 | --- | --- |
-| `search` | Hybrid search (`query`, optional `type` such as `feature`, `scope`, `status`, `top_k`, `full`). Default omits deprecated and superseded, and omits the body. Pass `full` for every stored field. Use before implementing or writing a record. |
+| `search` | Hybrid search (`query`, optional `type` such as `feature`, `status`, `top_k`, `full`). Search reads repo, global, and dev and does not take a scope. Default omits deprecated and superseded, and omits the body. Pass `full` for every stored field. Use before implementing or writing a record. |
 | `get` | One record by id or slug. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass `full` for every stored field. |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`). The top level is this checkout. Listed `archives` are returned under `archives` and are not indexed by this call. |

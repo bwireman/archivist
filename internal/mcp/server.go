@@ -56,7 +56,6 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Default hits omit the body. Pass full=true for every stored field. Call get to read a body."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
-		mcp.WithString("scope"),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
 		mcp.WithNumber("top_k"),
 		mcp.WithBoolean("full", mcp.Description("When true, return every stored field. Default is a card without the body.")),
@@ -215,9 +214,6 @@ func (s *Server) toolSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	opts := retrieve.Options{Query: query, TopK: topK}
 	if t := req.GetString("type", ""); t != "" {
 		opts.Type = record.Type(t)
-	}
-	if sc := req.GetString("scope", ""); sc != "" {
-		opts.Scope = record.Scope(sc)
 	}
 	if st := req.GetString("status", ""); st != "" {
 		opts.Status = record.Status(st)

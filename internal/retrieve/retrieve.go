@@ -30,7 +30,6 @@ const (
 type Options struct {
 	TopK   int
 	Type   record.Type
-	Scope  record.Scope
 	Status record.Status
 	Query  string
 }
@@ -210,7 +209,7 @@ func overlayWins(candidate, existing Result) bool {
 }
 
 func searchFilter(opts Options) (store.RecordFilter, error) {
-	f := store.RecordFilter{Type: opts.Type, Scope: opts.Scope}
+	f := store.RecordFilter{Type: opts.Type}
 	if opts.Status == "" {
 		f.ExcludeRetired = true
 		return f, nil

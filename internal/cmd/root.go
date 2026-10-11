@@ -230,7 +230,6 @@ func appendGitignore(path, line string) (err error) {
 func newSearchCmd() *cobra.Command {
 	var topK int
 	var recType string
-	var scope string
 	var status string
 	var asJSON bool
 	var full bool
@@ -257,9 +256,6 @@ func newSearchCmd() *cobra.Command {
 			if recType != "" {
 				opts.Type = record.Type(recType)
 			}
-			if scope != "" {
-				opts.Scope = record.Scope(scope)
-			}
 			results, err := engine.Search(cmd.Context(), embedder, opts)
 			if err != nil {
 				return err
@@ -278,7 +274,6 @@ func newSearchCmd() *cobra.Command {
 	}
 	cmd.Flags().IntVar(&topK, "top", retrieve.DefaultTopK, "number of results")
 	cmd.Flags().StringVar(&recType, "type", "", "filter by record type: decision, rule, feature, guide, map, pitfall")
-	cmd.Flags().StringVar(&scope, "scope", "", "filter by scope: dev|repo|global")
 	cmd.Flags().StringVar(&status, "status", "", "record status: proposed, accepted, deprecated, or superseded; default omits deprecated and superseded")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	cmd.Flags().BoolVar(&full, "full", false, "with --json, print every stored field instead of the search card")

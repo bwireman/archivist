@@ -62,6 +62,59 @@ func TestSearchFiltersByType(t *testing.T) {
 	}
 }
 
+func TestSearchReturnsEveryScope(t *testing.T) {
+	repo, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer home.Close()
+
+	// UpsertRecord requires an id. Three slugs, so overlayWins does not collapse them.
+	records := []*record.Record{
+		{
+			ID: "rec_alpha", Slug: "alpha", Type: record.TypeDecision, Scope: record.ScopeRepo,
+			Title: "Alpha", Status: record.StatusAccepted, Body: "zqxscope", SourcePath: "docs/decisions/alpha.md",
+		},
+		{
+			ID: "rec_beta", Slug: "beta", Type: record.TypeDecision, Scope: record.ScopeGlobal,
+			Title: "Beta", Status: record.StatusAccepted, Body: "zqxscope", SourcePath: "global/beta.md",
+		},
+		{
+			ID: "rec_gamma", Slug: "gamma", Type: record.TypeDecision, Scope: record.ScopeDev,
+			Title: "Gamma", Status: record.StatusAccepted, Body: "zqxscope", SourcePath: "user/gamma.md",
+		},
+	}
+	if err := repo.UpsertRecord(records[0]); err != nil {
+		t.Fatal(err)
+	}
+	if err := home.UpsertRecord(records[1]); err != nil {
+		t.Fatal(err)
+	}
+	if err := home.UpsertRecord(records[2]); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := (&retrieve.Engine{Repo: repo, Home: home}).Search(
+		context.Background(), nil, retrieve.Options{Query: "zqxscope", TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]bool{}
+	for _, r := range results {
+		got[r.Record.ID] = true
+	}
+	for _, id := range []string{"rec_alpha", "rec_beta", "rec_gamma"} {
+		if !got[id] {
+			t.Fatalf("missing %s in %+v", id, results)
+		}
+	}
+}
+
 func TestSearchOverlayPrefersRepoScope(t *testing.T) {
 	repo, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
 	if err != nil {

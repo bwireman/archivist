@@ -14,6 +14,32 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
+func TestSearchScopeFlagUnknownIndexScopeRemains(t *testing.T) {
+	cmd := NewRoot()
+	var stdout, stderr bytes.Buffer
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"search", "--scope", "repo", "q"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(strings.ToLower(err.Error()), "unknown") {
+		t.Fatalf("search --scope: err=%v stderr=%s", err, stderr.String())
+	}
+
+	cmd = NewRoot()
+	stdout.Reset()
+	stderr.Reset()
+	cmd.SetOut(&stdout)
+	cmd.SetErr(&stderr)
+	cmd.SetArgs([]string{"index", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("index --help: %v\n%s", err, stderr.String())
+	}
+	help := stdout.String()
+	if !strings.Contains(help, "--scope") || !strings.Contains(help, "subdirectory") {
+		t.Fatalf("index help: %s", help)
+	}
+}
+
 func TestSearchCommandFullFlag(t *testing.T) {
 	if newSearchCmd().Flags().Lookup("full") == nil {
 		t.Fatal("missing --full")

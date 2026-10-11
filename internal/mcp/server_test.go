@@ -241,6 +241,13 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 	if !strings.Contains(searchDesc, "before implementing or writing") || !strings.Contains(searchDesc, "omit the body") {
 		t.Fatalf("search description: %s", searchDesc)
 	}
+	if _, ok := searchTool.Tool.InputSchema.Properties["scope"]; ok {
+		t.Fatal("search schema has scope")
+	}
+	remember := srv.GetTool("remember")
+	if remember == nil || !slices.Contains(remember.Tool.InputSchema.Required, "scope") {
+		t.Fatal("remember must require scope")
+	}
 	getTool := srv.GetTool("get")
 	if getTool == nil || !strings.Contains(getTool.Tool.Description, "full") {
 		t.Fatalf("get description: %+v", getTool)
