@@ -31,7 +31,7 @@ func NewRoot() *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			ver, _ := cmd.Flags().GetBool("version")
 			if ver {
-				fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
+				printVersion(cmd.OutOrStdout())
 				return nil
 			}
 			return cmd.Help()
@@ -70,12 +70,16 @@ func NewRoot() *cobra.Command {
 func newVersionCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the version",
+		Short: "Print the version, commit, and build time",
 		Args:  cobra.NoArgs,
 		Run: func(cmd *cobra.Command, _ []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), "archivist version %s\n", version.String())
+			printVersion(cmd.OutOrStdout())
 		},
 	}
+}
+
+func printVersion(w io.Writer) {
+	fmt.Fprintf(w, "archivist version %s\n", version.Report())
 }
 
 func warnStaleRules(cmd *cobra.Command, _ []string) error {

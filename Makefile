@@ -3,7 +3,8 @@ PKG      := ./cmd/archivist
 ARGS     ?=
 VERSION  ?=
 COMMIT   ?=
-LDFLAGS  := $(strip $(if $(VERSION),-X github.com/bwireman/archivist/internal/version.Version=$(VERSION)) $(if $(COMMIT),-X github.com/bwireman/archivist/internal/version.Commit=$(COMMIT)))
+DATE     ?=
+LDFLAGS  := $(strip $(if $(VERSION),-X github.com/bwireman/archivist/internal/version.Version=$(VERSION)) $(if $(COMMIT),-X github.com/bwireman/archivist/internal/version.Commit=$(COMMIT)) $(if $(DATE),-X github.com/bwireman/archivist/internal/version.Date=$(DATE)))
 LDFLAGS  := $(if $(LDFLAGS),-ldflags "$(LDFLAGS)")
 
 .PHONY: all build test vet fmt tidy check install run import index embed export refresh-archive clean help

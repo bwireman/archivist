@@ -85,14 +85,16 @@ jobs:
       - shell: bash
         run: |
           version="$(go run ./cmd/archivist version | awk '{print $3}')"
+          built="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           mkdir -p dist
           binary="archivist_${{ matrix.goos }}_${{ matrix.goarch }}"
-          go build -trimpath -ldflags "-s -w -X github.com/bwireman/archivist/internal/version.Version=${version} -X github.com/bwireman/archivist/internal/version.Commit=${GITHUB_SHA}" \
+          go build -trimpath -ldflags "-s -w -X github.com/bwireman/archivist/internal/version.Version=${version} -X github.com/bwireman/archivist/internal/version.Commit=${GITHUB_SHA} -X github.com/bwireman/archivist/internal/version.Date=${built}" \
             -o "dist/${binary}" ./cmd/archivist
           shasum -a 256 "dist/${binary}" > "dist/${binary}.sha256"
           {
             printf 'version=%s\n' "$version"
             printf 'commit_sha=%s\n' "$GITHUB_SHA"
+            printf 'built=%s\n' "$built"
             printf 'goos=%s\n' "${{ matrix.goos }}"
             printf 'goarch=%s\n' "${{ matrix.goarch }}"
           } > "dist/${binary}.build-info.txt"
