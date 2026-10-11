@@ -1,12 +1,16 @@
-# Record decisions, rules, and features
+# Record what a later session would look up
 
-Scan this conversation for durable knowledge. When a lasting choice, constraint, or capability description appears, write it to the archive in this turn. Do not wait for "remember this." Do not leave it only in chat.
+Scan this conversation for anything a later session would look up. When that fact appears, write a short record in this turn. Do not wait for "remember this." Do not leave it only in chat. If unsure whether it will be needed again, write it.
+
+When search returns nothing and this turn answers the question, remember that answer.
 
 On a plan-changes planning turn, do not remember, update, or retire, including interview answers. Those writes happen only in the accepted phase the plan names. This ban wins over the same-turn write above.
 
 - `decision` — a real choice among alternatives (Context, Decision, Consequences).
 - `rule` — must/must-not or should/should-not that future work should follow.
 - `feature` — how a capability works, what it connects to, and how to invoke it.
+- `guide` — a how-to procedure.
+- `pitfall` — a confirmed gotcha: what goes wrong, when it happens, and what to do instead.
 
 Search first. Update or retire an existing record instead of adding a parallel note. One current document per topic. Keep bodies short: facts, not narration.
 

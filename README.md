@@ -173,7 +173,7 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `add-map` | Packages and how they connect |
 | `add-pitfall` | Confirmed gotcha |
 
-Initialize `instructions` are the consult, ask, and record rule templates, so MCP-only hosts still look things up, ask when a choice or preference is unsettled, and distill from conversation.
+Initialize `instructions` are the consult, cite, ask, and record rule templates, so MCP-only hosts still look things up, cite a record that changed the work, ask when a choice or preference is unsettled, and write a short record when a later session would look it up.
 
 Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search omits the body, and get keeps the body while dropping hash, timestamps, provenance, and source path. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
 
@@ -302,7 +302,7 @@ Put `archives` in the `.archivist.json` of the checkout the MCP process starts i
 
 `archivist skills install --target cursor|claude|agents-md|copilot` (`codex` is an alias for `agents-md`) writes:
 
-- **Rules** (always on): consult the archive, cite a retrieved record that changed the work before the turn ends, ask when a user-facing choice or preference is unsettled, distill lasting decisions/rules/features from the conversation (skip chat glut), keep the code map current as source changes (`archivist index`), refresh after changes. Each rule is its own file (`rules/consult.md`, `rules/cite.md`, `rules/ask.md`, `rules/record.md`, `rules/current.md`, `rules/refresh.md`). Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
+- **Rules** (always on): consult the archive, cite a retrieved record that changed the work before the turn ends, ask when a user-facing choice or preference is unsettled, write a short record when a later session would look it up, including an answer after an empty search (skip chat glut), keep the code map current as source changes (`archivist index`), refresh after changes. Each rule is its own file (`rules/consult.md`, `rules/cite.md`, `rules/ask.md`, `rules/record.md`, `rules/current.md`, `rules/refresh.md`). Cursor: `.cursor/rules/archivist-*.mdc`. `agents-md` / `copilot` get a single concatenated file only.
 - **Skills** (on demand): `init-archive`, `plan-changes`, `record-decision`, `record-rule`, `record-feature`, `refresh-archive`, `publish-archive`. Write skills are the per-type procedure (search first, short body); the record rule is when to write. `init-archive` scans the repo and embeds the gaps so a new archive is searchable. `plan-changes` searches the archive, writes `.archivist/plans/<slug>.md`, runs an adversarial review, and stops before phase 1. A later accept only sets the plan accepted. A later continue implements the first pending phase. Cursor files come from `archivist skills install --target cursor`. Claude files come from `archivist skills install --target claude`. `agents-md` and Copilot stay rules-only.
 
 Templates live in `rules/` and `skills/` in this repo and are embedded in the CLI. `skills install` uses those shipped templates, so it works in any repo; if the target checkout has its own `rules/` or `skills/`, those override the embedded copies.

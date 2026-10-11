@@ -72,8 +72,8 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := string(recordData)
-	if !strings.Contains(got, "Distill lasting decisions") {
-		t.Fatalf("record rule description missing distill guidance: %s", got)
+	if !strings.Contains(got, "later session would look it up") {
+		t.Fatalf("record rule description missing lookup bias: %s", got)
 	}
 	if !strings.Contains(got, "Scan this conversation") {
 		t.Fatalf("record rule missing conversation distill: %s", got)
@@ -185,7 +185,7 @@ func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 }
 
 func TestCursorRuleDescriptions(t *testing.T) {
-	if !strings.Contains(cursorRuleDescription("record"), "Distill lasting") {
+	if !strings.Contains(cursorRuleDescription("record"), "later session would look it up") {
 		t.Fatal(cursorRuleDescription("record"))
 	}
 	if !strings.Contains(cursorRuleDescription("ask"), "Ask the user when a choice or preference") {

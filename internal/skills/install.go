@@ -367,7 +367,7 @@ func cursorRuleDescription(name string) string {
 	case "consult":
 		return "Consult the Archivist archive before guessing APIs, defaults, or past decisions"
 	case "record":
-		return "Distill lasting decisions, rules, and features from this conversation; skip chat glut"
+		return "Write a short record when a later session would look it up; skip chat glut"
 	case "refresh":
 		return "Rebuild the Archivist index, embeddings, and export after record or code changes"
 	case "current":
