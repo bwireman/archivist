@@ -39,9 +39,13 @@ func fullConfig() *config.Config {
 }
 
 func TestDefaultConfig(t *testing.T) {
+	t.Setenv("OLLAMA_HOST", "")
 	cfg := config.Default()
-	if cfg.Ollama.BaseURL != config.DefaultOllamaURL {
-		t.Fatalf("base_url: %q", cfg.Ollama.BaseURL)
+	if cfg.Ollama.BaseURL != "" {
+		t.Fatalf("base_url: %q want empty", cfg.Ollama.BaseURL)
+	}
+	if cfg.Ollama.ResolvedBaseURL() != config.DefaultOllamaURL {
+		t.Fatalf("resolved: %q", cfg.Ollama.ResolvedBaseURL())
 	}
 	if cfg.Ollama.EmbedModel != config.DefaultEmbedModel {
 		t.Fatalf("embed_model: %q", cfg.Ollama.EmbedModel)
@@ -280,6 +284,53 @@ func TestStorePaths(t *testing.T) {
 	}
 	if got := config.HomeStorePath(); got != filepath.Join(home, "archive.db") {
 		t.Fatalf("home store: %q", got)
+	}
+}
+
+func TestLoadEmptyBaseURLHonorsOllamaHost(t *testing.T) {
+	t.Setenv("OLLAMA_HOST", "127.0.0.1:11434")
+	for _, raw := range []string{
+		`{"ollama": {"base_url": ""}}`,
+		`{"ollama": {"base_url": "   "}}`,
+		`{"ollama": {"embed_model": "nomic-embed-text"}}`,
+		`{}`,
+	} {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), []byte(raw), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		loaded, err := config.Load(dir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if strings.TrimSpace(loaded.Ollama.BaseURL) != "" {
+			t.Fatalf("stored base_url %q for %s", loaded.Ollama.BaseURL, raw)
+		}
+		if got := loaded.Ollama.ResolvedBaseURL(); got != "http://127.0.0.1:11434" {
+			t.Fatalf("resolved %q for %s", got, raw)
+		}
+	}
+
+	dir := t.TempDir()
+	raw := []byte(`{"ollama": {"base_url": "http://ollama.example:11434"}}`)
+	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loaded.Ollama.ResolvedBaseURL(); got != "http://ollama.example:11434" {
+		t.Fatalf("explicit: %q", got)
+	}
+
+	missing := t.TempDir()
+	loaded, err = config.Load(missing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loaded.Ollama.ResolvedBaseURL(); got != "http://127.0.0.1:11434" {
+		t.Fatalf("missing file: %q", got)
 	}
 }
 

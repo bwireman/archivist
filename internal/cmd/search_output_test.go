@@ -20,8 +20,8 @@ func TestSearchCommandFullFlag(t *testing.T) {
 	}
 }
 
-func TestReadmeDocumentsCompactSearch(t *testing.T) {
-	b, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+func TestMCPDocDocumentsCompactSearch(t *testing.T) {
+	b, err := os.ReadFile(filepath.Join("..", "..", "docs", "mcp.md"))
 	if err != nil {
 		t.Fatal(err)
 	}

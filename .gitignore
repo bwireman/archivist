@@ -1,5 +1,9 @@
 /archivist
 /main
-docs/
+docs/*
+!docs/agents.md
+!docs/configuration.md
+!docs/mcp.md
+!docs/records.md
 .archivist/
 .vscode

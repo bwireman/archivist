@@ -195,7 +195,7 @@ func PathUnder(rel, dir string) bool {
 func Default() *Config {
 	return &Config{
 		Ollama: OllamaConfig{
-			BaseURL:      DefaultOllamaURL,
+			// BaseURL stays empty so ResolvedBaseURL can read $OLLAMA_HOST.
 			EmbedModel:   DefaultEmbedModel,
 			EmbedTimeout: DefaultEmbedTimeoutStr,
 		},
@@ -219,9 +219,7 @@ func Load(repoRoot string) (*Config, error) {
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
-	if strings.TrimSpace(cfg.Ollama.BaseURL) == "" {
-		cfg.Ollama.BaseURL = DefaultOllamaURL
-	}
+	// Leave an empty base_url empty. ResolvedBaseURL applies $OLLAMA_HOST, then localhost.
 	if strings.TrimSpace(cfg.Ollama.EmbedModel) == "" {
 		cfg.Ollama.EmbedModel = DefaultEmbedModel
 	}
