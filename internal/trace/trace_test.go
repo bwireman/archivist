@@ -108,6 +108,34 @@ func TestBuildDigest(t *testing.T) {
 	}
 }
 
+func TestBuildPairsCallIDWhenLaterSearchFinishesFirst(t *testing.T) {
+	base := time.Date(2026, 10, 15, 22, 0, 0, 0, time.UTC)
+	stamp := func(at time.Time) string { return at.UTC().Format(time.RFC3339Nano) }
+	hit := roundTrip(t, []map[string]any{{
+		"id": "rec_beta", "title": "Beta", "source": "fts", "status": "accepted",
+	}})
+	entries := []cmdlog.Entry{
+		{TS: stamp(base), Dir: "in", Source: "mcp", Command: "search", Args: map[string]any{"query": "stuck"}},
+		{TS: stamp(base.Add(time.Second)), Dir: "in", ID: "c_a", Source: "mcp", Command: "search", Args: map[string]any{"query": "alpha"}},
+		{TS: stamp(base.Add(2 * time.Second)), Dir: "in", ID: "c_b", Source: "mcp", Command: "search", Args: map[string]any{"query": "beta"}},
+		{TS: stamp(base.Add(3 * time.Second)), Dir: "out", ID: "c_b", Source: "mcp", Command: "search", Result: hit},
+		{TS: stamp(base.Add(4 * time.Second)), Dir: "out", ID: "c_a", Source: "mcp", Command: "search", Result: []any{}},
+	}
+	rep, err := Build(entries, Options{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.KeywordOnly) != 1 || rep.KeywordOnly[0].Query != "beta" {
+		t.Fatalf("keyword: %+v", rep.KeywordOnly)
+	}
+	if len(rep.EmptySearches) != 1 || rep.EmptySearches[0].Query != "alpha" {
+		t.Fatalf("empty: %+v", rep.EmptySearches)
+	}
+	if rep.Counts["search"] != 2 {
+		t.Fatalf("counts: %+v", rep.Counts)
+	}
+}
+
 func TestBuildSinceOverlap(t *testing.T) {
 	dir := t.TempDir()
 	runGit(t, dir, "init")

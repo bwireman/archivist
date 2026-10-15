@@ -44,9 +44,9 @@ func wrapLoggedRunE(c *cobra.Command) {
 		box := &cmdlog.ResultBox{}
 		cmd.SetContext(cmdlog.WithResult(cmd.Context(), box))
 		start := time.Now()
-		logger.In("cli", cmd.CommandPath(), cliArgs(cmd, args))
+		id := logger.In("cli", cmd.CommandPath(), cliArgs(cmd, args))
 		err := orig(cmd, args)
-		logger.Out("cli", cmd.CommandPath(), box.Get(), err, start)
+		logger.Out(id, "cli", cmd.CommandPath(), box.Get(), err, start)
 		return err
 	}
 }

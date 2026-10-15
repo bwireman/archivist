@@ -152,6 +152,9 @@ func TestCommandLogMiddlewareWritesJSONL(t *testing.T) {
 	if out.Dir != "out" || out.Error != "" {
 		t.Fatalf("out: %+v", out)
 	}
+	if in.ID == "" || in.ID != out.ID {
+		t.Fatalf("call id in=%q out=%q", in.ID, out.ID)
+	}
 }
 
 func TestMcpLogResultParsesJSON(t *testing.T) {

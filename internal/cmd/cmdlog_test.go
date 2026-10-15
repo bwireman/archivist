@@ -55,6 +55,9 @@ func TestCommandLogCLIRemember(t *testing.T) {
 	if out.Dir != "out" || out.Error != "" {
 		t.Fatalf("out: %+v", out)
 	}
+	if in.ID == "" || in.ID != out.ID {
+		t.Fatalf("call id in=%q out=%q", in.ID, out.ID)
+	}
 	got, ok := out.Result.(map[string]any)
 	if !ok {
 		t.Fatalf("out result: %#v", out.Result)

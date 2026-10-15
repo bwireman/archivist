@@ -2,6 +2,8 @@
 package cmdlog
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -20,6 +22,8 @@ type Logger struct {
 }
 
 type Entry struct {
+	// ID is shared by one call's dir=in and dir=out lines. Empty on lines written before call ids.
+	ID         string `json:"id,omitempty"`
 	TS         string `json:"ts"`
 	Dir        string `json:"dir"`
 	Source     string `json:"source"`
@@ -48,17 +52,26 @@ func FromConfig(repoRoot string, cfg *config.Config) *Logger {
 	return New(config.CommandsLogPath(repoRoot))
 }
 
-func (l *Logger) In(source, command string, args any) {
+// In appends a dir=in line and returns its call id. A disabled logger returns an empty id and writes nothing.
+func (l *Logger) In(source, command string, args any) string {
+	id := ""
+	if l != nil && l.enabled {
+		id = newCallID()
+	}
 	l.append(Entry{
+		ID:      id,
 		Dir:     "in",
 		Source:  source,
 		Command: command,
 		Args:    clip(args),
 	})
+	return id
 }
 
-func (l *Logger) Out(source, command string, result any, err error, started time.Time) {
+// Out appends the dir=out line for the id returned by In.
+func (l *Logger) Out(id, source, command string, result any, err error, started time.Time) {
 	e := Entry{
+		ID:         id,
 		Dir:        "out",
 		Source:     source,
 		Command:    command,
@@ -94,6 +107,12 @@ func (l *Logger) append(e Entry) {
 	}
 	defer f.Close()
 	_, _ = f.Write(data) // best-effort; a log failure must not fail the command
+}
+
+func newCallID() string {
+	var b [8]byte
+	_, _ = rand.Read(b[:]) // never returns an error; crashes if the OS source fails
+	return "c_" + hex.EncodeToString(b[:])
 }
 
 func clip(v any) any {

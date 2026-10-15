@@ -364,7 +364,10 @@ func (c paired) at() time.Time {
 	return entryTime(c.in)
 }
 
+// pairCalls matches an out to its in. Lines that share an id are one call, even when a later call finishes first.
+// Lines with an empty id, written before call ids, still pair by command name, oldest unmatched in first.
 func pairCalls(entries []cmdlog.Entry) []paired {
+	byID := map[string]int{}
 	pending := map[string][]int{}
 	var calls []paired
 	for _, e := range entries {
@@ -372,8 +375,24 @@ func pairCalls(entries []cmdlog.Entry) []paired {
 		switch e.Dir {
 		case "in":
 			calls = append(calls, paired{name: name, in: e})
-			pending[name] = append(pending[name], len(calls)-1)
+			i := len(calls) - 1
+			if e.ID != "" {
+				byID[e.ID] = i
+				continue
+			}
+			pending[name] = append(pending[name], i)
 		case "out":
+			if e.ID != "" {
+				i, ok := byID[e.ID]
+				if !ok {
+					calls = append(calls, paired{name: name, out: e, hasOut: true})
+					continue
+				}
+				delete(byID, e.ID)
+				calls[i].out = e
+				calls[i].hasOut = true
+				continue
+			}
 			q := pending[name]
 			if len(q) == 0 {
 				calls = append(calls, paired{name: name, out: e, hasOut: true})

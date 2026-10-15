@@ -16,7 +16,7 @@ func TestDisabledWritesNothing(t *testing.T) {
 	log := Disabled()
 	log.path = filepath.Join(dir, "commands.log")
 	log.In("cli", "archivist search", map[string]any{"args": []string{"foo"}})
-	log.Out("cli", "archivist search", nil, nil, time.Now())
+	log.Out("", "cli", "archivist search", nil, nil, time.Now())
 	if _, err := os.Stat(log.path); !os.IsNotExist(err) {
 		t.Fatal("disabled logger should not write a file")
 	}
@@ -36,8 +36,8 @@ func TestInOutJSONL(t *testing.T) {
 	path := filepath.Join(dir, "commands.log")
 	log := New(path)
 	start := time.Now()
-	log.In("mcp", "search", map[string]any{"query": "sqlite"})
-	log.Out("mcp", "search", []any{map[string]any{"id": "rec_1"}}, nil, start)
+	id := log.In("mcp", "search", map[string]any{"query": "sqlite"})
+	log.Out(id, "mcp", "search", []any{map[string]any{"id": "rec_1"}}, nil, start)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
@@ -59,13 +59,16 @@ func TestInOutJSONL(t *testing.T) {
 	if out.Dir != "out" || out.Error != "" || out.Result == nil {
 		t.Fatalf("out: %+v", out)
 	}
+	if in.ID == "" || in.ID != out.ID {
+		t.Fatalf("call id in=%q out=%q", in.ID, out.ID)
+	}
 }
 
 func TestOutRecordsError(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "commands.log")
 	log := New(path)
-	log.Out("cli", "archivist remember", nil, os.ErrPermission, time.Now())
+	log.Out("c_err", "cli", "archivist remember", nil, os.ErrPermission, time.Now())
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)

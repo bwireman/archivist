@@ -149,9 +149,9 @@ func (s *Server) commandLogMiddleware() mcpserver.ToolHandlerMiddleware {
 		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 			start := time.Now()
 			name := req.Params.Name
-			log.In("mcp", name, req.GetArguments())
+			id := log.In("mcp", name, req.GetArguments())
 			res, err := next(ctx, req)
-			log.Out("mcp", name, mcpLogResult(res), err, start)
+			log.Out(id, "mcp", name, mcpLogResult(res), err, start)
 			return res, err
 		}
 	}
