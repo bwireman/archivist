@@ -116,18 +116,12 @@ var skippedCommand = map[string]bool{
 	"index": true, "embed": true, "import": true, "export": true, "publish": true, "status": true,
 }
 
-// Build summarizes command-log entries. Maintenance commands are ignored.
-// A search result marked truncated is incomplete and is left out of follow-through.
-// Vector-only search hits stay in follow-through and out of the consulted set.
 // ParseUntil parses an explicit log end. Empty is a zero time.
 // The value must be RFC3339; a git rev is rejected.
 func ParseUntil(value string) (time.Time, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return time.Time{}, nil
-	}
-	if strings.HasPrefix(value, "-") || strings.Contains(value, "..") {
-		return time.Time{}, fmt.Errorf("--until %q must be an RFC3339 time", value)
 	}
 	t, ok := parseTime(value)
 	if !ok {
@@ -158,6 +152,9 @@ func inWindow(at, after, until time.Time) bool {
 	return true
 }
 
+// Build summarizes command-log entries. Maintenance commands are ignored.
+// A search result marked truncated is incomplete and is left out of follow-through.
+// Vector-only search hits stay in follow-through and out of the consulted set.
 func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 	rep := &Report{After: opts.After, Until: opts.Until, Counts: map[string]int{}}
 	var searches []searchEvent
@@ -696,8 +693,10 @@ func Format(r *Report) string {
 			fmt.Fprintf(&b, "Window: %s <= timestamp <= %s; --all reads the whole log\n", r.After.UTC().Format(time.RFC3339), r.Until.UTC().Format(time.RFC3339))
 		}
 	}
-	if r.Since == "" && r.After.IsZero() && !r.Until.IsZero() {
-		fmt.Fprintf(&b, "Log: timestamp <= %s\n", r.Until.UTC().Format(time.RFC3339))
+	if r.Since == "" && r.After.IsZero() {
+		if line := logWindowLine(r); line != "" {
+			fmt.Fprintf(&b, "%s\n", line)
+		}
 	}
 	fmt.Fprintf(&b, "%s\n", formatCounts(r.Counts))
 	writeRefs(&b, "Empty searches", r.EmptySearches, func(q QueryRef) string {

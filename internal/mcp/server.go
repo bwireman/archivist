@@ -307,7 +307,6 @@ func (s *Server) writer() (*archive.Service, func(), error) {
 		return nil, noop, err
 	}
 	svc := archive.New(s.RepoRoot, s.Cfg, repo, home)
-	svc.Extras = s.Archive.Extras
 	svc.ExtraRoots = s.Archive.ExtraRoots
 	return svc, func() {
 		_ = repo.Close()

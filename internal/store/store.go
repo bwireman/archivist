@@ -110,7 +110,12 @@ func openExisting(path string, dsnFn func(string) (string, error)) (*Store, erro
 }
 
 func sqliteDSN(path string) (string, error) {
-	return sqliteDSNMode(path, "")
+	q, err := dsnQuery(path)
+	if err != nil {
+		return "", err
+	}
+	q.Set("_journal_mode", "WAL")
+	return path + "?" + q.Encode(), nil
 }
 
 func sqliteDSNReadOnly(path string) (string, error) {
@@ -126,15 +131,12 @@ func sqliteDSNExisting(path string) (string, error) {
 }
 
 // sqliteFileDSN builds a file: URI so SQLite applies mode and immutable.
-// Those parameters are ignored on a plain path. _busy_timeout and _foreign_keys
-// stay driver keys. This does not set journal mode.
+// Those parameters are ignored on a plain path. This does not set journal mode.
 func sqliteFileDSN(path, mode string, immutable bool) (string, error) {
-	if strings.ContainsAny(path, "?#") {
-		return "", errors.New("sqlite path must not contain ? or #")
+	q, err := dsnQuery(path)
+	if err != nil {
+		return "", err
 	}
-	q := url.Values{}
-	q.Set("_busy_timeout", "5000")
-	q.Set("_foreign_keys", "on")
 	q.Set("mode", mode)
 	if immutable {
 		q.Set("immutable", "1")
@@ -143,24 +145,17 @@ func sqliteFileDSN(path, mode string, immutable bool) (string, error) {
 	return u.String(), nil
 }
 
-// sqliteDSNMode builds a modernc DSN whose query keys are driver-validated
-// (ints/bools/enums). Do not use _pragma: those values are executed as raw
-// PRAGMA SQL. '?' and '#' would start a DSN query string, so they are rejected
-// in the filesystem path. An empty mode is the read-write opener used by Open,
-// which sets WAL. ro and rw do not set the journal mode.
-func sqliteDSNMode(path, mode string) (string, error) {
+// dsnQuery returns driver-validated keys. Do not use _pragma: those values
+// are executed as raw PRAGMA SQL. '?' and '#' would start a DSN query string,
+// so they are rejected in the filesystem path.
+func dsnQuery(path string) (url.Values, error) {
 	if strings.ContainsAny(path, "?#") {
-		return "", errors.New("sqlite path must not contain ? or #")
+		return nil, errors.New("sqlite path must not contain ? or #")
 	}
 	q := url.Values{}
 	q.Set("_busy_timeout", "5000")
 	q.Set("_foreign_keys", "on")
-	if mode == "" {
-		q.Set("_journal_mode", "WAL")
-	} else {
-		q.Set("mode", mode)
-	}
-	return path + "?" + q.Encode(), nil
+	return q, nil
 }
 
 // placeholders returns n bound-parameter markers. Concatenate only this into

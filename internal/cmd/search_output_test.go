@@ -318,18 +318,15 @@ func mustCanonCmd(t *testing.T, path string) string {
 
 func ensureQueryStores(t *testing.T, root string) {
 	t.Helper()
-	repo, err := store.Open(config.StorePath(root))
+	repo, home, err := openStores(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Close(); err != nil {
-		t.Fatal(err)
+	err = repo.Close()
+	if cerr := home.Close(); err == nil {
+		err = cerr
 	}
-	home, err := store.Open(config.HomeStorePath())
 	if err != nil {
-		t.Fatal(err)
-	}
-	if err := home.Close(); err != nil {
 		t.Fatal(err)
 	}
 }
