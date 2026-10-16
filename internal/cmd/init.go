@@ -1,11 +1,13 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -71,5 +73,23 @@ func applyInit(root string, cfg *config.Config) error {
 			return err
 		}
 	}
+	if err := openAndClose(config.StorePath(root)); err != nil {
+		return err
+	}
+	home := config.HomeStorePath()
+	if home == "" {
+		return errors.New("cannot resolve home archive path (set $HOME)")
+	}
+	if err := openAndClose(home); err != nil {
+		return err
+	}
 	return appendGitignore(filepath.Join(root, ".gitignore"), ".archivist/\n")
+}
+
+func openAndClose(path string) error {
+	db, err := store.Open(path)
+	if err != nil {
+		return err
+	}
+	return db.Close()
 }

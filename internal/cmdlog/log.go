@@ -98,6 +98,7 @@ func (l *Logger) append(e Entry) {
 	data = append(data, '\n')
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	// A read-only checkout cannot append the log. Ignore that so the query still succeeds.
 	if err := os.MkdirAll(filepath.Dir(l.path), 0o755); err != nil {
 		return
 	}

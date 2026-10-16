@@ -63,14 +63,21 @@ func TestOpenReadOnlyDoesNotCreate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(ro, "mode=ro") || strings.Contains(ro, "_journal_mode") {
+	if !strings.Contains(ro, "file:") || !strings.Contains(ro, "mode=ro") || strings.Contains(ro, "_journal_mode") || strings.Contains(ro, "immutable") {
 		t.Fatalf("read-only dsn: %s", ro)
 	}
 	rw, err := sqliteDSNExisting("/tmp/archive.db")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(rw, "mode=rw") || strings.Contains(rw, "_journal_mode") {
+	if !strings.Contains(rw, "file:") || !strings.Contains(rw, "mode=rw") || strings.Contains(rw, "_journal_mode") {
 		t.Fatalf("existing dsn: %s", rw)
+	}
+	frozen, err := sqliteDSNImmutable("/tmp/archive.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(frozen, "immutable=1") || !strings.Contains(frozen, "mode=ro") {
+		t.Fatalf("immutable dsn: %s", frozen)
 	}
 }

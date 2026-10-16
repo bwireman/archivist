@@ -2,7 +2,7 @@
 
 `archivist mcp` is the primary query surface. It speaks MCP over stdio (JSON-RPC on stdin/stdout).
 
-The server opens the repo and home SQLite files, so the process cwd must be the repo, or you must pass `--path`. Search still works if Ollama is down (keyword-only). Writes (`remember`, `update`, `retire`) never need Ollama.
+The server opens the repo and home SQLite files read-only, so the process cwd must be the repo, or you must pass `--path`. Search, get, check, map, status, and cite do not create a database, schema, or orphan cleanup. A missing database says to run `archivist init`. `remember`, `update`, `retire`, and `import` open a separate writable connection. Search still works if Ollama is down (keyword-only). Writes never need Ollama. With `log_commands` on, a read-only checkout skips the command-log append and the query still succeeds.
 
 ## Cursor
 

@@ -226,6 +226,217 @@ func TestBuildSinceOverlap(t *testing.T) {
 	}
 }
 
+func TestBuildUntilInclusive(t *testing.T) {
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	until := start.Add(time.Hour)
+	cite := func(at time.Time, id string) []cmdlog.Entry {
+		return call("cite", at, map[string]any{"id": id, "effect": id}, map[string]any{"id": id, "effect": id})
+	}
+	var entries []cmdlog.Entry
+	entries = append(entries, cite(start.Add(-time.Second), "rec_before")...)
+	entries = append(entries, cite(start, "rec_start")...)
+	entries = append(entries, cite(until, "rec_until")...)
+	entries = append(entries, cite(until.Add(time.Nanosecond), "rec_after")...)
+
+	rep, err := Build(entries, Options{After: start, Until: until}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := citeIDs(rep)
+	want := []string{"rec_start", "rec_until"}
+	if strings.Join(got, ",") != strings.Join(want, ",") {
+		t.Fatalf("cites %v", got)
+	}
+
+	open, err := Build(entries, Options{After: start}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(citeIDs(open), ",") != "rec_start,rec_until,rec_after" {
+		t.Fatalf("open cites %v", citeIDs(open))
+	}
+
+	same, err := Build(cite(start, "rec_only"), Options{After: start, Until: start}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(citeIDs(same), ",") != "rec_only" {
+		t.Fatalf("equal bounds cites %v", citeIDs(same))
+	}
+}
+
+func TestBuildUntilDropsLaterActivity(t *testing.T) {
+	start := time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)
+	until := start.Add(time.Hour)
+	later := until.Add(time.Hour)
+	entries := call("cite", start.Add(time.Minute), map[string]any{"id": "rec_used", "effect": "kept the change"}, map[string]any{
+		"id": "rec_used", "effect": "kept the change",
+	})
+	entries = append(entries, call("cite", later, map[string]any{"id": "rec_later", "effect": "after the change"}, map[string]any{
+		"id": "rec_later", "effect": "after the change",
+	})...)
+	entries = append(entries, call("search", later, map[string]any{"query": "unrelated"}, []any{})...)
+	cat := fakeCat{
+		recs: map[string]*record.Record{
+			"rec_used": {ID: "rec_used", Title: "Used", Type: record.TypeFeature, Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+		},
+		rules: []*record.Record{
+			{ID: "rec_later", Title: "Later rule", Type: record.TypeRule, Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+			{ID: "rec_miss", Title: "Never retrieved", Type: record.TypeRule, Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}},
+		},
+	}
+	paths := []string{"internal/cmd/foo.go", "internal/cmd/bar.go"}
+	bounded, err := Build(entries, Options{
+		Since: "abc", After: start, Until: until, Paths: paths, GitNote: noteRev,
+	}, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(citeIDs(bounded), ",") != "rec_used" {
+		t.Fatalf("cites %v", citeIDs(bounded))
+	}
+	if bounded.Counts["search"] != 0 {
+		t.Fatalf("search count %d", bounded.Counts["search"])
+	}
+	if strings.Join(ruleIDs(bounded.MissedRules), ",") != "rec_later,rec_miss" {
+		t.Fatalf("missed %v", ruleIDs(bounded.MissedRules))
+	}
+	if strings.Join(bounded.ChangedPaths, ",") != strings.Join(paths, ",") {
+		t.Fatalf("paths %v", bounded.ChangedPaths)
+	}
+	text := Format(bounded)
+	for _, needle := range []string{"<= timestamp <=", "does not narrow paths", "internal/cmd/bar.go", "rec_used"} {
+		if !strings.Contains(text, needle) {
+			t.Fatalf("missing %q\n%s", needle, text)
+		}
+	}
+	if strings.Contains(text, "after the change") || strings.Contains(text, "no --until") {
+		t.Fatal(text)
+	}
+
+	open, err := Build(entries, Options{Since: "abc", After: start, Paths: paths, GitNote: noteRev}, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Join(citeIDs(open), ",") != "rec_used,rec_later" {
+		t.Fatalf("open cites %v", citeIDs(open))
+	}
+	if open.Counts["search"] != 1 {
+		t.Fatalf("open search %d", open.Counts["search"])
+	}
+	if strings.Join(ruleIDs(open.MissedRules), ",") != "rec_miss" {
+		t.Fatalf("open missed %v", ruleIDs(open.MissedRules))
+	}
+	openText := Format(open)
+	if !strings.Contains(openText, "no --until, so later activity is included") || !strings.Contains(openText, "after the change") {
+		t.Fatal(openText)
+	}
+}
+
+func TestGitChangedQualifiesPaths(t *testing.T) {
+	dir := t.TempDir()
+	runGit(t, dir, "init")
+	tracked := filepath.Join(dir, "tracked.go")
+	if err := os.WriteFile(tracked, []byte("package p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", "tracked.go")
+	runGit(t, dir, "commit", "-m", "base")
+	if err := os.WriteFile(tracked, []byte("package p\n\nfunc F() {}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	staged := filepath.Join(dir, "staged.go")
+	if err := os.WriteFile(staged, []byte("package p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", "staged.go")
+	if err := os.WriteFile(filepath.Join(dir, "untracked.go"), []byte("package p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	join, err := GitChanged(dir, "HEAD")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(join.Note, "not an ancestor") {
+		t.Fatalf("HEAD note: %s", join.Note)
+	}
+	if !strings.Contains(join.Note, "untracked files are omitted") || !strings.Contains(join.Note, "--until does not narrow paths") {
+		t.Fatalf("note: %s", join.Note)
+	}
+	got := strings.Join(join.Paths, ",")
+	if got != "staged.go,tracked.go" {
+		t.Fatalf("dirty paths: %s", got)
+	}
+
+	when := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	timed, err := GitChanged(dir, when)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(timed.Note, "commits at or after") {
+		t.Fatalf("time note: %s", timed.Note)
+	}
+	if strings.Join(timed.Paths, ",") != "staged.go,tracked.go" {
+		t.Fatalf("time paths: %v", timed.Paths)
+	}
+
+	if _, err := GitChanged(dir, "HEAD~1..HEAD"); err == nil || !strings.Contains(err.Error(), "revision range") {
+		t.Fatalf("range err: %v", err)
+	}
+
+	runGit(t, dir, "reset", "--hard")
+	runGit(t, dir, "clean", "-fd")
+	runGit(t, dir, "checkout", "-b", "side")
+	if err := os.WriteFile(filepath.Join(dir, "side.go"), []byte("package p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", "side.go")
+	runGit(t, dir, "commit", "-m", "side")
+	runGit(t, dir, "checkout", "-")
+	other, err := GitChanged(dir, "side")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(other.Note, "not an ancestor of HEAD") {
+		t.Fatalf("non-ancestral note: %s", other.Note)
+	}
+	found := false
+	for _, p := range other.Paths {
+		if p == "side.go" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("non-ancestral paths: %v", other.Paths)
+	}
+}
+
+func TestParseUntil(t *testing.T) {
+	got, err := ParseUntil("2026-10-01T01:00:00Z")
+	if err != nil || !got.Equal(time.Date(2026, 10, 1, 1, 0, 0, 0, time.UTC)) {
+		t.Fatalf("%v %v", got, err)
+	}
+	if _, err := ParseUntil(""); err != nil {
+		t.Fatal(err)
+	}
+	for _, bad := range []string{"HEAD", "HEAD~1..HEAD", "yesterday"} {
+		if _, err := ParseUntil(bad); err == nil || !strings.Contains(err.Error(), "RFC3339") {
+			t.Fatalf("%s: %v", bad, err)
+		}
+	}
+	start := time.Date(2026, 10, 1, 2, 0, 0, 0, time.UTC)
+	if err := ValidateWindow(start, start.Add(-time.Second)); err == nil || !strings.Contains(err.Error(), "before") {
+		t.Fatalf("inverted: %v", err)
+	}
+	if err := ValidateWindow(start, start); err != nil {
+		t.Fatal(err)
+	}
+	if err := ValidateWindow(time.Time{}, start); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestBuildVectorOnlyExcluded(t *testing.T) {
 	at := time.Date(2026, 10, 4, 18, 0, 0, 0, time.UTC)
 	vec := roundTrip(t, []retrieve.Result{{
@@ -360,6 +571,22 @@ func (f fakeCat) Record(id string) (*record.Record, error) {
 
 func (f fakeCat) Rules() ([]*record.Record, error) {
 	return f.rules, nil
+}
+
+func citeIDs(rep *Report) []string {
+	var ids []string
+	for _, c := range rep.Cites {
+		ids = append(ids, c.ID)
+	}
+	return ids
+}
+
+func ruleIDs(rows []RecordHit) []string {
+	var ids []string
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	return ids
 }
 
 func call(command string, at time.Time, args, result any) []cmdlog.Entry {

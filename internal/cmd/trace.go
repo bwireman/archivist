@@ -16,7 +16,7 @@ import (
 const traceDefaultWindow = 7 * 24 * time.Hour
 
 func newTraceCmd() *cobra.Command {
-	var since string
+	var since, until string
 	var all bool
 	var asJSON bool
 	cmd := &cobra.Command{
@@ -28,6 +28,10 @@ func newTraceCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			untilAt, err := trace.ParseUntil(until)
+			if err != nil {
+				return err
+			}
 			if all && since != "" {
 				return fmt.Errorf("--all and --since cannot be combined")
 			}
@@ -35,7 +39,12 @@ func newTraceCmd() *cobra.Command {
 			if !all && since == "" {
 				after = time.Now().Add(-traceDefaultWindow)
 			}
-			rep, err := buildTrace(root, cfg, since, after)
+			if since == "" {
+				if err := trace.ValidateWindow(after, untilAt); err != nil {
+					return err
+				}
+			}
+			rep, err := buildTrace(root, cfg, since, after, untilAt)
 			if err != nil {
 				return err
 			}
@@ -46,13 +55,14 @@ func newTraceCmd() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&since, "since", "", "git rev or RFC3339 time; join retrieved records to paths changed since then")
+	cmd.Flags().StringVar(&since, "since", "", "git rev or RFC3339 time; paths from the work tree versus that rev (uncommitted tracked changes included). Log lines at or after that time. Without --until, later log lines are included")
+	cmd.Flags().StringVar(&until, "until", "", "inclusive RFC3339 end for log lines; does not change git paths")
 	cmd.Flags().BoolVar(&all, "all", false, "read the whole log instead of the last 7 days")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }
 
-func buildTrace(root string, cfg *config.Config, since string, after time.Time) (*trace.Report, error) {
+func buildTrace(root string, cfg *config.Config, since string, after, until time.Time) (*trace.Report, error) {
 	path := config.CommandsLogPath(root)
 	if _, err := os.Stat(path); err != nil {
 		if os.IsNotExist(err) {
@@ -67,7 +77,7 @@ func buildTrace(root string, cfg *config.Config, since string, after time.Time) 
 	if err != nil {
 		return nil, err
 	}
-	opts := trace.Options{Since: since, After: after}
+	opts := trace.Options{Since: since, After: after, Until: until}
 	var cat trace.Catalog
 	if since != "" {
 		join, err := trace.GitChanged(root, since)
@@ -77,8 +87,12 @@ func buildTrace(root string, cfg *config.Config, since string, after time.Time) 
 		opts.After = join.After
 		opts.Paths = join.Paths
 		opts.GitSkipped = join.Skipped
+		opts.GitNote = join.Note
+		if err := trace.ValidateWindow(opts.After, opts.Until); err != nil {
+			return nil, err
+		}
 		if join.Skipped == "" {
-			repo, home, err := openStores(root)
+			repo, home, err := openQueryStores(root)
 			if err != nil {
 				return nil, err
 			}

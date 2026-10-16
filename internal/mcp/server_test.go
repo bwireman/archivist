@@ -547,6 +547,109 @@ func symbolNames(t *testing.T, raw any) []string {
 	return names
 }
 
+func TestMCPQueryReadsFrozenStore(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	if err := config.Save(root, config.Default()); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpsertRecord(&record.Record{
+		ID: "rec_frozen", Slug: "frozen-query", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Frozen query", Body: "readable", Status: record.StatusAccepted,
+		SourcePath: "docs/features/frozen-query.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Close(); err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := homeDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	repoRO, err := store.OpenReadOnly(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeRO, err := store.OpenReadOnly(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := New(root, config.Default(), repoRO, homeRO, nil)
+	hits, _ := callTool(t, s, "search", map[string]any{"query": "Frozen query"}).([]any)
+	if len(hits) != 1 {
+		t.Fatalf("search: %#v", hits)
+	}
+	created, _ := callTool(t, s, "remember", map[string]any{
+		"type": "decision", "scope": "repo", "title": "Writable again", "body": "wrote",
+	}).(map[string]any)
+	if created["id"] == "" {
+		t.Fatalf("remember: %#v", created)
+	}
+	if err := repoRO.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := homeRO.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	dataDir := config.DataDir(root)
+	t.Cleanup(func() {
+		_ = os.Chmod(dataDir, 0o755)
+		entries, _ := os.ReadDir(dataDir)
+		for _, e := range entries {
+			_ = os.Chmod(filepath.Join(dataDir, e.Name()), 0o644)
+		}
+	})
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range entries {
+		if err := os.Chmod(filepath.Join(dataDir, e.Name()), 0o444); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := os.Chmod(dataDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	repoRO, err = store.OpenReadOnly(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repoRO.Close()
+	homeRO, err = store.OpenReadOnly(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer homeRO.Close()
+	s = New(root, config.Default(), repoRO, homeRO, nil)
+	hits, _ = callTool(t, s, "search", map[string]any{"query": "Frozen query"}).([]any)
+	if len(hits) != 1 {
+		t.Fatalf("frozen search: %#v", hits)
+	}
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]any{
+		"type": "decision", "scope": "repo", "title": "Should fail", "body": "no",
+	}
+	res, err := s.toolRemember(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil || !res.IsError {
+		t.Fatalf("remember on a read-only checkout: %+v", res)
+	}
+}
+
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {
 	t.Helper()
 	if len(m) != len(want) {

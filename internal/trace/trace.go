@@ -26,11 +26,15 @@ type Catalog interface {
 }
 
 // Options selects the log window and the git join.
+// Until is an inclusive RFC3339 end for log lines. Zero means no upper bound.
+// Paths are not filtered by Until.
 type Options struct {
 	Since      string
 	After      time.Time
+	Until      time.Time
 	Paths      []string
 	GitSkipped string
+	GitNote    string
 }
 
 // QueryRef is one digest row that came from a tool call.
@@ -63,6 +67,7 @@ type Report struct {
 	Empty      bool `json:"empty,omitempty"`
 
 	After  time.Time      `json:"after,omitzero"`
+	Until  time.Time      `json:"until,omitzero"`
 	Counts map[string]int `json:"counts,omitempty"`
 
 	EmptySearches     []QueryRef `json:"empty_searches,omitempty"`
@@ -81,6 +86,7 @@ type Report struct {
 
 	Since        string      `json:"since,omitempty"`
 	GitSkipped   string      `json:"git_skipped,omitempty"`
+	GitNote      string      `json:"git_note,omitempty"`
 	WideDiff     bool        `json:"wide_diff,omitempty"`
 	ChangedPaths []string    `json:"changed_paths,omitempty"`
 	Overlap      []RecordHit `json:"overlap,omitempty"`
@@ -113,8 +119,47 @@ var skippedCommand = map[string]bool{
 // Build summarizes command-log entries. Maintenance commands are ignored.
 // A search result marked truncated is incomplete and is left out of follow-through.
 // Vector-only search hits stay in follow-through and out of the consulted set.
+// ParseUntil parses an explicit log end. Empty is a zero time.
+// The value must be RFC3339; a git rev is rejected.
+func ParseUntil(value string) (time.Time, error) {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return time.Time{}, nil
+	}
+	if strings.HasPrefix(value, "-") || strings.Contains(value, "..") {
+		return time.Time{}, fmt.Errorf("--until %q must be an RFC3339 time", value)
+	}
+	t, ok := parseTime(value)
+	if !ok {
+		return time.Time{}, fmt.Errorf("--until %q must be an RFC3339 time", value)
+	}
+	return t, nil
+}
+
+// ValidateWindow rejects an upper bound that falls before the lower bound.
+// A zero bound is open on that side. Equal bounds are an inclusive instant.
+func ValidateWindow(after, until time.Time) error {
+	if until.IsZero() || after.IsZero() {
+		return nil
+	}
+	if until.Before(after) {
+		return fmt.Errorf("--until %s is before the log start %s", until.UTC().Format(time.RFC3339), after.UTC().Format(time.RFC3339))
+	}
+	return nil
+}
+
+func inWindow(at, after, until time.Time) bool {
+	if !after.IsZero() && (at.IsZero() || at.Before(after)) {
+		return false
+	}
+	if !until.IsZero() && (at.IsZero() || at.After(until)) {
+		return false
+	}
+	return true
+}
+
 func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
-	rep := &Report{After: opts.After, Counts: map[string]int{}}
+	rep := &Report{After: opts.After, Until: opts.Until, Counts: map[string]int{}}
 	var searches []searchEvent
 	retrieved := map[string]struct{}{}
 	consulted := map[string]struct{}{}
@@ -153,7 +198,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 			continue
 		}
 		at := call.at()
-		if !opts.After.IsZero() && (at.IsZero() || at.Before(opts.After)) {
+		if !inWindow(at, opts.After, opts.Until) {
 			continue
 		}
 		rep.Counts[call.name]++
@@ -257,6 +302,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 	if opts.Since != "" {
 		rep.Since = opts.Since
 		rep.GitSkipped = opts.GitSkipped
+		rep.GitNote = opts.GitNote
 		if opts.GitSkipped == "" {
 			rep.ChangedPaths = append([]string(nil), opts.Paths...)
 			rep.WideDiff = len(opts.Paths) > widePathCount
@@ -643,8 +689,15 @@ func Format(r *Report) string {
 		b.WriteString("log_commands is true; no commands logged yet\n")
 		return b.String()
 	}
-	if !r.After.IsZero() && r.Since == "" {
-		fmt.Fprintf(&b, "Window: since %s; --all reads the whole log\n", r.After.UTC().Format(time.RFC3339))
+	if r.Since == "" && !r.After.IsZero() {
+		if r.Until.IsZero() {
+			fmt.Fprintf(&b, "Window: since %s; --all reads the whole log\n", r.After.UTC().Format(time.RFC3339))
+		} else {
+			fmt.Fprintf(&b, "Window: %s <= timestamp <= %s; --all reads the whole log\n", r.After.UTC().Format(time.RFC3339), r.Until.UTC().Format(time.RFC3339))
+		}
+	}
+	if r.Since == "" && r.After.IsZero() && !r.Until.IsZero() {
+		fmt.Fprintf(&b, "Log: timestamp <= %s\n", r.Until.UTC().Format(time.RFC3339))
 	}
 	fmt.Fprintf(&b, "%s\n", formatCounts(r.Counts))
 	writeRefs(&b, "Empty searches", r.EmptySearches, func(q QueryRef) string {
@@ -683,9 +736,15 @@ func Format(r *Report) string {
 	fmt.Fprintf(&b, "Cited / retrieved: %d/%d\n", r.Cited, r.Retrieved)
 	if r.Since != "" {
 		fmt.Fprintf(&b, "Since: %s\n", r.Since)
+		if line := logWindowLine(r); line != "" {
+			fmt.Fprintf(&b, "%s\n", line)
+		}
 		if r.GitSkipped != "" {
 			fmt.Fprintf(&b, "Git join skipped: %s\n", r.GitSkipped)
 		} else {
+			if r.GitNote != "" {
+				fmt.Fprintf(&b, "Paths: %s\n", r.GitNote)
+			}
 			fmt.Fprintf(&b, "Changed paths: %d\n", len(r.ChangedPaths))
 			if r.WideDiff {
 				fmt.Fprintf(&b, "Wide diff: %d paths; overlap is coarse\n", len(r.ChangedPaths))
@@ -699,6 +758,19 @@ func Format(r *Report) string {
 		}
 	}
 	return b.String()
+}
+
+func logWindowLine(r *Report) string {
+	switch {
+	case !r.After.IsZero() && !r.Until.IsZero():
+		return fmt.Sprintf("Log: %s <= timestamp <= %s", r.After.UTC().Format(time.RFC3339), r.Until.UTC().Format(time.RFC3339))
+	case !r.After.IsZero():
+		return fmt.Sprintf("Log: at or after %s; no --until, so later activity is included", r.After.UTC().Format(time.RFC3339))
+	case !r.Until.IsZero():
+		return fmt.Sprintf("Log: timestamp <= %s", r.Until.UTC().Format(time.RFC3339))
+	default:
+		return ""
+	}
 }
 
 func formatCounts(counts map[string]int) string {

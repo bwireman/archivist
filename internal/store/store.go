@@ -29,7 +29,13 @@ const (
 const ftsTokenizer = "porter unicode61"
 
 type Store struct {
-	db *sql.DB
+	db       *sql.DB
+	readOnly bool
+}
+
+// ReadOnly reports whether this connection was opened with OpenReadOnly.
+func (s *Store) ReadOnly() bool {
+	return s != nil && s.readOnly
 }
 
 func Open(path string) (*Store, error) {
@@ -61,9 +67,21 @@ func (s *Store) Close() error {
 }
 
 // OpenReadOnly opens an existing database for reads. It does not create the
-// file, parent directories, schema, or orphan cleanup.
+// file, parent directories, schema, or orphan cleanup. When the directory
+// cannot hold a WAL shared-memory file, it retries with immutable=1.
 func OpenReadOnly(path string) (*Store, error) {
-	return openExisting(path, sqliteDSNReadOnly)
+	s, err := openExisting(path, sqliteDSNReadOnly)
+	if err != nil && !os.IsNotExist(err) {
+		if s2, err2 := openExisting(path, sqliteDSNImmutable); err2 == nil {
+			s2.readOnly = true
+			return s2, nil
+		}
+	}
+	if err != nil {
+		return nil, err
+	}
+	s.readOnly = true
+	return s, nil
 }
 
 // OpenExisting opens an existing database for writes. It does not create the
@@ -96,11 +114,33 @@ func sqliteDSN(path string) (string, error) {
 }
 
 func sqliteDSNReadOnly(path string) (string, error) {
-	return sqliteDSNMode(path, "ro")
+	return sqliteFileDSN(path, "ro", false)
+}
+
+func sqliteDSNImmutable(path string) (string, error) {
+	return sqliteFileDSN(path, "ro", true)
 }
 
 func sqliteDSNExisting(path string) (string, error) {
-	return sqliteDSNMode(path, "rw")
+	return sqliteFileDSN(path, "rw", false)
+}
+
+// sqliteFileDSN builds a file: URI so SQLite applies mode and immutable.
+// Those parameters are ignored on a plain path. _busy_timeout and _foreign_keys
+// stay driver keys. This does not set journal mode.
+func sqliteFileDSN(path, mode string, immutable bool) (string, error) {
+	if strings.ContainsAny(path, "?#") {
+		return "", errors.New("sqlite path must not contain ? or #")
+	}
+	q := url.Values{}
+	q.Set("_busy_timeout", "5000")
+	q.Set("_foreign_keys", "on")
+	q.Set("mode", mode)
+	if immutable {
+		q.Set("immutable", "1")
+	}
+	u := url.URL{Scheme: "file", Path: path, RawQuery: q.Encode()}
+	return u.String(), nil
 }
 
 // sqliteDSNMode builds a modernc DSN whose query keys are driver-validated

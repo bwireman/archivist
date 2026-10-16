@@ -28,6 +28,7 @@ func TestMCPOpenReadsExtraWithoutServing(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
+	ensureQueryStores(t, root)
 	repo, homeDB, extras, err := openReadArchives(root, cfg)
 	if err != nil {
 		t.Fatal(err)

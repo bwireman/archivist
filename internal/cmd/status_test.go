@@ -30,6 +30,7 @@ func TestStatusListsExtraSeparatelyWhenReadOnly(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
+	ensureQueryStores(t, root)
 	cmd := NewRoot()
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)

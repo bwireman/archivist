@@ -40,15 +40,15 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 
 | Command | Ollama | Purpose |
 | --- | --- | --- |
-| `archivist init` | no | Config, SQLite dirs, optional import drop folders |
+| `archivist init` | no | Config, checkout and home SQLite databases, optional import drop folders. Query commands do not create a database; a missing one says to run init. |
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
 | `archivist index` | no | Index this checkout's code map + git history (feeds `map`). Does not walk `archives`. |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
-| `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field) |
+| `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field). Opens existing databases read-only. |
 | `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits. Also reads listed `archives`; does not index them. |
 | `archivist check` | optional | Match rules to a change |
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
-| `archivist trace` | no | Digest `commands.log`; `--since` joins consulted records to a git diff |
+| `archivist trace` | no | Digest `commands.log`. `--since` joins consulted records to `git diff` of the work tree versus that rev (staged and unstaged tracked changes included; untracked files omitted). `--until` is an inclusive RFC3339 end for log lines and does not change those paths. Without `--until`, later log lines stay in the digest. |
 | `archivist remember` | no | Create a record in SQLite (no markdown file). `--archive` names a listed checkout when the repo record is about that checkout. |
 | `archivist update` / `retire` | no | Amend or supersede |
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |

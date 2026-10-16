@@ -148,11 +148,40 @@ func openStores(root string) (*store.Store, *store.Store, error) {
 	return repo, home, nil
 }
 
-// openReadArchives opens the primary and home stores and each configured extra
-// with OpenReadOnly. newMCPCmd, search, cite, and status use this. It does not
-// call store.Open or store.OpenExisting on an extra.
+func openQueryStore(path string) (*store.Store, error) {
+	db, err := store.OpenReadOnly(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s does not exist; run archivist init", path)
+		}
+		return nil, err
+	}
+	return db, nil
+}
+
+func openQueryStores(root string) (*store.Store, *store.Store, error) {
+	repo, err := openQueryStore(config.StorePath(root))
+	if err != nil {
+		return nil, nil, err
+	}
+	homePath := config.HomeStorePath()
+	if homePath == "" {
+		_ = repo.Close()
+		return nil, nil, errors.New("cannot resolve home archive path (set $HOME)")
+	}
+	home, err := openQueryStore(homePath)
+	if err != nil {
+		_ = repo.Close()
+		return nil, nil, err
+	}
+	return repo, home, nil
+}
+
+// openReadArchives opens the primary store, the home store, and each configured
+// extra with OpenReadOnly. search, map, status, cite, check, trace, and mcp use
+// this. It does not create databases, schema, or orphan cleanup.
 func openReadArchives(root string, cfg *config.Config) (*store.Store, *store.Store, []archive.Extra, error) {
-	repo, home, err := openStores(root)
+	repo, home, err := openQueryStores(root)
 	if err != nil {
 		return nil, nil, nil, err
 	}

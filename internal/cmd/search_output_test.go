@@ -178,6 +178,7 @@ func TestSearchReadsListedArchive(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
+	ensureQueryStores(t, root)
 	cmd := NewRoot()
 	var stdout, stderr bytes.Buffer
 	cmd.SetOut(&stdout)
@@ -191,6 +192,95 @@ func TestSearchReadsListedArchive(t *testing.T) {
 	}
 }
 
+func TestSearchMissingStoreAsksForInit(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	if err := config.Save(root, config.Default()); err != nil {
+		t.Fatal(err)
+	}
+	cmd := NewRoot()
+	var buf bytes.Buffer
+	cmd.SetOut(&buf)
+	cmd.SetErr(&buf)
+	cmd.SetArgs([]string{"--path", root, "search", "q"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "archivist init") {
+		t.Fatalf("err=%v\n%s", err, buf.String())
+	}
+	if _, statErr := os.Stat(config.StorePath(root)); !os.IsNotExist(statErr) {
+		t.Fatal("search created the checkout database")
+	}
+}
+
+func TestSearchReadsNonWritableStores(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	cfg := config.Default()
+	cfg.LogCommands = true
+	if err := config.Save(root, cfg); err != nil {
+		t.Fatal(err)
+	}
+	repo, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpsertRecord(&record.Record{
+		ID: "rec_repo_frozen", Slug: "repo-frozen", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "RepoFrozenToken", Body: "checkout", Status: record.StatusAccepted,
+		SourcePath: "docs/features/repo-frozen.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Close(); err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := homeDB.UpsertRecord(&record.Record{
+		ID: "rec_home_frozen", Slug: "home-frozen", Type: record.TypeDecision, Scope: record.ScopeGlobal,
+		Title: "HomeFrozenToken", Body: "home", Status: record.StatusAccepted,
+		SourcePath: "user/home-frozen.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := homeDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	homeDir := filepath.Dir(config.HomeStorePath())
+	t.Cleanup(func() { _ = os.Chmod(homeDir, 0o755) })
+	if err := os.Chmod(homeDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	homeHit := runSearch(t, root, "--json", "HomeFrozenToken")
+	if !strings.Contains(homeHit, "HomeFrozenToken") {
+		t.Fatalf("home search: %s", homeHit)
+	}
+	if err := os.Chmod(homeDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	dataDir := config.DataDir(root)
+	if err := os.Remove(config.CommandsLogPath(root)); err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(dataDir, 0o755) })
+	if err := os.Chmod(dataDir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	repoHit := runSearch(t, root, "--json", "RepoFrozenToken")
+	if !strings.Contains(repoHit, "RepoFrozenToken") {
+		t.Fatalf("repo search: %s", repoHit)
+	}
+	if _, err := os.Stat(config.CommandsLogPath(root)); !os.IsNotExist(err) {
+		t.Fatal("query wrote commands.log on a read-only checkout")
+	}
+}
+
 func TestSearchMissingExtraErrors(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
@@ -201,6 +291,7 @@ func TestSearchMissingExtraErrors(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
+	ensureQueryStores(t, root)
 	cmd := NewRoot()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -223,6 +314,24 @@ func mustCanonCmd(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return got
+}
+
+func ensureQueryStores(t *testing.T, root string) {
+	t.Helper()
+	repo, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Close(); err != nil {
+		t.Fatal(err)
+	}
+	home, err := store.Open(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := home.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func seedCheckoutRecord(t *testing.T, dir string, rec *record.Record) {

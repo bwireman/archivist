@@ -3,6 +3,7 @@ package store_test
 import (
 	"database/sql"
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -395,5 +396,59 @@ func TestQuotedRecordIDRoundTrips(t *testing.T) {
 	found, err := st.GetRecordsByIDs([]string{id})
 	if err != nil || found[id] == nil {
 		t.Fatalf("GetRecordsByIDs quoted id: %+v err=%v", found, err)
+	}
+}
+
+func TestOpenReadOnlyRejectsWritesAndReadsFrozenDir(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &record.Record{
+		ID: "rec_ro", Slug: "ro", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Read only token", Status: record.StatusAccepted, Body: "kept",
+		SourcePath: "docs/decisions/ro.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	ro, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ro.ReadOnly() {
+		t.Fatal("expected read-only connection")
+	}
+	rec.Title = "changed"
+	rec.ContentHash = ""
+	if err := ro.UpsertRecord(rec); err == nil {
+		t.Fatal("read-only connection accepted a write")
+	}
+	got, ok, err := ro.GetRecordByID(rec.ID)
+	if err != nil || !ok || got.Title != "Read only token" {
+		t.Fatalf("read back ok=%v err=%v got=%+v", ok, err, got)
+	}
+	if err := ro.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	if err := os.Chmod(dir, 0o555); err != nil {
+		t.Fatal(err)
+	}
+	frozen, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer frozen.Close()
+	got, ok, err = frozen.GetRecordByID(rec.ID)
+	if err != nil || !ok || got.Title != "Read only token" {
+		t.Fatalf("frozen read ok=%v err=%v got=%+v", ok, err, got)
 	}
 }

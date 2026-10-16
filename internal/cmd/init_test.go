@@ -27,6 +27,12 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(home, ".archivist")); err != nil {
 		t.Fatalf("home global dir: %v", err)
 	}
+	if _, err := os.Stat(config.StorePath(root)); err != nil {
+		t.Fatalf("checkout database: %v", err)
+	}
+	if _, err := os.Stat(config.HomeStorePath()); err != nil {
+		t.Fatalf("home database: %v", err)
+	}
 	if _, err := os.Stat(filepath.Join(root, config.DefaultConfigName)); err != nil {
 		t.Fatal(err)
 	}

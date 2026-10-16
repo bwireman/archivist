@@ -165,6 +165,65 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	}
 }
 
+func TestInstalledPlanningAndTraceGuidance(t *testing.T) {
+	root := t.TempDir()
+	if err := Install(root, TargetCursor); err != nil {
+		t.Fatal(err)
+	}
+	plan := string(fileBytes(t, filepath.Join(root, ".cursor", "skills", "plan-changes", "SKILL.md")))
+	for _, needle := range []string{
+		"The planning turn does not write archive records",
+		"Do not call `remember`, `update`, or `retire`",
+		"first pending phase",
+		"`update` that record instead of calling `remember`",
+	} {
+		if !strings.Contains(plan, needle) {
+			t.Fatalf("plan-changes missing %q", needle)
+		}
+	}
+	for _, name := range []string{"archivist-ask.mdc", "archivist-record.mdc"} {
+		body := string(fileBytes(t, filepath.Join(root, ".cursor", "rules", name)))
+		for _, needle := range []string{
+			"do not remember, update, or retire",
+			"accepted phase the plan names",
+		} {
+			if !strings.Contains(body, needle) {
+				t.Fatalf("%s missing %q", name, needle)
+			}
+		}
+	}
+
+	agents := t.TempDir()
+	if err := Install(agents, TargetAgentsMD); err != nil {
+		t.Fatal(err)
+	}
+	agentsBody := string(fileBytes(t, filepath.Join(agents, "AGENTS.md")))
+	for _, needle := range []string{
+		"do not remember, update, or retire",
+		"accepted phase the plan names",
+	} {
+		if !strings.Contains(agentsBody, needle) {
+			t.Fatalf("agents-md missing %q", needle)
+		}
+	}
+
+	docsAgents := string(fileBytes(t, filepath.Join("..", "..", "docs", "agents.md")))
+	for _, needle := range []string{
+		"does not remember, update, or retire",
+		"archivist trace --since",
+		"--until",
+		"not narrowed by `--until`",
+	} {
+		if !strings.Contains(docsAgents, needle) {
+			t.Fatalf("docs/agents.md missing %q", needle)
+		}
+	}
+	recordsDoc := string(fileBytes(t, filepath.Join("..", "..", "docs", "records.md")))
+	if !strings.Contains(recordsDoc, "--until") || !strings.Contains(recordsDoc, "does not change those paths") {
+		t.Fatal("docs/records.md trace row drifted from the bounded-until interface")
+	}
+}
+
 func TestInstallAgentsMDWritesRulesOnly(t *testing.T) {
 	root := t.TempDir()
 	writeTree(t, root)

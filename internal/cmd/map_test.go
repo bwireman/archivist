@@ -16,6 +16,13 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	root := t.TempDir()
+	homeDB, err := store.Open(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := homeDB.Close(); err != nil {
+		t.Fatal(err)
+	}
 	extra := t.TempDir()
 	empty := t.TempDir()
 	seedSymbol(t, config.StorePath(root), "primary.go", "PrimaryWidget")

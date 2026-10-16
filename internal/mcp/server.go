@@ -4,6 +4,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"time"
 
@@ -278,7 +279,48 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	return jsonResult(res)
 }
 
+// writer returns a service that can upsert. Query connections stay read-only.
+// A server built on store.Open keeps that connection. A read-only server opens
+// store.Open for the write and closes it when done.
+func (s *Server) writer() (*archive.Service, func(), error) {
+	noop := func() {}
+	if s == nil || s.Archive == nil {
+		return nil, noop, errors.New("archive is not open")
+	}
+	repoRO := s.RepoDB != nil && s.RepoDB.ReadOnly()
+	homeRO := s.HomeDB != nil && s.HomeDB.ReadOnly()
+	if !repoRO && !homeRO {
+		return s.Archive, noop, nil
+	}
+	repo, err := store.Open(config.StorePath(s.RepoRoot))
+	if err != nil {
+		return nil, noop, err
+	}
+	homePath := config.HomeStorePath()
+	if homePath == "" {
+		_ = repo.Close()
+		return nil, noop, errors.New("cannot resolve home archive path (set $HOME)")
+	}
+	home, err := store.Open(homePath)
+	if err != nil {
+		_ = repo.Close()
+		return nil, noop, err
+	}
+	svc := archive.New(s.RepoRoot, s.Cfg, repo, home)
+	svc.Extras = s.Archive.Extras
+	svc.ExtraRoots = s.Archive.ExtraRoots
+	return svc, func() {
+		_ = repo.Close()
+		_ = home.Close()
+	}, nil
+}
+
 func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	svc, done, err := s.writer()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
 	rec := &record.Record{
 		Type:   record.Type(req.GetString("type", "")),
 		Scope:  record.Scope(req.GetString("scope", "")),
@@ -295,7 +337,7 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 	if tags := req.GetString("tags", ""); tags != "" {
 		rec.Tags = check.SplitPathList(tags)
 	}
-	id, err := s.Archive.Remember(rec, req.GetString("archive", ""))
+	id, err := svc.Remember(rec, req.GetString("archive", ""))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -303,8 +345,13 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 }
 
 func (s *Server) toolUpdate(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	svc, done, err := s.writer()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
 	id := req.GetString("id", "")
-	err := s.Archive.Update(id, func(r *record.Record) error {
+	err = svc.Update(id, func(r *record.Record) error {
 		archive.PatchText(r, req.GetString("title", ""), req.GetString("body", ""), req.GetString("status", ""))
 		return nil
 	})
@@ -315,7 +362,12 @@ func (s *Server) toolUpdate(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 }
 
 func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	err := s.Archive.Retire(req.GetString("id", ""), req.GetString("superseded_by", ""))
+	svc, done, err := s.writer()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
+	err = svc.Retire(req.GetString("id", ""), req.GetString("superseded_by", ""))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -323,7 +375,12 @@ func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 }
 
 func (s *Server) toolImport(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	res, err := s.Archive.Import()
+	svc, done, err := s.writer()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
+	res, err := svc.Import()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}

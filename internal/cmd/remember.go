@@ -174,7 +174,7 @@ func newCheckCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, err := openQueryStores(root)
 			if err != nil {
 				return err
 			}

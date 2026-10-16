@@ -387,6 +387,9 @@ func TestUpdateAndRetireStayInExtra(t *testing.T) {
 	if got.Status != record.StatusSuperseded || got.Body != "changed" {
 		t.Fatalf("extra record %+v", got)
 	}
+	if got.ID != live.ID || got.SourcePath != live.SourcePath {
+		t.Fatalf("update changed identity %+v", got)
+	}
 }
 
 func TestGetReadsExtraIDOnlyWhenFileIsReadOnly(t *testing.T) {
