@@ -103,6 +103,57 @@ func TestSearchTreatsWildcardsAsLiterals(t *testing.T) {
 	}
 }
 
+func TestSearchSymbolsMatchesTermsAcrossPathAndPackage(t *testing.T) {
+	st := codeStore(t)
+	now := time.Now().UTC()
+	err := st.ReplaceFileMap(
+		FileRecord{Path: "internal/embed/worker.go", ContentHash: "h", PackageName: "embed", IndexedAt: now},
+		[]Symbol{
+			{Name: "Run", Kind: "function_declaration", Line: 10},
+			{Name: "Worker", Kind: "type_spec", Line: 2, DocLine: "drains the embed queue"},
+		},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceFileMap(
+		FileRecord{Path: "db.go", ContentHash: "h2", PackageName: "store", IndexedAt: now},
+		[]Symbol{{Name: "Open", Kind: "function_declaration", Line: 1}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertCommit(CommitRecord{
+		Hash: "def456", Subject: "fix the embed queue worker", Author: "Ada",
+		AuthoredAt: now, IndexedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	syms, err := st.SearchSymbols("embed worker", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 2 || syms[0].Name != "Worker" || syms[1].Name != "Run" {
+		t.Fatalf("term match order: %+v", syms)
+	}
+	pkg, err := st.SearchSymbols("store", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(pkg) != 1 || pkg[0].Name != "Open" {
+		t.Fatalf("package match: %+v", pkg)
+	}
+	commits, err := st.SearchCommits("embed worker", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(commits) != 1 || commits[0].Hash != "def456" {
+		t.Fatalf("commit terms: %+v", commits)
+	}
+}
+
 func TestLikeContainsEscapesWildcards(t *testing.T) {
 	if got, want := likeContains("%"), `%\%%`; got != want {
 		t.Fatalf("percent: %q want %q", got, want)

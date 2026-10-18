@@ -41,6 +41,25 @@ var ftsStopwords = map[string]bool{
 	"no": true, "we": true, "our": true, "you": true, "your": true, "i": true,
 }
 
+// searchTerms splits a code-map query into lowercase words. Stopwords are
+// dropped. When every word is a stopword, or the query has no words, the
+// trimmed query is one term so a search for "%" or "_" stays literal.
+func searchTerms(query string) []string {
+	raw := strings.TrimSpace(query)
+	if raw == "" {
+		return nil
+	}
+	quoted := contentTerms(fts5Terms(raw))
+	if len(quoted) == 0 {
+		return []string{raw}
+	}
+	out := make([]string, len(quoted))
+	for i, t := range quoted {
+		out[i] = strings.ToLower(strings.Trim(t, `"`))
+	}
+	return out
+}
+
 // SnippetTerms returns the unquoted lowercase query words used to center a
 // search snippet. It does not stem them and it does not change SearchFTS.
 func SnippetTerms(query string) []string {

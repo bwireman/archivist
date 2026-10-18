@@ -1241,14 +1241,33 @@ func (s *Store) FileCount() (int, error) {
 }
 
 func (s *Store) SearchSymbols(query string, limit int) ([]Symbol, error) {
-	pattern := likeContains(query)
-	rows, err := s.db.Query(`
-SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported
-FROM symbols
-WHERE name LIKE ? ESCAPE '\' OR doc_line LIKE ? ESCAPE '\' OR file_path LIKE ? ESCAPE '\'
-ORDER BY file_path, line
-LIMIT ?
-`, pattern, pattern, pattern, limit)
+	terms := searchTerms(query)
+	if len(terms) == 0 || limit <= 0 {
+		return nil, nil
+	}
+	where := make([]string, 0, len(terms))
+	nameScore := make([]string, 0, len(terms))
+	docScore := make([]string, 0, len(terms))
+	whereArgs := make([]any, 0, len(terms)*4)
+	orderArgs := make([]any, 0, len(terms)*2)
+	for _, term := range terms {
+		pat := likeContains(term)
+		where = append(where, `(s.name LIKE ? ESCAPE '\' OR s.doc_line LIKE ? ESCAPE '\' OR s.file_path LIKE ? ESCAPE '\' OR COALESCE(f.package_name,'') LIKE ? ESCAPE '\')`)
+		whereArgs = append(whereArgs, pat, pat, pat, pat)
+		nameScore = append(nameScore, `(s.name LIKE ? ESCAPE '\')`)
+		docScore = append(docScore, `(COALESCE(s.doc_line,'') LIKE ? ESCAPE '\')`)
+		orderArgs = append(orderArgs, pat, pat)
+	}
+	q := `
+SELECT s.id, s.file_path, s.name, s.kind, s.line, COALESCE(s.doc_line,''), s.exported
+FROM symbols s
+LEFT JOIN files f ON f.path = s.file_path
+WHERE ` + strings.Join(where, " AND ") + `
+ORDER BY (` + strings.Join(nameScore, " + ") + `) DESC, (` + strings.Join(docScore, " + ") + `) DESC, s.file_path, s.line
+LIMIT ?`
+	args := append(whereArgs, orderArgs...)
+	args = append(args, limit)
+	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1321,12 +1340,23 @@ func (s *Store) ImportersOf(query string, limit int) ([]SymbolEdge, error) {
 	if strings.TrimSpace(query) == "" || limit <= 0 {
 		return nil, nil
 	}
+	terms := searchTerms(query)
+	if len(terms) == 0 {
+		return nil, nil
+	}
+	where := make([]string, 0, len(terms))
+	args := make([]any, 0, len(terms)+1)
+	for _, term := range terms {
+		where = append(where, `to_path LIKE ? ESCAPE '\'`)
+		args = append(args, likeContains(term))
+	}
+	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
-WHERE to_path LIKE ? ESCAPE '\'
+WHERE `+strings.Join(where, " AND ")+`
 ORDER BY from_file, to_path
 LIMIT ?
-`, likeContains(query), limit)
+`, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -1374,7 +1404,9 @@ const DefaultExploreLimit = 30
 
 // ExploreCode finds symbols matching query, the imports declared by the files
 // that hold them, the files importing anything whose path mentions query, and
-// recent commits that mention it.
+// recent commits that mention it. Each non-stopword term must match; the words
+// do not have to be adjacent. A symbol also matches its file's package name.
+// Name matches rank ahead of doc, path, and package matches.
 func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 	var out CodeSearch
 	if strings.TrimSpace(query) == "" {
@@ -1440,14 +1472,25 @@ func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
 	if strings.TrimSpace(query) == "" || limit <= 0 {
 		return nil, nil
 	}
-	pattern := likeContains(query)
+	terms := searchTerms(query)
+	if len(terms) == 0 {
+		return nil, nil
+	}
+	where := make([]string, 0, len(terms))
+	args := make([]any, 0, len(terms)*2+1)
+	for _, term := range terms {
+		pat := likeContains(term)
+		where = append(where, `(subject LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\')`)
+		args = append(args, pat, pat)
+	}
+	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT hash, COALESCE(subject,''), COALESCE(body,''), COALESCE(author,''), COALESCE(authored_at,'')
 FROM commits
-WHERE subject LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\'
+WHERE `+strings.Join(where, " AND ")+`
 ORDER BY authored_at DESC
 LIMIT ?
-`, pattern, pattern, limit)
+`, args...)
 	if err != nil {
 		return nil, err
 	}
