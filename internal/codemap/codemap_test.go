@@ -1,6 +1,7 @@
 package codemap
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/bwireman/archivist/internal/store"
@@ -245,10 +246,73 @@ export function parseAdv(content) {
 	}
 }
 
+func TestDocBlockKeepsLaterLines(t *testing.T) {
+	cases := []struct {
+		path, src, name, want string
+	}{
+		{
+			path: "demo.go",
+			src: `package demo
+
+// Hello greets the caller.
+// The second line is not the summary.
+func Hello() {}
+`,
+			name: "Hello",
+			want: "second line",
+		},
+		{
+			path: "demo.js",
+			src: `/** Parse the advance file.
+ * More detail.
+ */
+export function parseAdv(content) {
+  return content
+}
+`,
+			name: "parseAdv",
+			want: "More detail.",
+		},
+		{
+			path: "demo.py",
+			src: `def greet(name):
+    """Say hello to name.
+    Extra line.
+    """
+    pass
+`,
+			name: "greet",
+			want: "Extra line.",
+		},
+	}
+	for _, tc := range cases {
+		res, err := Extract(tc.path, tc.src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		doc := symbolDoc(res, tc.name)
+		if !strings.Contains(doc, tc.want) {
+			t.Fatalf("%s %s doc %q", tc.path, tc.name, doc)
+		}
+		if docLine(res, tc.name) == "" || strings.Contains(docLine(res, tc.name), tc.want) {
+			t.Fatalf("%s summary should stay the first line, got %q", tc.path, docLine(res, tc.name))
+		}
+	}
+}
+
 func docLine(res Result, name string) string {
 	for _, s := range res.Symbols {
 		if s.Name == name {
 			return s.DocLine
+		}
+	}
+	return ""
+}
+
+func symbolDoc(res Result, name string) string {
+	for _, s := range res.Symbols {
+		if s.Name == name {
+			return s.Doc
 		}
 	}
 	return ""

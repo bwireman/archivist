@@ -24,7 +24,7 @@ import (
 
 // Version is the code-map extractor contract. Bump it when extractors change
 // so the next full index remaps files whose content hashes have not changed.
-const Version = 4
+const Version = 5
 
 type languageSpec struct {
 	lang    *sitter.Language
@@ -147,19 +147,21 @@ func extractTreeSitter(path, content string, spec languageSpec, ext string) (Res
 				}
 				line := int(node.StartPoint().Row) + 1
 				exported := isExported(name, ext)
-				doc := ""
+				full := ""
 				if ext == ".py" {
-					doc = pythonNodeDoc(node, src)
+					full = pythonNodeDoc(node, src)
 				}
-				if doc == "" {
-					doc = firstDocLine(lines, line)
+				if full == "" {
+					full = docBlock(lines, line)
 				}
+				summary, body := splitDoc(full)
 				res.Symbols = append(res.Symbols, store.Symbol{
 					FilePath: path,
 					Name:     name,
 					Kind:     nt,
 					Line:     line,
-					DocLine:  doc,
+					DocLine:  summary,
+					Doc:      body,
 					Exported: exported,
 				})
 			}
@@ -230,17 +232,50 @@ func isExported(name, ext string) bool {
 	return true
 }
 
-// firstDocLine is the summary of the comment on this symbol. A block above the
-// declaration uses its first line, not the line closest to the symbol. Python
-// docstrings sit on the following line, including when the quotes are alone.
-func firstDocLine(lines []string, symLine int) string {
-	if doc := commentAbove(lines, symLine); doc != "" {
+// maxDocLines caps a stored comment. Search matches this text; the summary
+// line is still what doc_line shows.
+const maxDocLines = 24
+
+// docBlock is the comment on this symbol. A block above the declaration starts
+// at its first line, not the line closest to the symbol. Python docstrings sit
+// on the following line, including when the quotes are alone. Later lines stay
+// in the block so search can see them. The summary is the first line.
+func docBlock(lines []string, symLine int) string {
+	if doc := commentBlock(lines, symLine); doc != "" {
 		return doc
 	}
 	return docstringBelow(lines, symLine)
 }
 
-func commentAbove(lines []string, symLine int) string {
+func docSummary(full string) string {
+	full = strings.TrimSpace(full)
+	if i := strings.IndexByte(full, '\n'); i >= 0 {
+		return strings.TrimSpace(full[:i])
+	}
+	return full
+}
+
+// splitDoc returns the summary line and, when the comment continues, the whole
+// block. The block is what search stores.
+func splitDoc(full string) (summary, block string) {
+	summary = docSummary(full)
+	full = strings.TrimSpace(full)
+	if full != summary {
+		block = full
+	}
+	return summary, block
+}
+
+func capDoc(s string) string {
+	s = strings.TrimSpace(s)
+	lines := strings.Split(s, "\n")
+	if len(lines) > maxDocLines {
+		s = strings.Join(lines[:maxDocLines], "\n")
+	}
+	return strings.TrimSpace(s)
+}
+
+func commentBlock(lines []string, symLine int) string {
 	i := symLine - 2
 	floor := symLine - 8
 	if floor < 0 {
@@ -271,11 +306,17 @@ func commentAbove(lines []string, symLine int) string {
 		for start > 0 && strings.HasPrefix(strings.TrimSpace(lines[start-1]), prefix) {
 			start--
 		}
-		text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[start]), prefix))
-		if prefix == "//" {
-			text = strings.TrimSpace(strings.TrimPrefix(text, "/"))
+		var parts []string
+		for n := start; n <= i; n++ {
+			text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[n]), prefix))
+			if prefix == "//" {
+				text = strings.TrimSpace(strings.TrimPrefix(text, "/"))
+			}
+			if text != "" {
+				parts = append(parts, text)
+			}
 		}
-		return text
+		return capDoc(strings.Join(parts, "\n"))
 	case strings.Contains(line, "*/"):
 		start := i
 		for start > 0 && !strings.Contains(lines[start], "/*") {
@@ -284,7 +325,7 @@ func commentAbove(lines []string, symLine int) string {
 		if !strings.Contains(lines[start], "/*") {
 			return ""
 		}
-		return cleanBlockComment(lines[start : i+1])
+		return capDoc(cleanBlockComment(lines[start : i+1]))
 	default:
 		return ""
 	}
@@ -300,15 +341,16 @@ func cleanBlockComment(block []string) string {
 	if end := strings.Index(text, "*/"); end >= 0 {
 		text = text[:end]
 	}
+	var parts []string
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimSpace(line)
 		if line != "" {
-			return line
+			parts = append(parts, line)
 		}
 	}
-	return ""
+	return strings.Join(parts, "\n")
 }
 
 // pythonNodeDoc reads the docstring from the function or class body. A line
@@ -330,7 +372,7 @@ func pythonNodeDoc(node *sitter.Node, src []byte) string {
 		if str == nil {
 			return ""
 		}
-		return summaryOfPythonString(string(src[str.StartByte():str.EndByte()]))
+		return pythonDocText(string(src[str.StartByte():str.EndByte()]))
 	}
 	return ""
 }
@@ -345,7 +387,7 @@ func childOfType(node *sitter.Node, typ string) *sitter.Node {
 	return nil
 }
 
-func summaryOfPythonString(text string) string {
+func pythonDocText(text string) string {
 	text = strings.TrimSpace(text)
 	quote := ""
 	switch {
@@ -358,16 +400,17 @@ func summaryOfPythonString(text string) string {
 	}
 	text = strings.TrimPrefix(text, quote)
 	text = strings.TrimSuffix(strings.TrimSpace(text), quote)
+	var parts []string
 	for _, line := range strings.Split(text, "\n") {
 		if line = strings.TrimSpace(line); line != "" {
-			return line
+			parts = append(parts, line)
 		}
 	}
-	return ""
+	return capDoc(strings.Join(parts, "\n"))
 }
 
 func docstringBelow(lines []string, symLine int) string {
-	end := symLine + 6
+	end := symLine + maxDocLines
 	if end > len(lines) {
 		end = len(lines)
 	}
@@ -385,20 +428,30 @@ func docstringBelow(lines []string, symLine int) string {
 		default:
 			return ""
 		}
-		text := strings.TrimPrefix(line, quote)
-		if before, _, ok := strings.Cut(text, quote); ok {
-			return strings.TrimSpace(before)
+		var parts []string
+		rest := strings.TrimPrefix(line, quote)
+		if before, _, ok := strings.Cut(rest, quote); ok {
+			if t := strings.TrimSpace(before); t != "" {
+				parts = append(parts, t)
+			}
+			return capDoc(strings.Join(parts, "\n"))
 		}
-		if text = strings.TrimSpace(text); text != "" {
-			return text
+		if t := strings.TrimSpace(rest); t != "" {
+			parts = append(parts, t)
 		}
 		for j := i + 1; j < end; j++ {
-			next := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(lines[j]), quote))
+			next := strings.TrimSpace(lines[j])
+			if before, _, ok := strings.Cut(next, quote); ok {
+				if t := strings.TrimSpace(before); t != "" {
+					parts = append(parts, t)
+				}
+				return capDoc(strings.Join(parts, "\n"))
+			}
 			if next != "" {
-				return next
+				parts = append(parts, next)
 			}
 		}
-		return ""
+		return capDoc(strings.Join(parts, "\n"))
 	}
 	return ""
 }

@@ -2,6 +2,7 @@ package store
 
 import (
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -64,6 +65,32 @@ func TestExploreCodeJoinsSymbolsEdgesAndCommits(t *testing.T) {
 	}
 	if len(res.Importers) != 2 {
 		t.Fatalf("importers: %+v", res.Importers)
+	}
+}
+
+func TestSearchSymbolsMatchesLaterDocLines(t *testing.T) {
+	st := codeStore(t)
+	err := st.ReplaceFileMap(
+		FileRecord{Path: "demo.go", ContentHash: "h", IndexedAt: time.Now().UTC()},
+		[]Symbol{{
+			Name: "Hello", Kind: "function_declaration", Line: 4, Exported: true,
+			DocLine: "Hello greets the caller.",
+			Doc:     "Hello greets the caller.\nThe second line names zqxbeacon.",
+		}},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SearchSymbols("zqxbeacon", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 1 || syms[0].Name != "Hello" {
+		t.Fatalf("later doc line: %+v", syms)
+	}
+	if syms[0].DocLine != "Hello greets the caller." || !strings.Contains(syms[0].Doc, "zqxbeacon") {
+		t.Fatalf("split doc: %+v", syms[0])
 	}
 }
 

@@ -1130,6 +1130,9 @@ type Symbol struct {
 	Kind     string `json:"kind"`
 	Line     int    `json:"line"`
 	DocLine  string `json:"doc_line,omitempty"`
+	// Doc is the comment block when it continues past DocLine. The doc_line
+	// column stores that block; readers split out the summary line.
+	Doc      string `json:"doc,omitempty"`
 	Exported bool   `json:"exported"`
 }
 
@@ -1179,7 +1182,7 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 			if sym.Exported {
 				exported = 1
 			}
-			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, sym.DocLine, exported); err != nil {
+			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, storedDoc(sym), exported); err != nil {
 				_ = stmt.Close()
 				return err
 			}
@@ -1328,6 +1331,26 @@ SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM sym
 	return collectSymbols(rows)
 }
 
+// storedDoc is the comment block written to the doc_line column.
+func storedDoc(sym Symbol) string {
+	if text := strings.TrimSpace(sym.Doc); text != "" {
+		return text
+	}
+	return sym.DocLine
+}
+
+// applyStoredDoc splits a stored comment block into the summary line and the
+// full block. A one-line comment stays on DocLine.
+func applyStoredDoc(sym *Symbol) {
+	raw := strings.TrimSpace(sym.DocLine)
+	sym.DocLine = raw
+	sym.Doc = ""
+	if i := strings.IndexByte(raw, '\n'); i >= 0 {
+		sym.DocLine = strings.TrimSpace(raw[:i])
+		sym.Doc = raw
+	}
+}
+
 func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
 	defer rows.Close()
 	var out []Symbol
@@ -1338,6 +1361,7 @@ func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
 			return nil, err
 		}
 		sym.Exported = exported == 1
+		applyStoredDoc(&sym)
 		out = append(out, sym)
 	}
 	return out, rows.Err()
