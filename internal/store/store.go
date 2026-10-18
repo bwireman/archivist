@@ -1262,17 +1262,28 @@ func (s *Store) SearchSymbols(query string, limit int) ([]Symbol, error) {
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	where, whereArgs := likeAll(terms, `(s.name LIKE ? ESCAPE '\' OR s.doc_line LIKE ? ESCAPE '\' OR s.file_path LIKE ? ESCAPE '\' OR COALESCE(f.package_name,'') LIKE ? ESCAPE '\')`, 4)
+	hits, err := s.querySymbols(terms, len(terms), limit)
+	if err != nil || len(hits) > 0 || minShouldMatch(len(terms)) >= len(terms) {
+		return hits, err
+	}
+	// One extra word would otherwise hide the symbol. Same bar as keyword search.
+	return s.querySymbols(terms, minShouldMatch(len(terms)), limit)
+}
+
+func (s *Store) querySymbols(terms []string, need, limit int) ([]Symbol, error) {
+	const clause = `COALESCE((s.name LIKE ? ESCAPE '\' OR COALESCE(s.doc_line,'') LIKE ? ESCAPE '\' OR s.file_path LIKE ? ESCAPE '\' OR COALESCE(f.package_name,'') LIKE ? ESCAPE '\'), 0)`
+	where, whereArgs := likeJoined(terms, clause, 4, " + ")
 	nameScore, nameArgs := likeSum(terms, `(s.name LIKE ? ESCAPE '\')`)
 	docScore, docArgs := likeSum(terms, `(COALESCE(s.doc_line,'') LIKE ? ESCAPE '\')`)
 	q := `
 SELECT s.id, s.file_path, s.name, s.kind, s.line, COALESCE(s.doc_line,''), s.exported
 FROM symbols s
 LEFT JOIN files f ON f.path = s.file_path
-WHERE ` + where + `
-ORDER BY (` + nameScore + `) DESC, (` + docScore + `) DESC, s.file_path, s.line
+WHERE (` + where + `) >= ?
+ORDER BY (` + nameScore + `) DESC, s.exported DESC, (` + docScore + `) DESC, s.file_path, s.line
 LIMIT ?`
-	args := append(whereArgs, nameArgs...)
+	args := append(whereArgs, need)
+	args = append(args, nameArgs...)
 	args = append(args, docArgs...)
 	args = append(args, limit)
 	rows, err := s.db.Query(q, args...)
@@ -1285,6 +1296,10 @@ LIMIT ?`
 // likeAll repeats clause once per term, joined with AND. repeat is how many
 // ? placeholders the clause contains; each is bound to that term's pattern.
 func likeAll(terms []string, clause string, repeat int) (string, []any) {
+	return likeJoined(terms, clause, repeat, " AND ")
+}
+
+func likeJoined(terms []string, clause string, repeat int, sep string) (string, []any) {
 	parts := make([]string, len(terms))
 	args := make([]any, 0, len(terms)*repeat)
 	for i, term := range terms {
@@ -1294,7 +1309,7 @@ func likeAll(terms []string, clause string, repeat int) (string, []any) {
 			args = append(args, pat)
 		}
 	}
-	return strings.Join(parts, " AND "), args
+	return strings.Join(parts, sep), args
 }
 
 // likeSum repeats expr once per term, joined with +. Each ? is bound to that
@@ -1521,8 +1536,11 @@ const DefaultExploreLimit = 30
 // ExploreCode finds symbols matching query, the imports declared by the files
 // that hold them, the files importing those files or a path that mentions
 // query, and recent commits that mention it. Each non-stopword term must
-// match; the words do not have to be adjacent. A symbol also matches its
-// file's package name. Name matches rank ahead of doc, path, and package matches.
+// match, unless that finds nothing and the query has several terms: then
+// two-thirds is enough. The words do not have to be adjacent. A symbol also
+// matches its file's package name. Name matches rank ahead of doc matches.
+// An exported symbol ranks ahead of an unexported one with the same name
+// score, then path and line.
 func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 	var out CodeSearch
 	if strings.TrimSpace(query) == "" {
@@ -1589,18 +1607,28 @@ func (s *Store) CommitHashes() (map[string]struct{}, error) {
 }
 
 // SearchCommits returns recent commits whose subject or body mentions query,
-// newest first.
+// newest first. When every term matches nothing and the query has more than
+// two terms, a commit with two-thirds of them is enough.
 func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
 	terms := searchTerms(query)
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	where, args := likeAll(terms, `(subject LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\')`, 2)
-	args = append(args, limit)
+	hits, err := s.queryCommits(terms, len(terms), limit)
+	if err != nil || len(hits) > 0 || minShouldMatch(len(terms)) >= len(terms) {
+		return hits, err
+	}
+	return s.queryCommits(terms, minShouldMatch(len(terms)), limit)
+}
+
+func (s *Store) queryCommits(terms []string, need, limit int) ([]CommitRecord, error) {
+	const clause = `COALESCE((COALESCE(subject,'') LIKE ? ESCAPE '\' OR COALESCE(body,'') LIKE ? ESCAPE '\'), 0)`
+	where, args := likeJoined(terms, clause, 2, " + ")
+	args = append(args, need, limit)
 	rows, err := s.db.Query(`
 SELECT hash, COALESCE(subject,''), COALESCE(body,''), COALESCE(author,''), COALESCE(authored_at,'')
 FROM commits
-WHERE `+where+`
+WHERE (`+where+`) >= ?
 ORDER BY authored_at DESC
 LIMIT ?
 `, args...)

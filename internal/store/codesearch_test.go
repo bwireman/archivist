@@ -99,6 +99,71 @@ func TestExploreCodeImportersFollowMatchedFiles(t *testing.T) {
 	}
 }
 
+func TestSearchSymbolsRanksExportedAndKeepsTwoThirds(t *testing.T) {
+	st := codeStore(t)
+	now := time.Now().UTC()
+	err := st.ReplaceFileMap(
+		FileRecord{Path: "a.go", ContentHash: "h1", IndexedAt: now},
+		[]Symbol{{Name: "searchHelper", Kind: "function_declaration", Line: 1}},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.ReplaceFileMap(
+		FileRecord{Path: "z.go", ContentHash: "h2", IndexedAt: now},
+		[]Symbol{{Name: "Search", Kind: "function_declaration", Line: 2, Exported: true, DocLine: "runs a query"}},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.ReplaceFileMap(
+		FileRecord{Path: "only.go", ContentHash: "h3", IndexedAt: now},
+		[]Symbol{{Name: "queueOnly", Kind: "function_declaration", Line: 3, DocLine: "queue"}},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SearchSymbols("search", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) < 2 || syms[0].Name != "Search" {
+		t.Fatalf("exported first: %+v", syms)
+	}
+	syms, err = st.SearchSymbols("search query queue", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(syms) != 1 || syms[0].Name != "Search" {
+		t.Fatalf("2 of 3 should keep Search and drop queueOnly: %+v", syms)
+	}
+}
+
+func TestSearchCommitsKeepsTwoThirds(t *testing.T) {
+	st := codeStore(t)
+	now := time.Now().UTC()
+	if err := st.UpsertCommit(CommitRecord{
+		Hash: "aaa", Subject: "fix the embed worker", AuthoredAt: now, IndexedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertCommit(CommitRecord{
+		Hash: "bbb", Subject: "queue only", AuthoredAt: now.Add(time.Second), IndexedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := st.SearchCommits("embed worker queue", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].Hash != "aaa" {
+		t.Fatalf("commits: %+v", hits)
+	}
+}
+
 func TestSearchSymbolsMatchesLaterDocLines(t *testing.T) {
 	st := codeStore(t)
 	err := st.ReplaceFileMap(
