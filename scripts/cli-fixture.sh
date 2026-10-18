@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Rebuild testdata/cli-project and check `archivist map` against saved output.
 # Author, dates, and subjects come from testdata/cli-fixture/manifest.tsv so a
-# second run produces the same commits. init and index use a HOME inside the
-# generated checkout, so this does not read or write ~/.archivist.
+# second run produces the same commits. init and index use a HOME under the
+# temp dir, so this does not read or write ~/.archivist.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -71,7 +71,7 @@ while IFS=$'\t' read -r when subject step || [ -n "${when:-}" ]; do
     git -C "$dest" -c commit.gpgsign=false commit -m "$subject" >/dev/null
 done <"$src/manifest.tsv"
 
-export HOME="$dest/.home"
+export HOME="$work/home"
 mkdir -p "$HOME"
 "$work/archivist" --path "$dest" init
 "$work/archivist" --path "$dest" index
@@ -101,5 +101,4 @@ while IFS= read -r query || [ -n "${query:-}" ]; do
   fi
 done <"$src/queries.txt"
 
-rm -rf "$HOME"
 exit "$fail"

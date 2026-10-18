@@ -1,4 +1,4 @@
 rust/src/lib.rs:2 weigh_crate (function_item) — Weigh a crate. The mark is unique-token-alpha.
 
 Commits
-  4f0e7ca6 2026-10-08 stamp unique-token-alpha on the label
+  b08b134d 2026-10-08 stamp unique-token-alpha on the label
