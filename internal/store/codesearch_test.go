@@ -104,7 +104,7 @@ func TestSearchSymbolsRanksExportedAndKeepsTwoThirds(t *testing.T) {
 	now := time.Now().UTC()
 	err := st.ReplaceFileMap(
 		FileRecord{Path: "a.go", ContentHash: "h1", IndexedAt: now},
-		[]Symbol{{Name: "searchHelper", Kind: "function_declaration", Line: 1}},
+		[]Symbol{{Name: "searchHelper", Kind: "function_declaration", Line: 1, DocLine: "search"}},
 		nil,
 	)
 	if err != nil {
