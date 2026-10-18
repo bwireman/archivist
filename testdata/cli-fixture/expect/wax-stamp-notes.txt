@@ -1,0 +1,7 @@
+pantry/jar/jar.go:5 Seal (function_declaration) — Seal closes a jar.
+
+Imported by
+  pantry/shelf/shelf.go -> example.com/pantry/jar
+
+Commits
+  53a16633 2026-10-18 fix the wax stamp on the jar

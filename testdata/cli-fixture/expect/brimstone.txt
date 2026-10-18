@@ -1,0 +1,4 @@
+pantry/jar/jar.go:5 Seal (function_declaration) — Seal closes a jar.
+
+Imported by
+  pantry/shelf/shelf.go -> example.com/pantry/jar

@@ -7,7 +7,7 @@ DATE     ?=
 LDFLAGS  := $(strip $(if $(VERSION),-X github.com/bwireman/archivist/internal/version.Version=$(VERSION)) $(if $(COMMIT),-X github.com/bwireman/archivist/internal/version.Commit=$(COMMIT)) $(if $(DATE),-X github.com/bwireman/archivist/internal/version.Date=$(DATE)))
 LDFLAGS  := $(if $(LDFLAGS),-ldflags "$(LDFLAGS)")
 
-.PHONY: all build test vet fmt tidy check install run import index embed export refresh-archive clean help
+.PHONY: all build test vet fmt tidy check install run import index embed export refresh-archive cli-fixture clean help
 
 all: build
 
@@ -47,6 +47,9 @@ import: build ## Upsert typed markdown into SQLite (no prune)
 	./$(BIN) import
 
 refresh-archive: import index embed export ## Import, index, embed, then export
+
+cli-fixture: ## Rebuild testdata/cli-project and check map output
+	./scripts/cli-fixture.sh
 
 clean: ## Remove the local binary
 	rm -f $(BIN)

@@ -1,4 +1,7 @@
 {
+  "index": {
+    "skip_globs": ["testdata/cli-fixture/**"]
+  },
   "ollama": {
     "base_url": "http://localhost:11434",
     "embed_model": "qwen3-embedding:8b",

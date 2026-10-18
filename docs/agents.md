@@ -24,6 +24,7 @@ make index            # code map + git
 make embed            # needs Ollama
 make export           # no-op unless records.write_docs
 make refresh-archive  # import, index, embed, export
+make cli-fixture      # rebuild testdata/cli-project and check map output
 ```
 
 ## CI

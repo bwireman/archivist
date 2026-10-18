@@ -7,3 +7,4 @@ docs/*
 !docs/records.md
 .archivist/
 .vscode
+testdata/cli-project/
