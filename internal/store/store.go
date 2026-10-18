@@ -1628,12 +1628,19 @@ func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
 }
 
 // partialTermsOK is the two-thirds retry. A single hyphenated or dotted token
-// stays exact: dropping one segment matches a different identifier.
+// stays exact, including after a leading stopword: dropping one segment
+// matches a different identifier.
 func partialTermsOK(query string, terms []string) bool {
 	if minShouldMatch(len(terms)) >= len(terms) {
 		return false
 	}
-	return len(strings.Fields(strings.TrimSpace(query))) > 1
+	var words int
+	for _, field := range strings.Fields(query) {
+		if !ftsStopwords[strings.ToLower(field)] {
+			words++
+		}
+	}
+	return words > 1
 }
 
 func (s *Store) queryCommits(terms []string, need, limit int) ([]CommitRecord, error) {

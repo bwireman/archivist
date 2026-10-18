@@ -150,12 +150,14 @@ func TestSearchCommitsKeepsHyphenatedTokenIntact(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	hits, err := st.SearchCommits("unique-token-alpha", 10)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(hits) != 0 {
-		t.Fatalf("hyphenated token matched a different commit: %+v", hits)
+	for _, q := range []string{"unique-token-alpha", "the unique-token-alpha"} {
+		hits, err := st.SearchCommits(q, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(hits) != 0 {
+			t.Fatalf("%q matched a different commit: %+v", q, hits)
+		}
 	}
 }
 
