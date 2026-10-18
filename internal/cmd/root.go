@@ -12,6 +12,7 @@ import (
 	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
+	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/skills"
@@ -352,6 +353,7 @@ func newStatusCmd() *cobra.Command {
 				QueueDepth     int              `json:"queue_depth"`
 				HomeQueue      int              `json:"home_queue_depth"`
 				LastIndexedAt  string           `json:"last_indexed_at,omitempty"`
+				Reindex        string           `json:"reindex,omitempty"`
 				Extras         []extraCount     `json:"extras,omitempty"`
 				MissingVectors []store.EmbedGap `json:"missing_vectors"`
 				EmbedGiveups   []store.EmbedGap `json:"embed_giveups"`
@@ -388,6 +390,10 @@ func newStatusCmd() *cobra.Command {
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
+			s.Reindex, err = index.ReindexPrompt(repo)
+			if err != nil {
+				return err
+			}
 			noteResult(cmd, s)
 			out := cmd.OutOrStdout()
 			if asJSON {
@@ -416,6 +422,9 @@ func newStatusCmd() *cobra.Command {
 			}
 			if hasIdx {
 				fmt.Fprintf(out, "Last indexed: %s\n", s.LastIndexedAt)
+			}
+			if s.Reindex != "" {
+				fmt.Fprintln(out, s.Reindex)
 			}
 			for _, ex := range s.Extras {
 				fmt.Fprintf(out, "Extra archive: %s (%d records)\n", ex.Root, ex.RecordCount)

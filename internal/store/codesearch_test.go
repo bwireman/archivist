@@ -142,6 +142,23 @@ func TestSearchSymbolsRanksExportedAndKeepsTwoThirds(t *testing.T) {
 	}
 }
 
+func TestSearchCommitsKeepsHyphenatedTokenIntact(t *testing.T) {
+	st := codeStore(t)
+	now := time.Now().UTC()
+	if err := st.UpsertCommit(CommitRecord{
+		Hash: "bbb", Subject: "newer unique-token-beta", AuthoredAt: now, IndexedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := st.SearchCommits("unique-token-alpha", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("hyphenated token matched a different commit: %+v", hits)
+	}
+}
+
 func TestSearchCommitsKeepsTwoThirds(t *testing.T) {
 	st := codeStore(t)
 	now := time.Now().UTC()

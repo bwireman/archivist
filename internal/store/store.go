@@ -1263,7 +1263,7 @@ func (s *Store) SearchSymbols(query string, limit int) ([]Symbol, error) {
 		return nil, nil
 	}
 	hits, err := s.querySymbols(terms, len(terms), limit)
-	if err != nil || len(hits) > 0 || minShouldMatch(len(terms)) >= len(terms) {
+	if err != nil || len(hits) > 0 || !partialTermsOK(query, terms) {
 		return hits, err
 	}
 	// One extra word would otherwise hide the symbol. Same bar as keyword search.
@@ -1526,10 +1526,12 @@ type RootedCodeSearch struct {
 }
 
 // MapResult is the primary checkout's code map. Archives is omitted when no
-// extra checkouts are configured.
+// extra checkouts are configured. Reindex is set when the stored extractor
+// is older than this binary.
 type MapResult struct {
 	CodeSearch
 	Archives []RootedCodeSearch `json:"archives,omitempty"`
+	Reindex  string             `json:"reindex,omitempty"`
 }
 
 // DefaultExploreLimit is the row cap for each section of ExploreCode when the
@@ -1540,7 +1542,8 @@ const DefaultExploreLimit = 30
 // that hold them, the files importing those files or a path that mentions
 // query, and recent commits that mention it. Symbol and commit search require
 // every non-stopword term, and fall back to two-thirds when that match is
-// empty. Import paths still require every term. The words do not have to be
+// empty and the query is several words. One hyphenated token stays exact.
+// Import paths still require every term. The words do not have to be
 // adjacent. A symbol also matches its file's package name. Name matches rank
 // first, then exported, then doc score, path, and line.
 func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
@@ -1609,18 +1612,28 @@ func (s *Store) CommitHashes() (map[string]struct{}, error) {
 }
 
 // SearchCommits returns recent commits whose subject or body mentions query,
-// newest first. When no commit contains every term and the query has more
-// than two terms, a commit with two-thirds of them is enough.
+// newest first. When no commit contains every term and the query is several
+// words, a commit with two-thirds of them is enough. One hyphenated token
+// stays exact.
 func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
 	terms := searchTerms(query)
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
 	hits, err := s.queryCommits(terms, len(terms), limit)
-	if err != nil || len(hits) > 0 || minShouldMatch(len(terms)) >= len(terms) {
+	if err != nil || len(hits) > 0 || !partialTermsOK(query, terms) {
 		return hits, err
 	}
 	return s.queryCommits(terms, minShouldMatch(len(terms)), limit)
+}
+
+// partialTermsOK is the two-thirds retry. A single hyphenated or dotted token
+// stays exact: dropping one segment matches a different identifier.
+func partialTermsOK(query string, terms []string) bool {
+	if minShouldMatch(len(terms)) >= len(terms) {
+		return false
+	}
+	return len(strings.Fields(strings.TrimSpace(query))) > 1
 }
 
 func (s *Store) queryCommits(terms []string, need, limit int) ([]CommitRecord, error) {

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
 )
@@ -37,6 +38,10 @@ func newMapCmd() *cobra.Command {
 				return err
 			}
 			res := store.MapResult{CodeSearch: primary}
+			res.Reindex, err = index.ReindexPrompt(repo)
+			if err != nil {
+				return err
+			}
 			for _, ex := range extras {
 				section, err := ex.DB.ExploreCode(query, limit)
 				if err != nil {
@@ -59,6 +64,10 @@ func newMapCmd() *cobra.Command {
 
 func formatMap(res store.MapResult) string {
 	var b strings.Builder
+	if res.Reindex != "" {
+		b.WriteString(res.Reindex)
+		b.WriteByte('\n')
+	}
 	b.WriteString(formatCodeSearch(res.CodeSearch))
 	for _, extra := range res.Archives {
 		fmt.Fprintf(&b, "\n# %s\n", extra.Root)

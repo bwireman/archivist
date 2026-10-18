@@ -16,6 +16,7 @@ import (
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
+	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/store"
@@ -76,7 +77,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
 		annotate("Explore code map", true, false, true),
-		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Run `archivist index` in a checkout before reading its map."),
+		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Run `archivist index` in a checkout before reading its map. When reindex is set, the stored extractor is older than this binary."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
 	), s.toolMap)
@@ -114,7 +115,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolCite)
 	srv.AddTool(mcp.NewTool("status",
 		annotate("Archive status", true, false, true),
-		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health)."),
+		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health). When reindex is set, run `archivist index` before trusting the code map."),
 	), s.toolStatus)
 	srv.AddTool(mcp.NewTool("import",
 		annotate("Import markdown", false, true, true),
@@ -268,6 +269,10 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	res := store.MapResult{CodeSearch: primary}
+	res.Reindex, err = index.ReindexPrompt(s.RepoDB)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	if s.Archive != nil {
 		for _, ex := range s.Archive.Extras {
 			if ex.DB == nil {
@@ -455,6 +460,11 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	}
 	if health.EmbedderError != "" {
 		status["embedder_error"] = health.EmbedderError
+	}
+	if prompt, err := index.ReindexPrompt(s.RepoDB); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	} else if prompt != "" {
+		status["reindex"] = prompt
 	}
 	return jsonResult(status)
 }
