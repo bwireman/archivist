@@ -24,7 +24,7 @@ import (
 
 // Version is the code-map extractor contract. Bump it when extractors change
 // so the next full index remaps files whose content hashes have not changed.
-const Version = 3
+const Version = 4
 
 type languageSpec struct {
 	lang    *sitter.Language
@@ -223,22 +223,126 @@ func isExported(name, ext string) bool {
 	return true
 }
 
+// firstDocLine is the summary of the comment on this symbol. A block above the
+// declaration uses its first line, not the line closest to the symbol. Python
+// docstrings sit on the following line, including when the quotes are alone.
 func firstDocLine(lines []string, symLine int) string {
-	for i := symLine - 2; i >= 0 && i >= symLine-8; i-- {
+	if doc := commentAbove(lines, symLine); doc != "" {
+		return doc
+	}
+	return docstringBelow(lines, symLine)
+}
+
+func commentAbove(lines []string, symLine int) string {
+	i := symLine - 2
+	floor := symLine - 8
+	if floor < 0 {
+		floor = 0
+	}
+	if i >= len(lines) {
+		i = len(lines) - 1
+	}
+	for i >= floor {
+		line := strings.TrimSpace(lines[i])
+		if line == "" || strings.HasPrefix(line, "@") {
+			i--
+			continue
+		}
+		break
+	}
+	if i < floor || i < 0 {
+		return ""
+	}
+	line := strings.TrimSpace(lines[i])
+	switch {
+	case strings.HasPrefix(line, "//"):
+		start := i
+		for start > 0 && strings.HasPrefix(strings.TrimSpace(lines[start-1]), "//") {
+			start--
+		}
+		return cleanSlashComment(lines[start])
+	case strings.HasPrefix(line, "#"):
+		start := i
+		for start > 0 && strings.HasPrefix(strings.TrimSpace(lines[start-1]), "#") {
+			start--
+		}
+		return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[start]), "#"))
+	case strings.Contains(line, "*/"):
+		start := i
+		for start > 0 && !strings.Contains(lines[start], "/*") {
+			start--
+		}
+		if !strings.Contains(lines[start], "/*") {
+			return ""
+		}
+		return cleanBlockComment(lines[start : i+1])
+	default:
+		return ""
+	}
+}
+
+func cleanSlashComment(line string) string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimPrefix(line, "//")
+	line = strings.TrimSpace(line)
+	return strings.TrimSpace(strings.TrimPrefix(line, "/"))
+}
+
+func cleanBlockComment(block []string) string {
+	text := strings.Join(block, "\n")
+	start := strings.Index(text, "/*")
+	if start < 0 {
+		return ""
+	}
+	text = text[start+2:]
+	if end := strings.Index(text, "*/"); end >= 0 {
+		text = text[:end]
+	}
+	text = strings.TrimPrefix(text, "*")
+	for _, line := range strings.Split(text, "\n") {
+		line = strings.TrimSpace(line)
+		line = strings.TrimPrefix(line, "*")
+		line = strings.TrimSpace(line)
+		if line != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+func docstringBelow(lines []string, symLine int) string {
+	end := symLine + 6
+	if end > len(lines) {
+		end = len(lines)
+	}
+	for i := symLine; i < end; i++ {
 		line := strings.TrimSpace(lines[i])
 		if line == "" || strings.HasPrefix(line, "@") {
 			continue
 		}
-		if doc, ok := strings.CutPrefix(line, "//"); ok {
-			doc = strings.TrimSpace(doc)
-			return strings.TrimSpace(strings.TrimPrefix(doc, "/"))
+		quote := ""
+		switch {
+		case strings.HasPrefix(line, `"""`):
+			quote = `"""`
+		case strings.HasPrefix(line, `'''`):
+			quote = `'''`
+		default:
+			return ""
 		}
-		if doc, ok := strings.CutPrefix(line, "#"); ok {
-			return strings.TrimSpace(doc)
+		text := strings.TrimPrefix(line, quote)
+		if before, _, ok := strings.Cut(text, quote); ok {
+			return strings.TrimSpace(before)
 		}
-		if !strings.HasPrefix(line, "/*") {
-			break
+		if text = strings.TrimSpace(text); text != "" {
+			return text
 		}
+		for j := i + 1; j < end; j++ {
+			next := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(lines[j]), quote))
+			if next != "" {
+				return next
+			}
+		}
+		return ""
 	}
 	return ""
 }

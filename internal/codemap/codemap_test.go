@@ -173,6 +173,74 @@ func Open(path string) (*Store, error) {
 	}
 }
 
+func TestDocLineUsesSummaryNotNearestLine(t *testing.T) {
+	goSrc := `package demo
+
+// Hello greets the caller.
+// The second line is not the summary.
+func Hello() {}
+`
+	goRes, err := Extract("demo.go", goSrc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc := docLine(goRes, "Hello"); doc != "Hello greets the caller." {
+		t.Fatalf("go doc %q", doc)
+	}
+
+	jsSrc := `/** Parse the advance file.
+ * More detail.
+ */
+export function parseAdv(content) {
+  return content
+}
+`
+	jsRes, err := Extract("demo.js", jsSrc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc := docLine(jsRes, "parseAdv"); doc != "Parse the advance file." {
+		t.Fatalf("js doc %q", doc)
+	}
+
+	pySrc := `def greet(name):
+    """Say hello to name.
+    Extra line.
+    """
+    pass
+`
+	pyRes, err := Extract("demo.py", pySrc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc := docLine(pyRes, "greet"); doc != "Say hello to name." {
+		t.Fatalf("python doc %q", doc)
+	}
+
+	pyBlock := `class Thing:
+    """
+    Holds a thing.
+    """
+    pass
+`
+	pyBlockRes, err := Extract("thing.py", pyBlock)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc := docLine(pyBlockRes, "Thing"); doc != "Holds a thing." {
+		t.Fatalf("python block doc %q", doc)
+	}
+}
+
+func docLine(res Result, name string) string {
+	for _, s := range res.Symbols {
+		if s.Name == name {
+			return s.DocLine
+		}
+	}
+	return ""
+}
+
 func TestExtractMjsUsesJavaScript(t *testing.T) {
 	src := `export function parse_adv(content) {
   return content
