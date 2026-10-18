@@ -165,6 +165,38 @@ func TestSearchSymbolsMatchesTermsAcrossPathAndPackage(t *testing.T) {
 	}
 }
 
+func TestDeleteCommitsExceptDropsHashesOutsideTheWindow(t *testing.T) {
+	st := codeStore(t)
+	now := time.Now().UTC()
+	for _, hash := range []string{"aaa", "bbb", "ccc"} {
+		if err := st.UpsertCommit(CommitRecord{
+			Hash: hash, Subject: hash, AuthoredAt: now, IndexedAt: now,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.DeleteCommitsExcept([]string{"bbb"}); err != nil {
+		t.Fatal(err)
+	}
+	left, err := st.CommitHashes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := left["bbb"]; !ok || len(left) != 1 {
+		t.Fatalf("hashes %+v", left)
+	}
+	if err := st.DeleteCommitsExcept(nil); err != nil {
+		t.Fatal(err)
+	}
+	left, err = st.CommitHashes()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(left) != 0 {
+		t.Fatalf("expected empty, got %+v", left)
+	}
+}
+
 func TestLikeContainsEscapesWildcards(t *testing.T) {
 	if got, want := likeContains("%"), `%\%%`; got != want {
 		t.Fatalf("percent: %q want %q", got, want)

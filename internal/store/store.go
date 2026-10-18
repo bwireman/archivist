@@ -1524,3 +1524,14 @@ ON CONFLICT(hash) DO UPDATE SET
 		rec.IndexedAt.UTC().Format(time.RFC3339))
 	return err
 }
+
+// DeleteCommitsExcept removes every commit whose hash is not in keep.
+// An empty keep deletes the whole table.
+func (s *Store) DeleteCommitsExcept(keep []string) error {
+	if len(keep) == 0 {
+		_, err := s.db.Exec(`DELETE FROM commits`)
+		return err
+	}
+	_, err := s.db.Exec(`DELETE FROM commits WHERE hash NOT IN (`+placeholders(len(keep))+`)`, anyArgs(keep)...)
+	return err
+}

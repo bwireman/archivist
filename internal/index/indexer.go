@@ -140,8 +140,20 @@ func (idx *Indexer) indexPath(rel, abs string) error {
 	return nil
 }
 
+// commitHistoryLimit is how many recent commits the code map keeps.
+// Older rows are deleted so map search does not keep history that fell
+// out of the window. Tests lower it.
+var commitHistoryLimit = 500
+
 func (idx *Indexer) indexGit(ctx context.Context) error {
-	commits, err := gitindex.ListCommits(idx.RepoRoot, 500)
+	if !gitindex.IsGitRepo(idx.RepoRoot) {
+		return nil
+	}
+	limit := commitHistoryLimit
+	if limit <= 0 {
+		limit = 500
+	}
+	commits, err := gitindex.ListCommits(idx.RepoRoot, limit)
 	if err != nil {
 		return err
 	}
@@ -149,10 +161,12 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	keep := make([]string, 0, len(commits))
 	for _, c := range commits {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
+		keep = append(keep, c.Hash)
 		if _, ok := known[c.Hash]; ok {
 			continue
 		}
@@ -169,7 +183,7 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 		idx.progress.CommitsNew++
 		known[c.Hash] = struct{}{}
 	}
-	return nil
+	return idx.Store.DeleteCommitsExcept(keep)
 }
 
 func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error {
