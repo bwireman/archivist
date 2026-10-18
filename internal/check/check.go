@@ -39,25 +39,14 @@ type Result struct {
 func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, opts Options) (*Result, error) {
 	paths := unique(append(pathsFromDiff(opts.Diff), opts.Paths...))
 
-	var matches []Match
+	stores := []*store.Store{engine.Repo, engine.Home}
+	matches, err := matchByPaths(stores, []record.Type{record.TypeRule}, paths, ReasonAppliesTo)
+	if err != nil {
+		return nil, err
+	}
 	seen := map[string]struct{}{}
-
-	for _, st := range []*store.Store{engine.Repo, engine.Home} {
-		if st == nil {
-			continue
-		}
-		rules, err := st.RecordsByType(record.TypeRule)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range rules {
-			if r.Retired() {
-				continue
-			}
-			if len(paths) > 0 && r.MatchesPaths(paths) {
-				addMatch(&matches, seen, r, ReasonAppliesTo)
-			}
-		}
+	for _, m := range matches {
+		seen[m.Record.ID] = struct{}{}
 	}
 
 	if opts.Description != "" {
@@ -74,28 +63,9 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 		}
 	}
 
-	var related []Match
-	relatedSeen := map[string]struct{}{}
-	if len(paths) > 0 {
-		for _, st := range []*store.Store{engine.Repo, engine.Home} {
-			if st == nil {
-				continue
-			}
-			for _, t := range []record.Type{record.TypeFeature, record.TypeDecision} {
-				recs, err := st.RecordsByType(t)
-				if err != nil {
-					return nil, err
-				}
-				for _, r := range recs {
-					if r.Retired() {
-						continue
-					}
-					if r.MatchesPaths(paths) {
-						addMatch(&related, relatedSeen, r, ReasonRelated)
-					}
-				}
-			}
-		}
+	related, err := matchByPaths(stores, []record.Type{record.TypeFeature, record.TypeDecision}, paths, ReasonRelated)
+	if err != nil {
+		return nil, err
 	}
 
 	res := &Result{Matches: matches, Related: related}
@@ -105,6 +75,34 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 		}
 	}
 	return res, nil
+}
+
+func matchByPaths(stores []*store.Store, types []record.Type, paths []string, reason string) ([]Match, error) {
+	if len(paths) == 0 {
+		return nil, nil
+	}
+	var matches []Match
+	seen := map[string]struct{}{}
+	for _, st := range stores {
+		if st == nil {
+			continue
+		}
+		for _, t := range types {
+			recs, err := st.RecordsByType(t)
+			if err != nil {
+				return nil, err
+			}
+			for _, r := range recs {
+				if r.Retired() {
+					continue
+				}
+				if r.MatchesPaths(paths) {
+					addMatch(&matches, seen, r, reason)
+				}
+			}
+		}
+	}
+	return matches, nil
 }
 
 func addMatch(matches *[]Match, seen map[string]struct{}, r *record.Record, reason string) {
