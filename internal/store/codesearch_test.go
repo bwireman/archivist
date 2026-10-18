@@ -68,6 +68,37 @@ func TestExploreCodeJoinsSymbolsEdgesAndCommits(t *testing.T) {
 	}
 }
 
+func TestExploreCodeImportersFollowMatchedFiles(t *testing.T) {
+	st := codeStore(t)
+	now := time.Now().UTC()
+	err := st.ReplaceFileMap(
+		FileRecord{Path: "internal/retrieve/retrieve.go", ContentHash: "h1", IndexedAt: now},
+		[]Symbol{{Name: "Search", Kind: "method_declaration", Line: 10, Exported: true}},
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = st.ReplaceFileMap(
+		FileRecord{Path: "internal/cmd/root.go", ContentHash: "h2", IndexedAt: now},
+		[]Symbol{{Name: "Execute", Kind: "function_declaration", Line: 20, Exported: true}},
+		[]SymbolEdge{{ToPath: "github.com/bwireman/archivist/internal/retrieve", EdgeType: "import"}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	res, err := st.ExploreCode("Search", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Symbols) != 1 || res.Symbols[0].Name != "Search" {
+		t.Fatalf("symbols: %+v", res.Symbols)
+	}
+	if len(res.Importers) != 1 || res.Importers[0].FromFile != "internal/cmd/root.go" {
+		t.Fatalf("importers: %+v", res.Importers)
+	}
+}
+
 func TestSearchSymbolsMatchesLaterDocLines(t *testing.T) {
 	st := codeStore(t)
 	err := st.ReplaceFileMap(

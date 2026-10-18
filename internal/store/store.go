@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
@@ -1381,6 +1382,82 @@ LIMIT ?
 	return collectEdges(rows)
 }
 
+// importersOfFiles returns edges that import one of files or its package
+// directory. A symbol-name query does not appear in import paths, so the
+// path search alone would report nobody.
+func (s *Store) importersOfFiles(files []string, limit int) ([]SymbolEdge, error) {
+	keys := importMatchKeys(files)
+	if len(keys) == 0 || limit <= 0 {
+		return nil, nil
+	}
+	parts := make([]string, len(keys))
+	args := make([]any, 0, len(keys)*2+1)
+	for i, key := range keys {
+		parts[i] = `(to_path = ? OR to_path LIKE ? ESCAPE '\')`
+		args = append(args, key, strings.TrimSuffix(likeContains("/"+key), "%"))
+	}
+	args = append(args, limit)
+	rows, err := s.db.Query(`
+SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
+WHERE `+strings.Join(parts, " OR ")+`
+ORDER BY from_file, to_path
+LIMIT ?
+`, args...)
+	if err != nil {
+		return nil, err
+	}
+	return collectEdges(rows)
+}
+
+// importMatchKeys lists package directories, file paths, and extensionless
+// paths so both Go package imports and file imports can match.
+func importMatchKeys(files []string) []string {
+	seen := map[string]struct{}{}
+	var keys []string
+	add := func(k string) {
+		k = filepath.ToSlash(k)
+		if k == "" || k == "." {
+			return
+		}
+		if _, ok := seen[k]; ok {
+			return
+		}
+		seen[k] = struct{}{}
+		keys = append(keys, k)
+	}
+	for _, file := range files {
+		file = filepath.ToSlash(file)
+		add(path.Dir(file))
+		add(file)
+		if ext := path.Ext(file); ext != "" {
+			add(strings.TrimSuffix(file, ext))
+		}
+	}
+	return keys
+}
+
+func mergeEdges(limit int, groups ...[]SymbolEdge) []SymbolEdge {
+	if limit <= 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	var out []SymbolEdge
+	for _, group := range groups {
+		for _, e := range group {
+			k := e.FromFile + "\x00" + e.ToPath + "\x00" + e.EdgeType
+			if _, ok := seen[k]; ok {
+				continue
+			}
+			seen[k] = struct{}{}
+			out = append(out, e)
+			if len(out) >= limit {
+				return out
+			}
+		}
+	}
+	return out
+}
+
 // ImportersOf returns the import edges whose target mentions query, answering
 // "which files import this package or module".
 func (s *Store) ImportersOf(query string, limit int) ([]SymbolEdge, error) {
@@ -1442,10 +1519,10 @@ type MapResult struct {
 const DefaultExploreLimit = 30
 
 // ExploreCode finds symbols matching query, the imports declared by the files
-// that hold them, the files importing anything whose path mentions query, and
-// recent commits that mention it. Each non-stopword term must match; the words
-// do not have to be adjacent. A symbol also matches its file's package name.
-// Name matches rank ahead of doc, path, and package matches.
+// that hold them, the files importing those files or a path that mentions
+// query, and recent commits that mention it. Each non-stopword term must
+// match; the words do not have to be adjacent. A symbol also matches its
+// file's package name. Name matches rank ahead of doc, path, and package matches.
 func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 	var out CodeSearch
 	if strings.TrimSpace(query) == "" {
@@ -1472,9 +1549,15 @@ func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 	if out.Imports, err = s.ImportsFrom(files, limit); err != nil {
 		return out, err
 	}
-	if out.Importers, err = s.ImportersOf(query, limit); err != nil {
+	byFile, err := s.importersOfFiles(files, limit)
+	if err != nil {
 		return out, err
 	}
+	byQuery, err := s.ImportersOf(query, limit)
+	if err != nil {
+		return out, err
+	}
+	out.Importers = mergeEdges(limit, byFile, byQuery)
 	out.Commits, err = s.SearchCommits(query, limit)
 	return out, err
 }
