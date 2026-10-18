@@ -197,6 +197,12 @@ func newCheckCmd() *cobra.Command {
 			for _, m := range res.Matches {
 				fmt.Printf("[%s] %s — %s (%s)\n", m.Severity, m.Record.Title, m.Reason, m.Record.SourcePath)
 			}
+			if len(res.Related) > 0 {
+				fmt.Println("Related:")
+				for _, m := range res.Related {
+					fmt.Printf("[%s] %s (%s)\n", m.Record.Type, m.Record.Title, m.Record.SourcePath)
+				}
+			}
 			if strict && res.HasViolation {
 				return errors.New("enforceable rule violations found")
 			}

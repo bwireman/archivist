@@ -127,6 +127,60 @@ func TestPathsFromDiffSkipsDevNullAndReadsGitHeader(t *testing.T) {
 	}
 }
 
+func TestRelatedFeatureAndDecisionByAppliesTo(t *testing.T) {
+	st := openStore(t)
+	mustRule(t, st, &record.Record{
+		ID: "rec_feat", Slug: "hybrid-search", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Hybrid search", Status: record.StatusAccepted,
+		Body: "search", SourcePath: "docs/features/hybrid-search.md",
+		AppliesTo: []string{"internal/retrieve/**"},
+	})
+	mustRule(t, st, &record.Record{
+		ID: "rec_dec", Slug: "vector-floor", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Vector floor", Status: record.StatusAccepted,
+		Body: "floor", SourcePath: "docs/decisions/vector-floor.md",
+		AppliesTo: []string{"internal/retrieve/**"},
+	})
+	mustRule(t, st, &record.Record{
+		ID: "rec_retired_feat", Slug: "old-feature", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Retired feature", Status: record.StatusSuperseded,
+		Body: "old", SourcePath: "docs/features/old.md",
+		AppliesTo: []string{"internal/retrieve/**"},
+	})
+
+	engine := &retrieve.Engine{Repo: st}
+	res, err := Run(context.Background(), engine, nil, Options{
+		Paths: []string{"internal/retrieve/retrieve.go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Matches) != 0 {
+		t.Fatalf("related records must not appear in Matches: %+v", res.Matches)
+	}
+	if res.HasViolation {
+		t.Fatal("Related must not set HasViolation")
+	}
+	if len(res.Related) != 2 {
+		t.Fatalf("Related: %+v", res.Related)
+	}
+	for _, m := range res.Related {
+		if m.Reason != ReasonRelated {
+			t.Fatalf("reason %q", m.Reason)
+		}
+	}
+
+	empty, err := Run(context.Background(), engine, nil, Options{
+		Paths: []string{"pkg/unrelated/foo.go"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(empty.Related) != 0 {
+		t.Fatalf("expected no related: %+v", empty.Related)
+	}
+}
+
 func TestSplitPathList(t *testing.T) {
 	got := SplitPathList("internal/store/fts.go, internal/mcp/server.go\ninternal/check/check.go")
 	if len(got) != 3 {

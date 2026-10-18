@@ -69,7 +69,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolGet)
 	srv.AddTool(mcp.NewTool("check",
 		annotate("Check rules", true, false, true),
-		mcp.WithDescription("Check rule records against a change (description, paths, diff)."),
+		mcp.WithDescription("Check rule records against a change (description, paths, diff). Matches are rules. Related lists current feature and decision records whose applies_to matches the paths or diff. Related does not set HasViolation."),
 		mcp.WithString("description"),
 		mcp.WithString("paths"),
 		mcp.WithString("diff"),

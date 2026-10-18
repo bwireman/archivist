@@ -14,6 +14,7 @@ import (
 const (
 	ReasonAppliesTo = "applies_to glob match"
 	ReasonSemantic  = "semantic match"
+	ReasonRelated   = "applies_to related record"
 )
 
 type Options struct {
@@ -31,6 +32,7 @@ type Match struct {
 
 type Result struct {
 	Matches      []Match
+	Related      []Match
 	HasViolation bool
 }
 
@@ -72,7 +74,31 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 		}
 	}
 
-	res := &Result{Matches: matches}
+	var related []Match
+	relatedSeen := map[string]struct{}{}
+	if len(paths) > 0 {
+		for _, st := range []*store.Store{engine.Repo, engine.Home} {
+			if st == nil {
+				continue
+			}
+			for _, t := range []record.Type{record.TypeFeature, record.TypeDecision} {
+				recs, err := st.RecordsByType(t)
+				if err != nil {
+					return nil, err
+				}
+				for _, r := range recs {
+					if r.Retired() {
+						continue
+					}
+					if r.MatchesPaths(paths) {
+						addMatch(&related, relatedSeen, r, ReasonRelated)
+					}
+				}
+			}
+		}
+	}
+
+	res := &Result{Matches: matches, Related: related}
 	for _, m := range matches {
 		if m.Reason == ReasonAppliesTo && m.Record.IsEnforceable() {
 			res.HasViolation = true

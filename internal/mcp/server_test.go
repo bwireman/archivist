@@ -255,6 +255,10 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 	if getTool == nil || !strings.Contains(getTool.Tool.Description, "full") {
 		t.Fatalf("get description: %+v", getTool)
 	}
+	checkTool := srv.GetTool("check")
+	if checkTool == nil || !strings.Contains(checkTool.Tool.Description, "Related") {
+		t.Fatalf("check description: %+v", checkTool)
+	}
 
 	repo := t.TempDir()
 	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
