@@ -465,7 +465,7 @@ func (s *Store) UpsertRecord(r *record.Record) error {
 		return err
 	}
 	if found && stored.ContentHash == r.ContentHash && stored.SourcePath == r.SourcePath {
-		return nil
+		return s.requeueIfGiveup(r.ID, r.ContentHash)
 	}
 	embedChanged := found && stored.EmbedText() != r.EmbedText()
 
@@ -696,11 +696,34 @@ func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error
 
 // EmbedGap is one record status should list for a missing vector or a giveup.
 type EmbedGap struct {
-	ID       string `json:"id"`
-	Title    string `json:"title"`
-	Archive  string `json:"archive,omitempty"`
-	Attempts int    `json:"-"`
-	Error    string `json:"-"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Archive string `json:"archive,omitempty"`
+}
+
+// AppendEmbedGaps appends one store's missing vectors and giveups. A nil store
+// leaves the slices unchanged. root is set on each new row and omitted when empty.
+func AppendEmbedGaps(st *Store, root string, missing, giveups []EmbedGap) ([]EmbedGap, []EmbedGap, error) {
+	if st == nil {
+		return missing, giveups, nil
+	}
+	miss, err := st.MissingVectors()
+	if err != nil {
+		return nil, nil, err
+	}
+	gave, err := st.EmbedGiveups()
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, g := range miss {
+		g.Archive = root
+		missing = append(missing, g)
+	}
+	for _, g := range gave {
+		g.Archive = root
+		giveups = append(giveups, g)
+	}
+	return missing, giveups, nil
 }
 
 // SeedEmbedQueue inserts one queue row. Foreign keys are off for the insert so
@@ -715,6 +738,32 @@ INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts, last_error
 VALUES (?, ?, ?, ?, NULL)
 ON CONFLICT(record_id) DO UPDATE SET attempts = excluded.attempts
 `, id, textHash, time.Now().UTC().Format(time.RFC3339), attempts)
+	return err
+}
+
+// requeueIfGiveup puts a record the worker already gave up on back in the
+// queue when the same content is written again. An unchanged row with no
+// giveup stays a no-op.
+func (s *Store) requeueIfGiveup(id, contentHash string) error {
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM embed_giveup WHERE record_id = ?`, id).Scan(&n); err != nil {
+		return err
+	}
+	if n == 0 {
+		return nil
+	}
+	if _, err := s.db.Exec(`DELETE FROM embed_giveup WHERE record_id = ?`, id); err != nil {
+		return err
+	}
+	_, err := s.db.Exec(`
+INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts, last_error)
+VALUES (?, ?, ?, 0, NULL)
+ON CONFLICT(record_id) DO UPDATE SET
+    text_hash = excluded.text_hash,
+    enqueued_at = excluded.enqueued_at,
+    attempts = 0,
+    last_error = NULL
+`, id, contentHash, time.Now().UTC().Format(time.RFC3339))
 	return err
 }
 
@@ -783,7 +832,7 @@ func (s *Store) EmbedGiveups() ([]EmbedGap, error) {
 		return nil, err
 	}
 	rows, err := s.db.Query(`
-SELECT g.record_id, COALESCE(r.title, ''), g.attempts, COALESCE(g.last_error, '')
+SELECT g.record_id, COALESCE(r.title, '')
 FROM embed_giveup g
 LEFT JOIN records r ON r.id = g.record_id
 ORDER BY g.record_id`)
@@ -791,15 +840,7 @@ ORDER BY g.record_id`)
 		return nil, err
 	}
 	defer rows.Close()
-	var out []EmbedGap
-	for rows.Next() {
-		var g EmbedGap
-		if err := rows.Scan(&g.ID, &g.Title, &g.Attempts, &g.Error); err != nil {
-			return nil, err
-		}
-		out = append(out, g)
-	}
-	return out, rows.Err()
+	return scanGaps(rows)
 }
 
 func scanGaps(rows *sql.Rows) ([]EmbedGap, error) {

@@ -3,6 +3,7 @@ package retrieve
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func TestSnippetCentersOnLateTerm(t *testing.T) {
@@ -14,8 +15,8 @@ func TestSnippetCentersOnLateTerm(t *testing.T) {
 	if !strings.Contains(got, "retrieve") {
 		t.Fatalf("missing term %q", got)
 	}
-	rest := []rune(strings.TrimPrefix(got, "..."))
-	idx := indexRunes(rest, []rune("retrieve"))
+	rest := strings.TrimPrefix(got, "...")
+	idx := utf8.RuneCountInString(rest[:strings.Index(rest, "retrieve")])
 	if idx != 80 {
 		t.Fatalf("retrieve rune index %d in %q", idx, got)
 	}

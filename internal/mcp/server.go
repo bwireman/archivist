@@ -246,8 +246,8 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		paths = check.SplitPathList(p)
 	}
 	model := ""
-	if s.Cfg != nil {
-		model = s.Cfg.Ollama.EmbedModel
+	if s.Engine != nil {
+		model = s.Engine.QueryModel
 	}
 	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB, QueryModel: model}, s.Embedder, check.Options{
 		Description: req.GetString("description", ""),
@@ -420,34 +420,12 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 		count += homeCount
 		queue += homeQueue
 	}
-	missing := []store.EmbedGap{}
-	giveups := []store.EmbedGap{}
-	addGaps := func(st *store.Store, root string) error {
-		if st == nil {
-			return nil
-		}
-		miss, err := st.MissingVectors()
-		if err != nil {
-			return err
-		}
-		gave, err := st.EmbedGiveups()
-		if err != nil {
-			return err
-		}
-		for _, g := range miss {
-			g.Archive = root
-			missing = append(missing, g)
-		}
-		for _, g := range gave {
-			g.Archive = root
-			giveups = append(giveups, g)
-		}
-		return nil
-	}
-	if err := addGaps(s.RepoDB, ""); err != nil {
+	missing, giveups, err := store.AppendEmbedGaps(s.RepoDB, "", []store.EmbedGap{}, []store.EmbedGap{})
+	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	if err := addGaps(s.HomeDB, ""); err != nil {
+	missing, giveups, err = store.AppendEmbedGaps(s.HomeDB, "", missing, giveups)
+	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	var extras []map[string]any
@@ -459,7 +437,7 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 			}
 			n, _ := ex.DB.RecordCount()
 			extras = append(extras, map[string]any{"root": ex.Root, "record_count": n})
-			if err := addGaps(ex.DB, ex.Root); err != nil {
+			if missing, giveups, err = store.AppendEmbedGaps(ex.DB, ex.Root, missing, giveups); err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 		}

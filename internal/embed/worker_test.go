@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -168,7 +169,7 @@ func TestWorkerRequeuesModelAndDimMismatch(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, model, ok, err := st.GetRecordVector("rec_match")
-	if err != nil || !ok || model != "test" || !floatEq(got, match) {
+	if err != nil || !ok || model != "test" || !slices.Equal(got, match) {
 		t.Fatalf("match model %s ok %v vec %v err %v", model, ok, got, err)
 	}
 	for _, id := range []string{"rec_model", "rec_dim"} {
@@ -191,7 +192,7 @@ func TestWorkerEmptyModelUsesDefault(t *testing.T) {
 		t.Fatal(err)
 	}
 	got, model, ok, err := st.GetRecordVector("rec_keep")
-	if err != nil || !ok || model != config.DefaultEmbedModel || !floatEq(got, match) {
+	if err != nil || !ok || model != config.DefaultEmbedModel || !slices.Equal(got, match) {
 		t.Fatalf("model %s ok %v vec %v err %v", model, ok, got, err)
 	}
 }
@@ -256,18 +257,6 @@ func TestGiveupDropsBothQueueRows(t *testing.T) {
 	if err != nil || len(gave) != 0 {
 		t.Fatalf("giveup remained %+v err %v", gave, err)
 	}
-}
-
-func floatEq(a, b []float32) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }
 
 func upsertQueued(t *testing.T, st *store.Store, id, title string) {

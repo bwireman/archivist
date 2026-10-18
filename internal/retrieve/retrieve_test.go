@@ -450,12 +450,12 @@ func TestExtraArchiveSortsAfterWeakerCheckoutHit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 || results[2].Record.ID != outside.ID || results[2].Band != 1 {
+	if len(results) != 3 || results[2].Record.ID != outside.ID || results[2].Archive == "" {
 		t.Fatalf("extra should sort last: %+v", results)
 	}
 	for _, r := range results[:2] {
-		if r.Band != 0 {
-			t.Fatalf("checkout band: %+v", results)
+		if r.Archive != "" {
+			t.Fatalf("checkout archive: %+v", results)
 		}
 	}
 }

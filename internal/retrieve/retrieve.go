@@ -41,7 +41,6 @@ type Result struct {
 	Archive string // extra checkout root; empty for the primary checkout and the home store
 	Cosine  float64
 	Snippet string
-	Band    int `json:"-"`
 }
 
 // Extra is one listed checkout opened for search.
@@ -123,8 +122,10 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 		}
 	}
 
-	vectorRank := map[string]int{}
-	vectorCosine := map[string]float64{}
+	vectorHit := map[string]struct {
+		rank   int
+		cosine float64
+	}{}
 	if len(qEmb) > 0 {
 		for _, src := range e.searchStores() {
 			st := src.db
@@ -133,7 +134,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 				return nil, err
 			}
 			for i, row := range ranked {
-				if _, ok := vectorRank[row.RecordID]; ok {
+				if _, ok := vectorHit[row.RecordID]; ok {
 					continue
 				}
 				// Keep the original rank index. A weak vector-only hit is omitted
@@ -141,17 +142,19 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 				if _, inFTS := ftsRank[row.RecordID]; !inFTS && row.Score < vectorOnlyMinCosine {
 					continue
 				}
-				vectorRank[row.RecordID] = i + 1
-				vectorCosine[row.RecordID] = row.Score
+				vectorHit[row.RecordID] = struct {
+					rank   int
+					cosine float64
+				}{rank: i + 1, cosine: row.Score}
 			}
 		}
 	}
 
-	ids := make([]string, 0, len(ftsRank)+len(vectorRank))
+	ids := make([]string, 0, len(ftsRank)+len(vectorHit))
 	for id := range ftsRank {
 		ids = append(ids, id)
 	}
-	for id := range vectorRank {
+	for id := range vectorHit {
 		if _, ok := ftsRank[id]; !ok {
 			ids = append(ids, id)
 		}
@@ -175,18 +178,14 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			kw = anyTermRank[id]
 		}
 		archiveRoot := archives[id]
-		band := 0
-		if archiveRoot != "" {
-			band = 1
-		}
+		hit := vectorHit[id]
 		candidate := Result{
 			Record:  rec,
-			Score:   rrfScore(kw, vectorRank[id]),
-			Source:  hitSource(kw, vectorRank[id]),
+			Score:   rrfScore(kw, hit.rank),
+			Source:  hitSource(kw, hit.rank),
 			Archive: archiveRoot,
-			Cosine:  vectorCosine[id],
+			Cosine:  hit.cosine,
 			Snippet: Snippet(rec.Body, opts.Query),
-			Band:    band,
 		}
 		key := overlayKey(archiveRoot, rec)
 		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {
@@ -203,7 +202,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	// same query returning the same ordering.
 	slices.SortFunc(results, func(a, b Result) int {
 		return cmp.Or(
-			cmp.Compare(a.Band, b.Band),
+			cmp.Compare(archiveBand(a.Archive), archiveBand(b.Archive)),
 			cmp.Compare(b.Score, a.Score),
 			cmp.Compare(b.Cosine, a.Cosine),
 			cmp.Compare(a.Record.ID, b.Record.ID),
@@ -248,6 +247,13 @@ func hitSource(ftsRank, vectorRank int) string {
 	default:
 		return SourceHybrid
 	}
+}
+
+func archiveBand(root string) int {
+	if root != "" {
+		return 1
+	}
+	return 0
 }
 
 func overlayKey(root string, rec *record.Record) string {

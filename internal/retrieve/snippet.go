@@ -2,6 +2,7 @@ package retrieve
 
 import (
 	"strings"
+	"unicode/utf8"
 
 	"github.com/bwireman/archivist/internal/store"
 )
@@ -16,15 +17,16 @@ func Snippet(body, query string) string {
 		return ""
 	}
 	runes := []rune(flat)
-	lower := []rune(strings.ToLower(flat))
-	match := -1
+	lower := strings.ToLower(flat)
+	matchByte := -1
 	for _, term := range store.SnippetTerms(query) {
-		if term == "" {
-			continue
+		if i := strings.Index(lower, term); i >= 0 && (matchByte < 0 || i < matchByte) {
+			matchByte = i
 		}
-		if i := indexRunes(lower, []rune(term)); i >= 0 && (match < 0 || i < match) {
-			match = i
-		}
+	}
+	match := -1
+	if matchByte >= 0 {
+		match = utf8.RuneCountInString(flat[:matchByte])
 	}
 	start := 0
 	if match >= lead {
@@ -42,28 +44,4 @@ func Snippet(body, query string) string {
 		out += "..."
 	}
 	return out
-}
-
-func indexRunes(hay, needle []rune) int {
-	if len(needle) == 0 || len(needle) > len(hay) {
-		return -1
-	}
-	for i := 0; i+len(needle) <= len(hay); i++ {
-		if equalRunes(hay[i:i+len(needle)], needle) {
-			return i
-		}
-	}
-	return -1
-}
-
-func equalRunes(a, b []rune) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i := range a {
-		if a[i] != b[i] {
-			return false
-		}
-	}
-	return true
 }

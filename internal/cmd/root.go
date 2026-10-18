@@ -356,6 +356,20 @@ func newStatusCmd() *cobra.Command {
 				MissingVectors []store.EmbedGap `json:"missing_vectors"`
 				EmbedGiveups   []store.EmbedGap `json:"embed_giveups"`
 			}
+			missing, giveups, err := store.AppendEmbedGaps(repo, "", []store.EmbedGap{}, []store.EmbedGap{})
+			if err != nil {
+				return err
+			}
+			missing, giveups, err = store.AppendEmbedGaps(home, "", missing, giveups)
+			if err != nil {
+				return err
+			}
+			for _, ex := range extras {
+				missing, giveups, err = store.AppendEmbedGaps(ex.DB, ex.Root, missing, giveups)
+				if err != nil {
+					return err
+				}
+			}
 			s := status{
 				Version:        version.Version,
 				EmbedderOK:     health.EmbedderOK,
@@ -364,13 +378,8 @@ func newStatusCmd() *cobra.Command {
 				FileCount:      fileCount,
 				QueueDepth:     queue + homeQueue,
 				HomeQueue:      homeQueue,
-				MissingVectors: []store.EmbedGap{},
-				EmbedGiveups:   []store.EmbedGap{},
-			}
-			var gapErr error
-			s.MissingVectors, s.EmbedGiveups, gapErr = collectEmbedGaps(repo, home, extras)
-			if gapErr != nil {
-				return gapErr
+				MissingVectors: missing,
+				EmbedGiveups:   giveups,
 			}
 			for _, ex := range extras {
 				n, _ := ex.DB.RecordCount()
@@ -416,45 +425,6 @@ func newStatusCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
-}
-
-func collectEmbedGaps(repo, home *store.Store, extras []archive.Extra) (missing, giveups []store.EmbedGap, err error) {
-	missing = []store.EmbedGap{}
-	giveups = []store.EmbedGap{}
-	add := func(st *store.Store, root string) error {
-		if st == nil {
-			return nil
-		}
-		miss, err := st.MissingVectors()
-		if err != nil {
-			return err
-		}
-		gave, err := st.EmbedGiveups()
-		if err != nil {
-			return err
-		}
-		for _, g := range miss {
-			g.Archive = root
-			missing = append(missing, g)
-		}
-		for _, g := range gave {
-			g.Archive = root
-			giveups = append(giveups, g)
-		}
-		return nil
-	}
-	if err = add(repo, ""); err != nil {
-		return nil, nil, err
-	}
-	if err = add(home, ""); err != nil {
-		return nil, nil, err
-	}
-	for _, ex := range extras {
-		if err = add(ex.DB, ex.Root); err != nil {
-			return nil, nil, err
-		}
-	}
-	return missing, giveups, nil
 }
 
 func writeIndentedJSON(w io.Writer, v any) error {

@@ -146,6 +146,47 @@ func TestUpsertDeletesVectorWhenEmbedTextChanges(t *testing.T) {
 	}
 }
 
+func TestUnchangedUpsertRequeuesGiveup(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rec := &record.Record{
+		ID: "rec_gave", Slug: "gave", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Gave", Status: record.StatusAccepted, Body: "same",
+		SourcePath: "docs/global-decisions/gave.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DropQueueItem(rec.ID); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.RecordGiveup(rec.ID, 5, "boom"); err != nil {
+		t.Fatal(err)
+	}
+	rec.ContentHash = ""
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	depth, err := st.QueueDepth()
+	if err != nil || depth != 1 {
+		t.Fatalf("queue %d err %v", depth, err)
+	}
+	gave, err := st.EmbedGiveups()
+	if err != nil || len(gave) != 0 {
+		t.Fatalf("giveups %+v err %v", gave, err)
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	depth, err = st.QueueDepth()
+	if err != nil || depth != 1 {
+		t.Fatalf("second upsert queue %d err %v", depth, err)
+	}
+}
+
 func TestUpsertStatusKeepsVector(t *testing.T) {
 	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
