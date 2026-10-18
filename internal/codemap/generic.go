@@ -52,7 +52,7 @@ func extractGeneric(path, content string) Result {
 			if genericNameStop[strings.ToLower(name)] {
 				continue
 			}
-			summary, body := splitDoc(docBlock(lines, i+1))
+			summary, body := store.SplitDoc(docBlock(lines, i+1))
 			res.Symbols = append(res.Symbols, store.Symbol{
 				FilePath: path,
 				Name:     name,

@@ -1182,7 +1182,11 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 			if sym.Exported {
 				exported = 1
 			}
-			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, storedDoc(sym), exported); err != nil {
+			text := sym.Doc
+			if strings.TrimSpace(text) == "" {
+				text = sym.DocLine
+			}
+			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, text, exported); err != nil {
 				_ = stmt.Close()
 				return err
 			}
@@ -1331,24 +1335,16 @@ SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM sym
 	return collectSymbols(rows)
 }
 
-// storedDoc is the comment block written to the doc_line column.
-func storedDoc(sym Symbol) string {
-	if text := strings.TrimSpace(sym.Doc); text != "" {
-		return text
+// SplitDoc returns the summary line and, when the comment continues, the whole
+// block. A one-line comment returns an empty block.
+func SplitDoc(full string) (summary, block string) {
+	full = strings.TrimSpace(full)
+	summary = full
+	if i := strings.IndexByte(full, '\n'); i >= 0 {
+		summary = strings.TrimSpace(full[:i])
+		block = full
 	}
-	return sym.DocLine
-}
-
-// applyStoredDoc splits a stored comment block into the summary line and the
-// full block. A one-line comment stays on DocLine.
-func applyStoredDoc(sym *Symbol) {
-	raw := strings.TrimSpace(sym.DocLine)
-	sym.DocLine = raw
-	sym.Doc = ""
-	if i := strings.IndexByte(raw, '\n'); i >= 0 {
-		sym.DocLine = strings.TrimSpace(raw[:i])
-		sym.Doc = raw
-	}
+	return summary, block
 }
 
 func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
@@ -1361,7 +1357,7 @@ func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
 			return nil, err
 		}
 		sym.Exported = exported == 1
-		applyStoredDoc(&sym)
+		sym.DocLine, sym.Doc = SplitDoc(sym.DocLine)
 		out = append(out, sym)
 	}
 	return out, rows.Err()

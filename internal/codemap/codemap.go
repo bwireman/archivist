@@ -154,7 +154,7 @@ func extractTreeSitter(path, content string, spec languageSpec, ext string) (Res
 				if full == "" {
 					full = docBlock(lines, line)
 				}
-				summary, body := splitDoc(full)
+				summary, body := store.SplitDoc(full)
 				res.Symbols = append(res.Symbols, store.Symbol{
 					FilePath: path,
 					Name:     name,
@@ -239,31 +239,12 @@ const maxDocLines = 24
 // docBlock is the comment on this symbol. A block above the declaration starts
 // at its first line, not the line closest to the symbol. Python docstrings sit
 // on the following line, including when the quotes are alone. Later lines stay
-// in the block so search can see them. The summary is the first line.
+// in the block so search can see them.
 func docBlock(lines []string, symLine int) string {
 	if doc := commentBlock(lines, symLine); doc != "" {
 		return doc
 	}
 	return docstringBelow(lines, symLine)
-}
-
-func docSummary(full string) string {
-	full = strings.TrimSpace(full)
-	if i := strings.IndexByte(full, '\n'); i >= 0 {
-		return strings.TrimSpace(full[:i])
-	}
-	return full
-}
-
-// splitDoc returns the summary line and, when the comment continues, the whole
-// block. The block is what search stores.
-func splitDoc(full string) (summary, block string) {
-	summary = docSummary(full)
-	full = strings.TrimSpace(full)
-	if full != summary {
-		block = full
-	}
-	return summary, block
 }
 
 func capDoc(s string) string {

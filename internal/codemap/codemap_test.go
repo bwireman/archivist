@@ -290,32 +290,27 @@ export function parseAdv(content) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		doc := symbolDoc(res, tc.name)
-		if !strings.Contains(doc, tc.want) {
-			t.Fatalf("%s %s doc %q", tc.path, tc.name, doc)
+		sym := symbolNamed(res, tc.name)
+		if !strings.Contains(sym.Doc, tc.want) {
+			t.Fatalf("%s %s doc %q", tc.path, tc.name, sym.Doc)
 		}
-		if docLine(res, tc.name) == "" || strings.Contains(docLine(res, tc.name), tc.want) {
-			t.Fatalf("%s summary should stay the first line, got %q", tc.path, docLine(res, tc.name))
+		if sym.DocLine == "" || strings.Contains(sym.DocLine, tc.want) {
+			t.Fatalf("%s summary should stay the first line, got %q", tc.path, sym.DocLine)
 		}
 	}
+}
+
+func symbolNamed(res Result, name string) store.Symbol {
+	for _, s := range res.Symbols {
+		if s.Name == name {
+			return s
+		}
+	}
+	return store.Symbol{}
 }
 
 func docLine(res Result, name string) string {
-	for _, s := range res.Symbols {
-		if s.Name == name {
-			return s.DocLine
-		}
-	}
-	return ""
-}
-
-func symbolDoc(res Result, name string) string {
-	for _, s := range res.Symbols {
-		if s.Name == name {
-			return s.Doc
-		}
-	}
-	return ""
+	return symbolNamed(res, name).DocLine
 }
 
 func TestExtractMjsUsesJavaScript(t *testing.T) {

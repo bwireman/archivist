@@ -84,7 +84,7 @@ func extractGleam(path, content string) Result {
 }
 
 func gleamSym(path, name, kind string, line int, exported bool, lines []string) store.Symbol {
-	summary, body := splitDoc(docBlock(lines, line))
+	summary, body := store.SplitDoc(docBlock(lines, line))
 	return store.Symbol{
 		FilePath: path,
 		Name:     name,
