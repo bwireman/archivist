@@ -241,7 +241,7 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 		t.Fatal("missing search")
 	}
 	searchDesc := searchTool.Tool.Description
-	if !strings.Contains(searchDesc, "before implementing or writing") || !strings.Contains(searchDesc, "omit the body") {
+	if !strings.Contains(searchDesc, "before implementing or writing") || !strings.Contains(searchDesc, "snippet") {
 		t.Fatalf("search description: %s", searchDesc)
 	}
 	if _, ok := searchTool.Tool.InputSchema.Properties["scope"]; ok {
@@ -289,7 +289,7 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 	if hit["title"] != "Zqxcard fixture" {
 		t.Fatalf("compact search: %#v", hit)
 	}
-	assertJSONKeys(t, hit, "id", "slug", "type", "scope", "title", "status", "score", "source")
+	assertJSONKeys(t, hit, "id", "slug", "type", "scope", "title", "status", "score", "source", "cosine", "applies_to", "superseded_by", "snippet")
 
 	got, _ := callTool(t, s, "get", map[string]any{"id": id}).(map[string]any)
 	if !strings.Contains(fmt.Sprint(got["body"]), "BODYTOKEN") {
@@ -647,6 +647,52 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 	}
 	if res == nil || !res.IsError {
 		t.Fatalf("remember on a read-only checkout: %+v", res)
+	}
+}
+
+type textEmbedder struct {
+	got string
+}
+
+func (e *textEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
+	e.got = text
+	return []float32{1, 0}, nil
+}
+
+func TestMCPNewCopiesQueryModel(t *testing.T) {
+	cfg := config.Default()
+	cfg.Ollama.EmbedModel = "qwen3-embedding:8b"
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repoDB.Close() })
+	s := New(t.TempDir(), cfg, repoDB, nil, nil)
+	if s.Engine.QueryModel != "qwen3-embedding:8b" {
+		t.Fatalf("QueryModel %q", s.Engine.QueryModel)
+	}
+}
+
+func TestMCPCheckEmbedsQwenPrefix(t *testing.T) {
+	cfg := config.Default()
+	cfg.Ollama.EmbedModel = "qwen3-embedding:8b"
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	emb := &textEmbedder{}
+	s := New(t.TempDir(), cfg, repoDB, homeDB, emb)
+	callTool(t, s, "check", map[string]any{"description": "hybrid rules"})
+	if emb.got != retrieve.QueryText("qwen3-embedding:8b", "hybrid rules") {
+		t.Fatalf("check embed %q", emb.got)
 	}
 }
 

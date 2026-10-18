@@ -41,6 +41,17 @@ var ftsStopwords = map[string]bool{
 	"no": true, "we": true, "our": true, "you": true, "your": true, "i": true,
 }
 
+// SnippetTerms returns the unquoted lowercase query words used to center a
+// search snippet. It does not stem them and it does not change SearchFTS.
+func SnippetTerms(query string) []string {
+	quoted := contentTerms(fts5Terms(query))
+	out := make([]string, 0, len(quoted))
+	for _, t := range quoted {
+		out = append(out, strings.ToLower(strings.Trim(t, `"`)))
+	}
+	return out
+}
+
 func contentTerms(terms []string) []string {
 	seen := map[string]bool{}
 	var out []string

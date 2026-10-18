@@ -409,3 +409,218 @@ func TestSearchExtraKeepsSameSlug(t *testing.T) {
 		t.Fatalf("counts changed %d/%d -> %d/%d", beforeRepo, beforeExtra, afterRepo, afterExtra)
 	}
 }
+
+func TestExtraArchiveSortsAfterWeakerCheckoutHit(t *testing.T) {
+	repo, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	extra, err := store.Open(filepath.Join(t.TempDir(), "extra.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer extra.Close()
+	first := &record.Record{
+		ID: "rec_first", Slug: "first", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "First zqxband", Status: record.StatusAccepted, Body: "alpha",
+		SourcePath: "docs/decisions/first.md",
+	}
+	second := &record.Record{
+		ID: "rec_second", Slug: "second", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Second", Status: record.StatusAccepted, Body: "zqxband",
+		SourcePath: "docs/decisions/second.md",
+	}
+	outside := &record.Record{
+		ID: "rec_outside", Slug: "outside", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Outside zqxband", Status: record.StatusAccepted, Body: "only here",
+		SourcePath: "docs/decisions/outside.md",
+	}
+	if err := repo.UpsertRecord(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.UpsertRecord(second); err != nil {
+		t.Fatal(err)
+	}
+	if err := extra.UpsertRecord(outside); err != nil {
+		t.Fatal(err)
+	}
+	results, err := (&retrieve.Engine{Repo: repo, Extras: []retrieve.Extra{{Root: "/extra", DB: extra}}}).Search(
+		context.Background(), nil, retrieve.Options{Query: "zqxband", TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 3 || results[2].Record.ID != outside.ID || results[2].Band != 1 {
+		t.Fatalf("extra should sort last: %+v", results)
+	}
+	for _, r := range results[:2] {
+		if r.Band != 0 {
+			t.Fatalf("checkout band: %+v", results)
+		}
+	}
+}
+
+func TestEqualRRFSortsByCosine(t *testing.T) {
+	repo, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repo.Close()
+	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer home.Close()
+	high := &record.Record{
+		ID: "rec_z", Slug: "high", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "High zqxequal", Status: record.StatusAccepted, Body: "zqxequal",
+		SourcePath: "docs/decisions/high.md",
+	}
+	low := &record.Record{
+		ID: "rec_a", Slug: "low", Type: record.TypeDecision, Scope: record.ScopeGlobal,
+		Title: "Low zqxequal", Status: record.StatusAccepted, Body: "zqxequal",
+		SourcePath: "global/low.md",
+	}
+	if err := repo.UpsertRecord(high); err != nil {
+		t.Fatal(err)
+	}
+	if err := home.UpsertRecord(low); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.SetRecordVector(high.ID, "test", []float32{1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := home.SetRecordVector(low.ID, "test", []float32{0.6, 0.8}); err != nil {
+		t.Fatal(err)
+	}
+	results, err := (&retrieve.Engine{Repo: repo, Home: home}).Search(
+		context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{Query: "zqxequal", TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 2 || results[0].Record.ID != high.ID || results[0].Cosine <= results[1].Cosine {
+		t.Fatalf("cosine tie-break: %+v", results)
+	}
+}
+
+type recordingEmbedder struct {
+	got string
+	vec []float32
+}
+
+func (r *recordingEmbedder) Embed(_ context.Context, text string) ([]float32, error) {
+	r.got = text
+	if r.vec == nil {
+		return []float32{1, 0}, nil
+	}
+	return r.vec, nil
+}
+
+func TestSearchEmbedsQwenQueryPrefix(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rec := &record.Record{
+		ID: "rec_q", Slug: "q", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Hybrid", Status: record.StatusAccepted, Body: "hybrid search",
+		SourcePath: "docs/global-decisions/q.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	emb := &recordingEmbedder{}
+	if _, err := (&retrieve.Engine{Repo: st, QueryModel: "qwen3-embedding:8b"}).Search(
+		context.Background(), emb, retrieve.Options{Query: "hybrid", TopK: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if emb.got != retrieve.QueryText("qwen3-embedding:8b", "hybrid") {
+		t.Fatalf("prefixed query %q", emb.got)
+	}
+	emb.got = ""
+	if _, err := (&retrieve.Engine{Repo: st}).Search(
+		context.Background(), emb, retrieve.Options{Query: "hybrid", TopK: 5}); err != nil {
+		t.Fatal(err)
+	}
+	if emb.got != "hybrid" {
+		t.Fatalf("raw query %q", emb.got)
+	}
+}
+
+func TestSearchOmitsVectorOnlyWrongModel(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	queryVec := []float32{1, 0}
+	kept := &record.Record{
+		ID: "rec_kept", Slug: "kept", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Kept", Status: record.StatusAccepted, Body: "unrelated kept",
+		SourcePath: "docs/global-decisions/kept.md",
+	}
+	other := &record.Record{
+		ID: "rec_other", Slug: "other", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Other", Status: record.StatusAccepted, Body: "unrelated other",
+		SourcePath: "docs/global-decisions/other.md",
+	}
+	if err := st.UpsertRecord(kept); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.UpsertRecord(other); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector(kept.ID, "qwen3-embedding:8b", queryVec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector(other.ID, "other", queryVec); err != nil {
+		t.Fatal(err)
+	}
+	before, err := st.QueueDepth()
+	if err != nil {
+		t.Fatal(err)
+	}
+	results, err := (&retrieve.Engine{Repo: st, QueryModel: "qwen3-embedding:8b"}).Search(
+		context.Background(), fixedEmbedder{vec: queryVec}, retrieve.Options{Query: "zqxnomatch", TopK: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := st.QueueDepth()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("search changed queue %d -> %d", before, after)
+	}
+	if len(results) != 1 || results[0].Record.ID != kept.ID || results[0].Source != retrieve.SourceVector {
+		t.Fatalf("results %+v", results)
+	}
+}
+
+func TestSearchWrongDimStaysKeywordSource(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	rec := &record.Record{
+		ID: "rec_dim", Slug: "dim", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Alpha term", Status: record.StatusAccepted, Body: "alpha term",
+		SourcePath: "docs/global-decisions/dim.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector(rec.ID, "qwen3-embedding:8b", []float32{1, 0, 0, 0}); err != nil {
+		t.Fatal(err)
+	}
+	results, err := (&retrieve.Engine{Repo: st, QueryModel: "qwen3-embedding:8b"}).Search(
+		context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{Query: "alpha", TopK: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Source != retrieve.SourceFTS {
+		t.Fatalf("results %+v", results)
+	}
+}

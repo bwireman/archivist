@@ -41,7 +41,7 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embed
 		RepoDB:   repoDB,
 		HomeDB:   homeDB,
 		Archive:  archive.New(repoRoot, cfg, repoDB, homeDB),
-		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB},
+		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB, QueryModel: cfg.Ollama.EmbedModel},
 		Embedder: embedder,
 	}
 }
@@ -54,12 +54,12 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
 		annotate("Search archive", true, false, true),
-		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Default hits omit the body. Pass full=true for every stored field. Call get to read a body."),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. The card includes a snippet, cosine, applies_to, and superseded_by. Call get for the body. Pass full=true for every stored field."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
 		mcp.WithNumber("top_k"),
-		mcp.WithBoolean("full", mcp.Description("When true, return every stored field. Default is a card without the body.")),
+		mcp.WithBoolean("full", mcp.Description("When true, return every stored field. Default is a card with a snippet. Call get for the body.")),
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
 		annotate("Get record", true, false, true),
@@ -245,7 +245,11 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if p := req.GetString("paths", ""); p != "" {
 		paths = check.SplitPathList(p)
 	}
-	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB}, s.Embedder, check.Options{
+	model := ""
+	if s.Cfg != nil {
+		model = s.Cfg.Ollama.EmbedModel
+	}
+	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB, QueryModel: model}, s.Embedder, check.Options{
 		Description: req.GetString("description", ""),
 		Paths:       paths,
 		Diff:        req.GetString("diff", ""),
@@ -416,21 +420,59 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 		count += homeCount
 		queue += homeQueue
 	}
-	status := map[string]any{
-		"version":      version.String(),
-		"record_count": count,
-		"queue_depth":  queue,
-		"embedder_ok":  health.EmbedderOK,
+	missing := []store.EmbedGap{}
+	giveups := []store.EmbedGap{}
+	addGaps := func(st *store.Store, root string) error {
+		if st == nil {
+			return nil
+		}
+		miss, err := st.MissingVectors()
+		if err != nil {
+			return err
+		}
+		gave, err := st.EmbedGiveups()
+		if err != nil {
+			return err
+		}
+		for _, g := range miss {
+			g.Archive = root
+			missing = append(missing, g)
+		}
+		for _, g := range gave {
+			g.Archive = root
+			giveups = append(giveups, g)
+		}
+		return nil
 	}
+	if err := addGaps(s.RepoDB, ""); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if err := addGaps(s.HomeDB, ""); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	var extras []map[string]any
 	if s.Archive != nil && len(s.Archive.Extras) > 0 {
-		extras := make([]map[string]any, 0, len(s.Archive.Extras))
+		extras = make([]map[string]any, 0, len(s.Archive.Extras))
 		for _, ex := range s.Archive.Extras {
 			if ex.DB == nil {
 				continue
 			}
 			n, _ := ex.DB.RecordCount()
 			extras = append(extras, map[string]any{"root": ex.Root, "record_count": n})
+			if err := addGaps(ex.DB, ex.Root); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 		}
+	}
+	status := map[string]any{
+		"version":         version.String(),
+		"record_count":    count,
+		"queue_depth":     queue,
+		"embedder_ok":     health.EmbedderOK,
+		"missing_vectors": missing,
+		"embed_giveups":   giveups,
+	}
+	if len(extras) > 0 {
 		status["extras"] = extras
 	}
 	if health.EmbedderError != "" {

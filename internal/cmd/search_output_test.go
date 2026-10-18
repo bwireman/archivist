@@ -62,8 +62,18 @@ func TestMCPDocDocumentsCompactSearch(t *testing.T) {
 			break
 		}
 	}
-	if searchRow == "" || !strings.Contains(searchRow, "full") {
+	if searchRow == "" || !strings.Contains(searchRow, "full") || !strings.Contains(searchRow, "snippet") {
 		t.Fatalf("MCP search row: %s", searchRow)
+	}
+	var statusRow string
+	for _, line := range strings.Split(text, "\n") {
+		if strings.HasPrefix(line, "| `status` |") {
+			statusRow = line
+			break
+		}
+	}
+	if statusRow == "" || !strings.Contains(statusRow, "missing_vectors") {
+		t.Fatalf("MCP status row: %s", statusRow)
 	}
 }
 
@@ -103,12 +113,16 @@ func TestSearchJSONCompactFullAndLog(t *testing.T) {
 	}
 
 	compact := runSearch(t, root, "--json", "Zqxcard")
-	if strings.Contains(compact, "BODYTOKEN") || strings.Contains(compact, "ContentHash") {
+	if !strings.Contains(compact, "BODYTOKEN") || strings.Contains(compact, "ContentHash") || strings.Contains(compact, `"body"`) {
 		t.Fatalf("compact json: %s", compact)
 	}
 	logText := readCommandsLog(t, root)
-	if !strings.Contains(logText, "Zqxcard fixture") || strings.Contains(logText, "ContentHash") {
+	if !strings.Contains(logText, "Zqxcard fixture") || !strings.Contains(logText, "BODYTOKEN") || strings.Contains(logText, "ContentHash") {
 		t.Fatalf("default search log: %s", logText)
+	}
+	textOut := runSearch(t, root, "Zqxcard")
+	if !strings.Contains(textOut, "BODYTOKEN") {
+		t.Fatalf("text search missing snippet: %s", textOut)
 	}
 
 	full := runSearch(t, root, "--json", "--full", "Zqxcard")

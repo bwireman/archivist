@@ -284,7 +284,7 @@ func newSearchCmd() *cobra.Command {
 			defer closeExtras(extras)
 
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home, Extras: retrieveExtras(extras)}
+			engine := &retrieve.Engine{Repo: repo, Home: home, Extras: retrieveExtras(extras), QueryModel: cfg.Ollama.EmbedModel}
 			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " "), Status: record.Status(status)}
 			if recType != "" {
 				opts.Type = record.Type(recType)
@@ -344,24 +344,33 @@ func newStatusCmd() *cobra.Command {
 				RecordCount int    `json:"record_count"`
 			}
 			type status struct {
-				Version       string       `json:"version"`
-				EmbedderOK    bool         `json:"embedder_ok"`
-				EmbedderError string       `json:"embedder_error,omitempty"`
-				RecordCount   int          `json:"record_count"`
-				FileCount     int          `json:"file_count"`
-				QueueDepth    int          `json:"queue_depth"`
-				HomeQueue     int          `json:"home_queue_depth"`
-				LastIndexedAt string       `json:"last_indexed_at,omitempty"`
-				Extras        []extraCount `json:"extras,omitempty"`
+				Version        string           `json:"version"`
+				EmbedderOK     bool             `json:"embedder_ok"`
+				EmbedderError  string           `json:"embedder_error,omitempty"`
+				RecordCount    int              `json:"record_count"`
+				FileCount      int              `json:"file_count"`
+				QueueDepth     int              `json:"queue_depth"`
+				HomeQueue      int              `json:"home_queue_depth"`
+				LastIndexedAt  string           `json:"last_indexed_at,omitempty"`
+				Extras         []extraCount     `json:"extras,omitempty"`
+				MissingVectors []store.EmbedGap `json:"missing_vectors"`
+				EmbedGiveups   []store.EmbedGap `json:"embed_giveups"`
 			}
 			s := status{
-				Version:       version.Version,
-				EmbedderOK:    health.EmbedderOK,
-				EmbedderError: health.EmbedderError,
-				RecordCount:   recCount + homeCount,
-				FileCount:     fileCount,
-				QueueDepth:    queue + homeQueue,
-				HomeQueue:     homeQueue,
+				Version:        version.Version,
+				EmbedderOK:     health.EmbedderOK,
+				EmbedderError:  health.EmbedderError,
+				RecordCount:    recCount + homeCount,
+				FileCount:      fileCount,
+				QueueDepth:     queue + homeQueue,
+				HomeQueue:      homeQueue,
+				MissingVectors: []store.EmbedGap{},
+				EmbedGiveups:   []store.EmbedGap{},
+			}
+			var gapErr error
+			s.MissingVectors, s.EmbedGiveups, gapErr = collectEmbedGaps(repo, home, extras)
+			if gapErr != nil {
+				return gapErr
 			}
 			for _, ex := range extras {
 				n, _ := ex.DB.RecordCount()
@@ -384,6 +393,18 @@ func newStatusCmd() *cobra.Command {
 			}
 			fmt.Fprintf(out, "Records: %d, code files: %d\n", s.RecordCount, s.FileCount)
 			fmt.Fprintf(out, "Embed queue: %d\n", s.QueueDepth)
+			for _, g := range s.MissingVectors {
+				fmt.Fprintf(out, "No vector: %s %s\n", g.ID, g.Title)
+				if g.Archive != "" {
+					fmt.Fprintf(out, "  %s\n", g.Archive)
+				}
+			}
+			for _, g := range s.EmbedGiveups {
+				fmt.Fprintf(out, "Embed gave up: %s %s\n", g.ID, g.Title)
+				if g.Archive != "" {
+					fmt.Fprintf(out, "  %s\n", g.Archive)
+				}
+			}
 			if hasIdx {
 				fmt.Fprintf(out, "Last indexed: %s\n", s.LastIndexedAt)
 			}
@@ -395,6 +416,45 @@ func newStatusCmd() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
+}
+
+func collectEmbedGaps(repo, home *store.Store, extras []archive.Extra) (missing, giveups []store.EmbedGap, err error) {
+	missing = []store.EmbedGap{}
+	giveups = []store.EmbedGap{}
+	add := func(st *store.Store, root string) error {
+		if st == nil {
+			return nil
+		}
+		miss, err := st.MissingVectors()
+		if err != nil {
+			return err
+		}
+		gave, err := st.EmbedGiveups()
+		if err != nil {
+			return err
+		}
+		for _, g := range miss {
+			g.Archive = root
+			missing = append(missing, g)
+		}
+		for _, g := range gave {
+			g.Archive = root
+			giveups = append(giveups, g)
+		}
+		return nil
+	}
+	if err = add(repo, ""); err != nil {
+		return nil, nil, err
+	}
+	if err = add(home, ""); err != nil {
+		return nil, nil, err
+	}
+	for _, ex := range extras {
+		if err = add(ex.DB, ex.Root); err != nil {
+			return nil, nil, err
+		}
+	}
+	return missing, giveups, nil
 }
 
 func writeIndentedJSON(w io.Writer, v any) error {

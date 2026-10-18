@@ -181,7 +181,7 @@ func newCheckCmd() *cobra.Command {
 			defer repo.Close()
 			defer home.Close()
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home}
+			engine := &retrieve.Engine{Repo: repo, Home: home, QueryModel: cfg.Ollama.EmbedModel}
 			res, err := check.Run(cmd.Context(), engine, embedder, check.Options{
 				Description: strings.Join(args, " "),
 				Paths:       paths,

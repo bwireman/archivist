@@ -9,6 +9,7 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
 )
@@ -144,6 +145,129 @@ func openStore(t *testing.T) *store.Store {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 	return st
+}
+
+func TestWorkerRequeuesModelAndDimMismatch(t *testing.T) {
+	st := openStore(t)
+	match := []float32{9, 9, 9, 9, 9, 9, 9, 9}
+	ids := []string{"rec_match", "rec_model", "rec_dim"}
+	for _, id := range ids {
+		upsertQueued(t, st, id, id)
+	}
+	if err := st.SetRecordVector("rec_match", "test", match); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector("rec_model", "other", match); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetRecordVector("rec_dim", "test", []float32{1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 8}, Model: "test"}
+	if _, err := w.Run(context.Background(), WorkerOptions{Once: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, model, ok, err := st.GetRecordVector("rec_match")
+	if err != nil || !ok || model != "test" || !floatEq(got, match) {
+		t.Fatalf("match model %s ok %v vec %v err %v", model, ok, got, err)
+	}
+	for _, id := range []string{"rec_model", "rec_dim"} {
+		vec, model, ok, err := st.GetRecordVector(id)
+		if err != nil || !ok || model != "test" || len(vec) != 8 {
+			t.Fatalf("%s model %s dim %d ok %v err %v", id, model, len(vec), ok, err)
+		}
+	}
+}
+
+func TestWorkerEmptyModelUsesDefault(t *testing.T) {
+	st := openStore(t)
+	match := []float32{9, 9, 9, 9, 9, 9, 9, 9}
+	upsertQueued(t, st, "rec_keep", "keep")
+	if err := st.SetRecordVector("rec_keep", config.DefaultEmbedModel, match); err != nil {
+		t.Fatal(err)
+	}
+	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 8}}
+	if _, err := w.Run(context.Background(), WorkerOptions{Once: true}); err != nil {
+		t.Fatal(err)
+	}
+	got, model, ok, err := st.GetRecordVector("rec_keep")
+	if err != nil || !ok || model != config.DefaultEmbedModel || !floatEq(got, match) {
+		t.Fatalf("model %s ok %v vec %v err %v", model, ok, got, err)
+	}
+}
+
+func TestWorkerProbeFailureDoesNotDrain(t *testing.T) {
+	st := openStore(t)
+	upsertQueued(t, st, "rec_wait", "waiting")
+	w := &Worker{
+		Stores: []*store.Store{st},
+		Model:  "test",
+		Embedder: embedFunc(func(_ context.Context, text string) ([]float32, error) {
+			if text == "archivist" {
+				return nil, errors.New("probe down")
+			}
+			return []float32{1, 0}, nil
+		}),
+	}
+	if _, err := w.Run(context.Background(), WorkerOptions{Once: true}); err == nil || !strings.Contains(err.Error(), "probe down") {
+		t.Fatalf("err %v", err)
+	}
+	depth, _ := st.QueueDepth()
+	if depth != 1 {
+		t.Fatalf("queue depth %d", depth)
+	}
+	if _, _, ok, err := st.GetRecordVector("rec_wait"); err != nil || ok {
+		t.Fatalf("vector ok %v err %v", ok, err)
+	}
+}
+
+func TestGiveupDropsBothQueueRows(t *testing.T) {
+	repo := openStore(t)
+	home := openStore(t)
+	upsertQueued(t, home, "rec_home", "Home record")
+	if err := repo.SeedEmbedQueue("rec_home", "x", 4); err != nil {
+		t.Fatal(err)
+	}
+	w := &Worker{
+		Stores: []*store.Store{repo, home},
+		Model:  "test",
+		Embedder: embedFunc(func(context.Context, string) ([]float32, error) {
+			return nil, errors.New("nope")
+		}),
+	}
+	ok, err := w.processOne(context.Background(), repo, store.QueueItem{RecordID: "rec_home", Attempts: 4})
+	if err != nil || ok {
+		t.Fatalf("ok %v err %v", ok, err)
+	}
+	for _, st := range []*store.Store{repo, home} {
+		n, err := st.QueueDepth()
+		if err != nil || n != 0 {
+			t.Fatalf("queue %d err %v", n, err)
+		}
+	}
+	gave, err := home.EmbedGiveups()
+	if err != nil || len(gave) != 1 || gave[0].ID != "rec_home" {
+		t.Fatalf("giveups %+v err %v", gave, err)
+	}
+	if err := home.SetRecordVector("rec_home", "test", []float32{1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	gave, err = home.EmbedGiveups()
+	if err != nil || len(gave) != 0 {
+		t.Fatalf("giveup remained %+v err %v", gave, err)
+	}
+}
+
+func floatEq(a, b []float32) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func upsertQueued(t *testing.T, st *store.Store, id, title string) {

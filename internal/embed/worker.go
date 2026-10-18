@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,9 +29,39 @@ type WorkerOptions struct {
 	Concurrency int
 }
 
+func (w *Worker) resolvedModel() string {
+	if strings.TrimSpace(w.Model) == "" {
+		return config.DefaultEmbedModel
+	}
+	return w.Model
+}
+
+func (w *Worker) requeueMismatches(ctx context.Context) error {
+	if w.Embedder == nil {
+		return fmt.Errorf("embed worker has no embedder")
+	}
+	probe, err := w.Embedder.Embed(ctx, "archivist")
+	if err != nil {
+		return err
+	}
+	model := w.resolvedModel()
+	for _, st := range w.Stores {
+		if st == nil {
+			continue
+		}
+		if err := st.RequeueVectorMismatches(model, len(probe)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (w *Worker) Run(ctx context.Context, opts WorkerOptions) (int, error) {
 	if opts.Concurrency <= 0 {
 		opts.Concurrency = 2
+	}
+	if err := w.requeueMismatches(ctx); err != nil {
+		return 0, err
 	}
 	total := 0
 	for {
@@ -132,9 +163,16 @@ func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.Que
 	if err != nil {
 		if item.Attempts+1 >= maxAttempts {
 			fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", rec.SourcePath, item.Attempts+1, err)
-			_ = recStore.DropQueueItem(item.RecordID)
+			if gerr := recStore.RecordGiveup(rec.ID, item.Attempts+1, err.Error()); gerr != nil {
+				return false, gerr
+			}
+			if gerr := recStore.DropQueueItem(item.RecordID); gerr != nil {
+				return false, gerr
+			}
 			if recStore != st {
-				_ = st.DropQueueItem(item.RecordID)
+				if gerr := st.DropQueueItem(item.RecordID); gerr != nil {
+					return false, gerr
+				}
 			}
 			return false, nil
 		}
@@ -144,11 +182,7 @@ func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.Que
 		}
 		return false, fmt.Errorf("embed %s: %w", rec.SourcePath, err)
 	}
-	model := w.Model
-	if model == "" {
-		model = config.DefaultEmbedModel
-	}
-	if err := recStore.SetRecordVector(rec.ID, model, emb); err != nil {
+	if err := recStore.SetRecordVector(rec.ID, w.resolvedModel(), emb); err != nil {
 		return false, err
 	}
 	if recStore != st {

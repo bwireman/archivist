@@ -228,6 +228,129 @@ func TestSearchFTSDoesNotTreatSQLAsStatements(t *testing.T) {
 	}
 }
 
+func TestSearchFTSMatchesAppliesTo(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	rec := &record.Record{
+		ID: "rec_path", Slug: "path", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Plain title", Status: record.StatusAccepted, Body: "plain body",
+		AppliesTo:  []string{"pkg/zqxpath"},
+		SourcePath: "docs/global-decisions/path.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := st.SearchFTS("zqxpath", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || hits[0].RecordID != rec.ID {
+		t.Fatalf("applies_to hits %+v", hits)
+	}
+}
+
+func TestOpenRebuildsAppliesToColumn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	writeOldAppliesFTS(t, path)
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	hits, err := st.SearchFTS("zqxpath", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 {
+		t.Fatalf("rebuilt hits %+v", hits)
+	}
+}
+
+func TestOpenExistingRebuildsAppliesToColumn(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	writeOldAppliesFTS(t, path)
+	st, err := OpenExisting(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	rec := &record.Record{
+		ID: "rec_new", Slug: "new", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Also plain", Status: record.StatusAccepted, Body: "still plain",
+		AppliesTo:  []string{"other/zqxpath"},
+		SourcePath: "docs/global-decisions/new.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := st.SearchFTS("zqxpath", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 2 {
+		t.Fatalf("hits %+v", hits)
+	}
+}
+
+func TestOpenReadOnlyDoesNotRebuildFTS(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "old.db")
+	writeOldAppliesFTS(t, path)
+	st, err := OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	have, _, err := st.GetMeta(MetaFTSTokenizer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if have != ftsTokenizer {
+		t.Fatalf("meta %q", have)
+	}
+	hits, err := st.SearchFTS("zqxpath", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 0 {
+		t.Fatalf("read-only rebuilt: %+v", hits)
+	}
+}
+
+func writeOldAppliesFTS(t *testing.T, path string) {
+	t.Helper()
+	st, err := Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &record.Record{
+		ID: "rec_oldpath", Slug: "oldpath", Type: record.TypeRule, Scope: record.ScopeRepo,
+		Title: "Plain title", Status: record.StatusAccepted, Body: "plain body",
+		AppliesTo:  []string{"pkg/zqxpath"},
+		SourcePath: "docs/global-decisions/oldpath.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	for _, q := range []string{
+		`DROP TABLE records_fts`,
+		`CREATE VIRTUAL TABLE records_fts USING fts5(record_id UNINDEXED, title, body, tags)`,
+		`INSERT INTO records_fts(record_id, title, body, tags) VALUES ('rec_oldpath', 'Plain title', 'plain body', '')`,
+	} {
+		if _, err := st.db.Exec(q); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := st.SetMeta(MetaFTSTokenizer, ftsTokenizer); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func openFTSStore(t *testing.T) (*Store, *record.Record) {
 	t.Helper()
 	st, err := Open(filepath.Join(t.TempDir(), "test.db"))

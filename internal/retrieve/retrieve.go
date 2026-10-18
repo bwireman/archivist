@@ -39,6 +39,9 @@ type Result struct {
 	Score   float64
 	Source  string // "fts", "vector", "hybrid"
 	Archive string // extra checkout root; empty for the primary checkout and the home store
+	Cosine  float64
+	Snippet string
+	Band    int `json:"-"`
 }
 
 // Extra is one listed checkout opened for search.
@@ -48,9 +51,10 @@ type Extra struct {
 }
 
 type Engine struct {
-	Repo   *store.Store
-	Home   *store.Store
-	Extras []Extra
+	Repo       *store.Store
+	Home       *store.Store
+	Extras     []Extra
+	QueryModel string
 }
 
 type searchStore struct {
@@ -111,7 +115,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 
 	var qEmb []float32
 	if embedder != nil {
-		emb, err := embedder.Embed(ctx, opts.Query)
+		emb, err := embedder.Embed(ctx, QueryText(e.QueryModel, opts.Query))
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "search embed: %v; using keyword-only\n", err)
 		} else {
@@ -120,10 +124,11 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	}
 
 	vectorRank := map[string]int{}
+	vectorCosine := map[string]float64{}
 	if len(qEmb) > 0 {
 		for _, src := range e.searchStores() {
 			st := src.db
-			ranked, err := st.RankEmbeddings(qEmb, filter, rankLimit)
+			ranked, err := st.RankEmbeddings(qEmb, e.QueryModel, filter, rankLimit)
 			if err != nil {
 				return nil, err
 			}
@@ -137,6 +142,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 					continue
 				}
 				vectorRank[row.RecordID] = i + 1
+				vectorCosine[row.RecordID] = row.Score
 			}
 		}
 	}
@@ -169,11 +175,18 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			kw = anyTermRank[id]
 		}
 		archiveRoot := archives[id]
+		band := 0
+		if archiveRoot != "" {
+			band = 1
+		}
 		candidate := Result{
 			Record:  rec,
 			Score:   rrfScore(kw, vectorRank[id]),
 			Source:  hitSource(kw, vectorRank[id]),
 			Archive: archiveRoot,
+			Cosine:  vectorCosine[id],
+			Snippet: Snippet(rec.Body, opts.Query),
+			Band:    band,
 		}
 		key := overlayKey(archiveRoot, rec)
 		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {
@@ -186,10 +199,15 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	for _, r := range best {
 		results = append(results, r)
 	}
-	// Ids come out of map iteration, so break score ties on id to keep the
+	// Ids come out of map iteration, so break remaining ties on id to keep the
 	// same query returning the same ordering.
 	slices.SortFunc(results, func(a, b Result) int {
-		return cmp.Or(cmp.Compare(b.Score, a.Score), cmp.Compare(a.Record.ID, b.Record.ID))
+		return cmp.Or(
+			cmp.Compare(a.Band, b.Band),
+			cmp.Compare(b.Score, a.Score),
+			cmp.Compare(b.Cosine, a.Cosine),
+			cmp.Compare(a.Record.ID, b.Record.ID),
+		)
 	})
 	if len(results) > opts.TopK {
 		results = results[:opts.TopK]
@@ -289,6 +307,9 @@ func FormatResults(results []Result) string {
 		}
 		fmt.Fprintf(&b, "%d. [%.4f] %s/%s %s\n   %s\n",
 			i+1, r.Score, r.Record.Type, r.Record.Scope, r.Record.Title, r.Record.SourcePath)
+		if r.Snippet != "" {
+			fmt.Fprintf(&b, "   %s\n", r.Snippet)
+		}
 		if r.Archive != "" {
 			fmt.Fprintf(&b, "   %s\n", r.Archive)
 		}

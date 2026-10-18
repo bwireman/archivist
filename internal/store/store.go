@@ -26,7 +26,11 @@ const (
 )
 
 // ftsTokenizer is a constant, so concatenating it into CREATE VIRTUAL TABLE is safe.
-const ftsTokenizer = "porter unicode61"
+// ftsSchema is the meta value. It changes when the indexed columns change.
+const (
+	ftsTokenizer = "porter unicode61"
+	ftsSchema    = "porter unicode61+applies_to"
+)
 
 type Store struct {
 	db       *sql.DB
@@ -85,9 +89,22 @@ func OpenReadOnly(path string) (*Store, error) {
 }
 
 // OpenExisting opens an existing database for writes. It does not create the
-// file, parent directories, schema, or orphan cleanup.
+// file or parent directories. It rebuilds records_fts when the tokenizer
+// marker is old and creates embed_giveup when that table is missing.
 func OpenExisting(path string) (*Store, error) {
-	return openExisting(path, sqliteDSNExisting)
+	s, err := openExisting(path, sqliteDSNExisting)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureFTS(); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	if err := s.ensureEmbedGiveup(); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
+	return s, nil
 }
 
 func openExisting(path string, dsnFn func(string) (string, error)) (*Store, error) {
@@ -256,7 +273,21 @@ CREATE TABLE IF NOT EXISTS commits (
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
+	if err := s.ensureEmbedGiveup(); err != nil {
+		return err
+	}
 	return s.ensureFTS()
+}
+
+func (s *Store) ensureEmbedGiveup() error {
+	_, err := s.db.Exec(`
+CREATE TABLE IF NOT EXISTS embed_giveup (
+    record_id TEXT PRIMARY KEY,
+    attempts INTEGER NOT NULL,
+    last_error TEXT,
+    failed_at TEXT NOT NULL
+)`)
+	return err
 }
 
 func (s *Store) purgeOrphans() error {
@@ -270,11 +301,11 @@ func (s *Store) purgeOrphans() error {
 	return err
 }
 
-// ensureFTS rebuilds records_fts from records when its tokenizer is not
-// ftsTokenizer, including stores created before stemming.
+// ensureFTS rebuilds records_fts from records when meta fts_tokenizer is not
+// ftsSchema. The tokenize clause stays porter unicode61.
 func (s *Store) ensureFTS() error {
 	have, _, err := s.GetMeta(MetaFTSTokenizer)
-	if err != nil || have == ftsTokenizer {
+	if err != nil || have == ftsSchema {
 		return err
 	}
 	recs, err := s.AllRecords()
@@ -293,14 +324,14 @@ func (s *Store) ensureFTS() error {
 	if _, err := tx.Exec(`
 CREATE VIRTUAL TABLE records_fts USING fts5(
     record_id UNINDEXED,
-    title, body, tags,
+    title, body, tags, applies_to,
     tokenize = '` + ftsTokenizer + `'
 );
 `); err != nil {
 		return err
 	}
 	for _, r := range recs {
-		if err := insertFTS(tx, r.ID, r.Title, r.Body, strings.Join(r.Tags, " ")); err != nil {
+		if err := insertFTS(tx, r.ID, r.Title, r.Body, strings.Join(r.Tags, " "), strings.Join(r.AppliesTo, " ")); err != nil {
 			return err
 		}
 	}
@@ -308,15 +339,15 @@ CREATE VIRTUAL TABLE records_fts USING fts5(
 	if _, err := tx.Exec(`
 INSERT INTO meta (key, value) VALUES (?, ?)
 ON CONFLICT(key) DO UPDATE SET value = excluded.value
-`, MetaFTSTokenizer, ftsTokenizer); err != nil {
+`, MetaFTSTokenizer, ftsSchema); err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func insertFTS(tx *sql.Tx, id, title, body, tags string) error {
-	_, err := tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags) VALUES (?, ?, ?, ?)`,
-		id, title, body, tags)
+func insertFTS(tx *sql.Tx, id, title, body, tags, appliesTo string) error {
+	_, err := tx.Exec(`INSERT INTO records_fts(record_id, title, body, tags, applies_to) VALUES (?, ?, ?, ?, ?)`,
+		id, title, body, tags, appliesTo)
 	return err
 }
 
@@ -429,11 +460,14 @@ func (s *Store) UpsertRecord(r *record.Record) error {
 	if r.ContentHash == "" {
 		r.ContentHash = record.ContentHash(r)
 	}
-	if existing, ok, err := s.GetRecordByID(r.ID); err != nil {
+	stored, found, err := s.GetRecordByID(r.ID)
+	if err != nil {
 		return err
-	} else if ok && existing.ContentHash == r.ContentHash && existing.SourcePath == r.SourcePath {
+	}
+	if found && stored.ContentHash == r.ContentHash && stored.SourcePath == r.SourcePath {
 		return nil
 	}
+	embedChanged := found && stored.EmbedText() != r.EmbedText()
 
 	now := time.Now().UTC()
 	if r.CreatedAt.IsZero() {
@@ -478,7 +512,15 @@ ON CONFLICT(id) DO UPDATE SET
 	if err != nil {
 		return err
 	}
-	if err = insertFTS(tx, r.ID, r.Title, r.Body, strings.Join(r.Tags, " ")); err != nil {
+	if err = insertFTS(tx, r.ID, r.Title, r.Body, strings.Join(r.Tags, " "), strings.Join(r.AppliesTo, " ")); err != nil {
+		return err
+	}
+	if embedChanged {
+		if _, err = tx.Exec(`DELETE FROM record_vectors WHERE record_id = ?`, r.ID); err != nil {
+			return err
+		}
+	}
+	if _, err = tx.Exec(`DELETE FROM embed_giveup WHERE record_id = ?`, r.ID); err != nil {
 		return err
 	}
 
@@ -606,6 +648,10 @@ func (s *Store) DeleteRecordByPath(path string) error {
 	if err != nil {
 		return err
 	}
+	_, err = s.db.Exec(`DELETE FROM embed_giveup WHERE record_id = ?`, rec.ID)
+	if err != nil {
+		return err
+	}
 	_, err = s.db.Exec(`DELETE FROM records WHERE source_path = ?`, path)
 	return err
 }
@@ -625,7 +671,10 @@ ON CONFLICT(record_id) DO UPDATE SET model=excluded.model, dim=excluded.dim, emb
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM embed_queue WHERE record_id = ?`, recordID)
+	if _, err = s.db.Exec(`DELETE FROM embed_queue WHERE record_id = ?`, recordID); err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`DELETE FROM embed_giveup WHERE record_id = ?`, recordID)
 	return err
 }
 
@@ -645,6 +694,126 @@ func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error
 	return emb, model, true, err
 }
 
+// EmbedGap is one record status should list for a missing vector or a giveup.
+type EmbedGap struct {
+	ID       string `json:"id"`
+	Title    string `json:"title"`
+	Archive  string `json:"archive,omitempty"`
+	Attempts int    `json:"-"`
+	Error    string `json:"-"`
+}
+
+// SeedEmbedQueue inserts one queue row. Foreign keys are off for the insert so
+// a test can park an id whose record lives in another store.
+func (s *Store) SeedEmbedQueue(id, textHash string, attempts int) error {
+	if _, err := s.db.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
+		return err
+	}
+	defer func() { _, _ = s.db.Exec(`PRAGMA foreign_keys = ON`) }()
+	_, err := s.db.Exec(`
+INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts, last_error)
+VALUES (?, ?, ?, ?, NULL)
+ON CONFLICT(record_id) DO UPDATE SET attempts = excluded.attempts
+`, id, textHash, time.Now().UTC().Format(time.RFC3339), attempts)
+	return err
+}
+
+func (s *Store) RecordGiveup(id string, attempts int, lastError string) error {
+	_, err := s.db.Exec(`
+INSERT INTO embed_giveup (record_id, attempts, last_error, failed_at)
+VALUES (?, ?, ?, ?)
+ON CONFLICT(record_id) DO UPDATE SET
+    attempts = excluded.attempts,
+    last_error = excluded.last_error,
+    failed_at = excluded.failed_at
+`, id, attempts, lastError, time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+// RequeueVectorMismatches queues vectors whose model or dimension disagrees
+// with the probe. It does not call UpsertRecord.
+func (s *Store) RequeueVectorMismatches(model string, dim int) error {
+	now := time.Now().UTC().Format(time.RFC3339)
+	_, err := s.db.Exec(`
+INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts, last_error)
+SELECT v.record_id, r.content_hash, ?, 0, NULL
+FROM record_vectors v
+JOIN records r ON r.id = v.record_id
+WHERE v.model != ? OR v.dim != ?
+ON CONFLICT(record_id) DO UPDATE SET
+    text_hash = excluded.text_hash,
+    enqueued_at = excluded.enqueued_at,
+    attempts = 0,
+    last_error = NULL
+`, now, model, dim)
+	if err != nil {
+		return err
+	}
+	_, err = s.db.Exec(`
+DELETE FROM embed_giveup WHERE record_id IN (
+    SELECT v.record_id FROM record_vectors v WHERE v.model != ? OR v.dim != ?
+)`, model, dim)
+	return err
+}
+
+// MissingVectors lists current records that have no vector.
+func (s *Store) MissingVectors() ([]EmbedGap, error) {
+	rows, err := s.db.Query(`
+SELECT r.id, r.title FROM records r
+LEFT JOIN record_vectors v ON v.record_id = r.id
+WHERE v.record_id IS NULL AND r.status NOT IN (?, ?)
+ORDER BY r.id
+`, string(record.StatusSuperseded), string(record.StatusDeprecated))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanGaps(rows)
+}
+
+// EmbedGiveups lists records the worker dropped after repeated embed failures.
+// A database without the table returns an empty list.
+func (s *Store) EmbedGiveups() ([]EmbedGap, error) {
+	var name string
+	err := s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'embed_giveup'`).Scan(&name)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := s.db.Query(`
+SELECT g.record_id, COALESCE(r.title, ''), g.attempts, COALESCE(g.last_error, '')
+FROM embed_giveup g
+LEFT JOIN records r ON r.id = g.record_id
+ORDER BY g.record_id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []EmbedGap
+	for rows.Next() {
+		var g EmbedGap
+		if err := rows.Scan(&g.ID, &g.Title, &g.Attempts, &g.Error); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func scanGaps(rows *sql.Rows) ([]EmbedGap, error) {
+	var out []EmbedGap
+	for rows.Next() {
+		var g EmbedGap
+		if err := rows.Scan(&g.ID, &g.Title); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
 // RecordFilter optionally constrains search and embedding listing.
 // ExcludeRetired omits superseded and deprecated rows. Status, when set, matches that status only.
 type RecordFilter struct {
@@ -658,11 +827,18 @@ func (f RecordFilter) constrains() bool {
 	return f.Type != "" || f.Scope != "" || f.Status != "" || f.ExcludeRetired
 }
 
-func embeddingSelect(filter RecordFilter) (string, []any) {
+func embeddingSelect(filter RecordFilter, model string, dim int) (string, []any) {
 	q := `SELECT rv.record_id, rv.embedding FROM record_vectors rv`
 	var args []any
 	if filter.constrains() {
-		q += ` JOIN records r ON r.id = rv.record_id WHERE 1=1`
+		q += ` JOIN records r ON r.id = rv.record_id`
+	}
+	q += ` WHERE 1=1`
+	if model != "" {
+		q += ` AND rv.model = ? AND rv.dim = ?`
+		args = append(args, model, dim)
+	}
+	if filter.constrains() {
 		q, args = appendRecordFilter(q, args, filter)
 	}
 	return q, args
@@ -689,11 +865,11 @@ func appendRecordFilter(q string, args []any, filter RecordFilter) (string, []an
 
 // RankEmbeddings scores stored vectors against query without materializing
 // decoded embeddings, then returns the top limit ids (highest cosine first).
-func (s *Store) RankEmbeddings(query []float32, filter RecordFilter, limit int) ([]FTSResult, error) {
+func (s *Store) RankEmbeddings(query []float32, model string, filter RecordFilter, limit int) ([]FTSResult, error) {
 	if len(query) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	q, args := embeddingSelect(filter)
+	q, args := embeddingSelect(filter, model, len(query))
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err

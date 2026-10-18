@@ -59,7 +59,7 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 
 | Tool | Purpose |
 | --- | --- |
-| `search` | Hybrid search (`query`, optional `type` such as `feature`, `status`, `top_k`, `full`). Search reads repo, global, and dev and does not take a scope. Default omits deprecated and superseded, and omits the body. Pass `full` for every stored field. Use before implementing or writing a record. |
+| `search` | Hybrid search (`query`, optional `type` such as `feature`, `status`, `top_k`, `full`). Search reads repo, global, and dev and does not take a scope. Default omits deprecated and superseded. The card includes a snippet, cosine, applies_to, and superseded_by. Call `get` for the body. Pass `full` for every stored field. Use before implementing or writing a record. |
 | `get` | One record by id or slug. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass `full` for every stored field. |
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`). The top level is this checkout. Listed `archives` are returned under `archives` and are not indexed by this call. |
@@ -68,7 +68,7 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `retire` | Mark superseded when a later choice replaces it |
 | `cite` | Optional. Record that a retrieved record changed the work (`id`, one-line `effect`). Requires `log_commands`. |
 | `import` | Upsert typed markdown into SQLite (no prune) |
-| `status` | Counts, embed queue, Ollama health |
+| `status` | Counts, embed queue, Ollama health, missing_vectors, and embed giveups |
 
 ## Prompts
 
@@ -85,4 +85,4 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 
 Initialize `instructions` are the consult, cite, ask, and record rule templates, so MCP-only hosts still look things up, cite a record that changed the work, ask when a choice or preference is unsettled, and write a short record when a later session would look it up.
 
-Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search omits the body, and get keeps the body while dropping hash, timestamps, provenance, and source path. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
+Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search includes a snippet, cosine, applies_to, and superseded_by, and get keeps the body while dropping hash, timestamps, provenance, and source path. Call `get` for the body. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.

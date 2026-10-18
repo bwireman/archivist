@@ -34,7 +34,7 @@ func TestProjectSearchCardKeys(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(data)
-	for _, banned := range []string{"body", "Body", "ContentHash", "SourcePath", "created_at", "provenance"} {
+	for _, banned := range []string{`"body"`, `"Body"`, "ContentHash", "SourcePath", "created_at", "provenance"} {
 		if strings.Contains(text, banned) {
 			t.Fatalf("card contains %q: %s", banned, text)
 		}
@@ -46,7 +46,7 @@ func TestProjectSearchCardKeys(t *testing.T) {
 	if len(hits) != 1 {
 		t.Fatalf("hits: %s", text)
 	}
-	assertKeys(t, hits[0], "id", "slug", "type", "scope", "title", "status", "score", "source")
+	assertKeys(t, hits[0], "id", "slug", "type", "scope", "title", "status", "score", "source", "cosine", "applies_to", "superseded_by", "snippet")
 }
 
 func TestProjectRecordKeys(t *testing.T) {
