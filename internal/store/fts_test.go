@@ -136,6 +136,34 @@ func TestSearchFTSStems(t *testing.T) {
 	}
 }
 
+func TestSearchFTSSnippetCentersOnStemmedBody(t *testing.T) {
+	st, err := Open(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+	pad := strings.Repeat("alpha ", 80)
+	rec := &record.Record{
+		ID: "rec_stem", Slug: "stem", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Plain title", Status: record.StatusAccepted,
+		Body:       pad + "the decision stands in the archive. " + pad,
+		SourcePath: "docs/decisions/stem.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	hits, err := st.SearchFTS("decisions", 10, RecordFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(hits) != 1 || !strings.Contains(hits[0].Snippet, "decision") {
+		t.Fatalf("snippet should show the stemmed passage, got %+v", hits)
+	}
+	if strings.HasPrefix(hits[0].Snippet, "alpha alpha") {
+		t.Fatalf("snippet stayed on the leading padding: %q", hits[0].Snippet)
+	}
+}
+
 func TestOpenRebuildsUnstemmedFTS(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "old.db")
 	st, err := Open(path)

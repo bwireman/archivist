@@ -3,6 +3,7 @@ package retrieve_test
 import (
 	"context"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bwireman/archivist/internal/record"
@@ -16,6 +17,35 @@ type fixedEmbedder struct {
 
 func (f fixedEmbedder) Embed(_ context.Context, _ string) ([]float32, error) {
 	return f.vec, nil
+}
+
+func TestSearchSnippetUsesStemmedPassage(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+
+	pad := strings.Repeat("alpha ", 80)
+	rec := &record.Record{
+		ID: "rec_stem", Slug: "stem", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Plain title", Status: record.StatusAccepted,
+		Body:       pad + "the decision stands in the archive. " + pad,
+		SourcePath: "docs/decisions/stem.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	results, err := (&retrieve.Engine{Repo: st}).Search(context.Background(), nil, retrieve.Options{
+		Query: "decisions",
+		TopK:  5,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || !strings.Contains(results[0].Snippet, "the decision stands") {
+		t.Fatalf("snippet = %+v", results)
+	}
 }
 
 func TestSearchFiltersByType(t *testing.T) {

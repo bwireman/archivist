@@ -93,8 +93,8 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 
 	// anyTermRank holds hits from the any-term retry. They only add rank to
 	// vector hits that already cleared the floor; on their own they are noise.
-	ftsRank := map[string]int{}
-	anyTermRank := map[string]int{}
+	ftsRank := map[string]keywordHit{}
+	anyTermRank := map[string]keywordHit{}
 	for _, src := range e.searchStores() {
 		st := src.db
 		ftsResults, err := st.SearchFTS(opts.Query, rankLimit, filter)
@@ -106,9 +106,10 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			if fr.AnyTerm {
 				rank = anyTermRank
 			}
-			if _, ok := rank[fr.RecordID]; !ok {
-				rank[fr.RecordID] = i + 1
+			if _, ok := rank[fr.RecordID]; ok {
+				continue
 			}
+			rank[fr.RecordID] = keywordHit{rank: i + 1, snippet: fr.Snippet}
 		}
 	}
 
@@ -174,18 +175,22 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			continue
 		}
 		kw := ftsRank[id]
-		if kw == 0 {
+		if kw.rank == 0 {
 			kw = anyTermRank[id]
 		}
 		archiveRoot := archives[id]
 		hit := vectorHit[id]
+		snippet := kw.snippet
+		if snippet == "" {
+			snippet = Snippet(rec.Body, opts.Query)
+		}
 		candidate := Result{
 			Record:  rec,
-			Score:   rrfScore(kw, hit.rank),
-			Source:  hitSource(kw, hit.rank),
+			Score:   rrfScore(kw.rank, hit.rank),
+			Source:  hitSource(kw.rank, hit.rank),
 			Archive: archiveRoot,
 			Cosine:  hit.cosine,
-			Snippet: Snippet(rec.Body, opts.Query),
+			Snippet: snippet,
 		}
 		key := overlayKey(archiveRoot, rec)
 		if existing, ok := best[key]; ok && !overlayWins(candidate, existing) {
@@ -236,6 +241,12 @@ func searchFilter(opts Options) (store.RecordFilter, error) {
 	}
 	f.Status = opts.Status
 	return f, nil
+}
+
+// keywordHit is one store's FTS rank for a record, plus the passage that matched.
+type keywordHit struct {
+	rank    int
+	snippet string
 }
 
 func hitSource(ftsRank, vectorRank int) string {

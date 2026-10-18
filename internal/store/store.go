@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1005,6 +1006,8 @@ type FTSResult struct {
 	RecordID string
 	Score    float64
 	AnyTerm  bool // below minShouldMatch; matched only by the any-term retry
+	// Snippet is the body passage around the FTS match, including stemmed terms.
+	Snippet string
 }
 
 // SearchFTS matches every term first. When that finds nothing and the query has
@@ -1076,9 +1079,14 @@ func (s *Store) termCoverage(terms []string, filter RecordFilter) (map[string]in
 	return out, rows.Err()
 }
 
+// ftsSnippetTokens is the body window snippet() returns around a match.
+// About the same length as retrieve.Snippet's 240-rune window.
+const ftsSnippetTokens = 40
+
 func (s *Store) matchFTS(query string, limit int, filter RecordFilter) ([]FTSResult, error) {
 	q := `
-SELECT f.record_id, bm25(records_fts) as score
+SELECT f.record_id, bm25(records_fts) as score,
+       snippet(records_fts, 2, '', '', '...', ` + strconv.Itoa(ftsSnippetTokens) + `)
 FROM records_fts f
 JOIN records r ON r.id = f.record_id
 WHERE records_fts MATCH ?`
@@ -1099,9 +1107,10 @@ WHERE records_fts MATCH ?`
 	var out []FTSResult
 	for rows.Next() {
 		var r FTSResult
-		if err := rows.Scan(&r.RecordID, &r.Score); err != nil {
+		if err := rows.Scan(&r.RecordID, &r.Score, &r.Snippet); err != nil {
 			return nil, err
 		}
+		r.Snippet = strings.Join(strings.Fields(r.Snippet), " ")
 		out = append(out, r)
 	}
 	return out, rows.Err()
