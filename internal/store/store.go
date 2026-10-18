@@ -1245,33 +1245,51 @@ func (s *Store) SearchSymbols(query string, limit int) ([]Symbol, error) {
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	where := make([]string, 0, len(terms))
-	nameScore := make([]string, 0, len(terms))
-	docScore := make([]string, 0, len(terms))
-	whereArgs := make([]any, 0, len(terms)*4)
-	orderArgs := make([]any, 0, len(terms)*2)
-	for _, term := range terms {
-		pat := likeContains(term)
-		where = append(where, `(s.name LIKE ? ESCAPE '\' OR s.doc_line LIKE ? ESCAPE '\' OR s.file_path LIKE ? ESCAPE '\' OR COALESCE(f.package_name,'') LIKE ? ESCAPE '\')`)
-		whereArgs = append(whereArgs, pat, pat, pat, pat)
-		nameScore = append(nameScore, `(s.name LIKE ? ESCAPE '\')`)
-		docScore = append(docScore, `(COALESCE(s.doc_line,'') LIKE ? ESCAPE '\')`)
-		orderArgs = append(orderArgs, pat, pat)
-	}
+	where, whereArgs := likeAll(terms, `(s.name LIKE ? ESCAPE '\' OR s.doc_line LIKE ? ESCAPE '\' OR s.file_path LIKE ? ESCAPE '\' OR COALESCE(f.package_name,'') LIKE ? ESCAPE '\')`, 4)
+	nameScore, nameArgs := likeSum(terms, `(s.name LIKE ? ESCAPE '\')`)
+	docScore, docArgs := likeSum(terms, `(COALESCE(s.doc_line,'') LIKE ? ESCAPE '\')`)
 	q := `
 SELECT s.id, s.file_path, s.name, s.kind, s.line, COALESCE(s.doc_line,''), s.exported
 FROM symbols s
 LEFT JOIN files f ON f.path = s.file_path
-WHERE ` + strings.Join(where, " AND ") + `
-ORDER BY (` + strings.Join(nameScore, " + ") + `) DESC, (` + strings.Join(docScore, " + ") + `) DESC, s.file_path, s.line
+WHERE ` + where + `
+ORDER BY (` + nameScore + `) DESC, (` + docScore + `) DESC, s.file_path, s.line
 LIMIT ?`
-	args := append(whereArgs, orderArgs...)
+	args := append(whereArgs, nameArgs...)
+	args = append(args, docArgs...)
 	args = append(args, limit)
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
 		return nil, err
 	}
 	return collectSymbols(rows)
+}
+
+// likeAll repeats clause once per term, joined with AND. repeat is how many
+// ? placeholders the clause contains; each is bound to that term's pattern.
+func likeAll(terms []string, clause string, repeat int) (string, []any) {
+	parts := make([]string, len(terms))
+	args := make([]any, 0, len(terms)*repeat)
+	for i, term := range terms {
+		parts[i] = clause
+		pat := likeContains(term)
+		for range repeat {
+			args = append(args, pat)
+		}
+	}
+	return strings.Join(parts, " AND "), args
+}
+
+// likeSum repeats expr once per term, joined with +. Each ? is bound to that
+// term, in term order, so callers can append several sums without crossing them.
+func likeSum(terms []string, expr string) (string, []any) {
+	parts := make([]string, len(terms))
+	args := make([]any, len(terms))
+	for i, term := range terms {
+		parts[i] = expr
+		args[i] = likeContains(term)
+	}
+	return strings.Join(parts, " + "), args
 }
 
 // likeContains builds a substring LIKE pattern in which %, _, and \ from the
@@ -1337,23 +1355,15 @@ LIMIT ?
 // ImportersOf returns the import edges whose target mentions query, answering
 // "which files import this package or module".
 func (s *Store) ImportersOf(query string, limit int) ([]SymbolEdge, error) {
-	if strings.TrimSpace(query) == "" || limit <= 0 {
-		return nil, nil
-	}
 	terms := searchTerms(query)
-	if len(terms) == 0 {
+	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	where := make([]string, 0, len(terms))
-	args := make([]any, 0, len(terms)+1)
-	for _, term := range terms {
-		where = append(where, `to_path LIKE ? ESCAPE '\'`)
-		args = append(args, likeContains(term))
-	}
+	where, args := likeAll(terms, `to_path LIKE ? ESCAPE '\'`, 1)
 	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
-WHERE `+strings.Join(where, " AND ")+`
+WHERE `+where+`
 ORDER BY from_file, to_path
 LIMIT ?
 `, args...)
@@ -1469,25 +1479,16 @@ func (s *Store) CommitHashes() (map[string]struct{}, error) {
 // SearchCommits returns recent commits whose subject or body mentions query,
 // newest first.
 func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
-	if strings.TrimSpace(query) == "" || limit <= 0 {
-		return nil, nil
-	}
 	terms := searchTerms(query)
-	if len(terms) == 0 {
+	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	where := make([]string, 0, len(terms))
-	args := make([]any, 0, len(terms)*2+1)
-	for _, term := range terms {
-		pat := likeContains(term)
-		where = append(where, `(subject LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\')`)
-		args = append(args, pat, pat)
-	}
+	where, args := likeAll(terms, `(subject LIKE ? ESCAPE '\' OR body LIKE ? ESCAPE '\')`, 2)
 	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT hash, COALESCE(subject,''), COALESCE(body,''), COALESCE(author,''), COALESCE(authored_at,'')
 FROM commits
-WHERE `+strings.Join(where, " AND ")+`
+WHERE `+where+`
 ORDER BY authored_at DESC
 LIMIT ?
 `, args...)

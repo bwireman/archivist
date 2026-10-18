@@ -49,15 +49,10 @@ func searchTerms(query string) []string {
 	if raw == "" {
 		return nil
 	}
-	quoted := contentTerms(fts5Terms(raw))
-	if len(quoted) == 0 {
-		return []string{raw}
+	if terms := SnippetTerms(raw); len(terms) > 0 {
+		return terms
 	}
-	out := make([]string, len(quoted))
-	for i, t := range quoted {
-		out[i] = strings.ToLower(strings.Trim(t, `"`))
-	}
-	return out
+	return []string{raw}
 }
 
 // SnippetTerms returns the unquoted lowercase query words used to center a

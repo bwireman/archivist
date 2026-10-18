@@ -107,18 +107,29 @@ func TestSearchSymbolsMatchesTermsAcrossPathAndPackage(t *testing.T) {
 	st := codeStore(t)
 	now := time.Now().UTC()
 	err := st.ReplaceFileMap(
-		FileRecord{Path: "internal/embed/worker.go", ContentHash: "h", PackageName: "embed", IndexedAt: now},
-		[]Symbol{
-			{Name: "Run", Kind: "function_declaration", Line: 10},
-			{Name: "Worker", Kind: "type_spec", Line: 2, DocLine: "drains the embed queue"},
-		},
+		FileRecord{Path: "aaa.go", ContentHash: "h", IndexedAt: now},
+		[]Symbol{{Name: "Run", Kind: "function_declaration", Line: 1, DocLine: "embed worker helper"}},
 		nil,
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := st.ReplaceFileMap(
-		FileRecord{Path: "db.go", ContentHash: "h2", PackageName: "store", IndexedAt: now},
+		FileRecord{Path: "internal/embed/worker.go", ContentHash: "h2", PackageName: "embed", IndexedAt: now},
+		[]Symbol{{Name: "drain", Kind: "function_declaration", Line: 10}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceFileMap(
+		FileRecord{Path: "zzz.go", ContentHash: "h3", IndexedAt: now},
+		[]Symbol{{Name: "Worker", Kind: "type_spec", Line: 2, DocLine: "embed queue"}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.ReplaceFileMap(
+		FileRecord{Path: "db.go", ContentHash: "h4", PackageName: "store", IndexedAt: now},
 		[]Symbol{{Name: "Open", Kind: "function_declaration", Line: 1}},
 		nil,
 	); err != nil {
@@ -135,7 +146,7 @@ func TestSearchSymbolsMatchesTermsAcrossPathAndPackage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(syms) != 2 || syms[0].Name != "Worker" || syms[1].Name != "Run" {
+	if len(syms) != 3 || syms[0].Name != "Worker" || syms[1].Name != "Run" || syms[2].Name != "drain" {
 		t.Fatalf("term match order: %+v", syms)
 	}
 	pkg, err := st.SearchSymbols("store", 10)
