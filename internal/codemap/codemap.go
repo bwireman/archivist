@@ -147,12 +147,19 @@ func extractTreeSitter(path, content string, spec languageSpec, ext string) (Res
 				}
 				line := int(node.StartPoint().Row) + 1
 				exported := isExported(name, ext)
+				doc := ""
+				if ext == ".py" {
+					doc = pythonNodeDoc(node, src)
+				}
+				if doc == "" {
+					doc = firstDocLine(lines, line)
+				}
 				res.Symbols = append(res.Symbols, store.Symbol{
 					FilePath: path,
 					Name:     name,
 					Kind:     nt,
 					Line:     line,
-					DocLine:  firstDocLine(lines, line),
+					DocLine:  doc,
 					Exported: exported,
 				})
 			}
@@ -250,23 +257,25 @@ func commentAbove(lines []string, symLine int) string {
 		}
 		break
 	}
-	if i < floor || i < 0 {
+	if i < floor {
 		return ""
 	}
 	line := strings.TrimSpace(lines[i])
 	switch {
-	case strings.HasPrefix(line, "//"):
+	case strings.HasPrefix(line, "//"), strings.HasPrefix(line, "#"):
+		prefix := "//"
+		if strings.HasPrefix(line, "#") {
+			prefix = "#"
+		}
 		start := i
-		for start > 0 && strings.HasPrefix(strings.TrimSpace(lines[start-1]), "//") {
+		for start > 0 && strings.HasPrefix(strings.TrimSpace(lines[start-1]), prefix) {
 			start--
 		}
-		return cleanSlashComment(lines[start])
-	case strings.HasPrefix(line, "#"):
-		start := i
-		for start > 0 && strings.HasPrefix(strings.TrimSpace(lines[start-1]), "#") {
-			start--
+		text := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[start]), prefix))
+		if prefix == "//" {
+			text = strings.TrimSpace(strings.TrimPrefix(text, "/"))
 		}
-		return strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lines[start]), "#"))
+		return text
 	case strings.Contains(line, "*/"):
 		start := i
 		for start > 0 && !strings.Contains(lines[start], "/*") {
@@ -281,13 +290,6 @@ func commentAbove(lines []string, symLine int) string {
 	}
 }
 
-func cleanSlashComment(line string) string {
-	line = strings.TrimSpace(line)
-	line = strings.TrimPrefix(line, "//")
-	line = strings.TrimSpace(line)
-	return strings.TrimSpace(strings.TrimPrefix(line, "/"))
-}
-
 func cleanBlockComment(block []string) string {
 	text := strings.Join(block, "\n")
 	start := strings.Index(text, "/*")
@@ -298,12 +300,66 @@ func cleanBlockComment(block []string) string {
 	if end := strings.Index(text, "*/"); end >= 0 {
 		text = text[:end]
 	}
-	text = strings.TrimPrefix(text, "*")
 	for _, line := range strings.Split(text, "\n") {
 		line = strings.TrimSpace(line)
 		line = strings.TrimPrefix(line, "*")
 		line = strings.TrimSpace(line)
 		if line != "" {
+			return line
+		}
+	}
+	return ""
+}
+
+// pythonNodeDoc reads the docstring from the function or class body. A line
+// scan misses it when the header is split across lines.
+func pythonNodeDoc(node *sitter.Node, src []byte) string {
+	block := childOfType(node, "block")
+	if block == nil {
+		return ""
+	}
+	for i := 0; i < int(block.ChildCount()); i++ {
+		ch := block.Child(i)
+		if ch == nil || ch.Type() == "comment" {
+			continue
+		}
+		if ch.Type() != "expression_statement" {
+			return ""
+		}
+		str := childOfType(ch, "string")
+		if str == nil {
+			return ""
+		}
+		return summaryOfPythonString(string(src[str.StartByte():str.EndByte()]))
+	}
+	return ""
+}
+
+func childOfType(node *sitter.Node, typ string) *sitter.Node {
+	for i := 0; i < int(node.ChildCount()); i++ {
+		ch := node.Child(i)
+		if ch != nil && ch.Type() == typ {
+			return ch
+		}
+	}
+	return nil
+}
+
+func summaryOfPythonString(text string) string {
+	text = strings.TrimSpace(text)
+	quote := ""
+	switch {
+	case strings.HasPrefix(text, `"""`):
+		quote = `"""`
+	case strings.HasPrefix(text, `'''`):
+		quote = `'''`
+	default:
+		return ""
+	}
+	text = strings.TrimPrefix(text, quote)
+	text = strings.TrimSuffix(strings.TrimSpace(text), quote)
+	for _, line := range strings.Split(text, "\n") {
+		if line = strings.TrimSpace(line); line != "" {
 			return line
 		}
 	}
