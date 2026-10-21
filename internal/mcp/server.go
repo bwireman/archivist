@@ -464,7 +464,7 @@ func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		n, _ := home.RecordCount()
 		count += n
 	}
-	return jsonResult(map[string]any{
+	return jsonResult(map[string]int{
 		"files_indexed": progress.FilesIndexed,
 		"files_removed": progress.FilesRemoved,
 		"commits_new":   progress.CommitsNew,
@@ -485,14 +485,10 @@ func (s *Server) toolEmbed(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if repo == nil {
 		return mcp.NewToolResultError("archive is not open"), nil
 	}
-	model := ""
-	if s.Cfg != nil {
-		model = s.Cfg.Ollama.EmbedModel
-	}
 	n, err := (&embed.Worker{
 		Stores:   []*store.Store{repo, home},
 		Embedder: client,
-		Model:    model,
+		Model:    s.Cfg.Ollama.EmbedModel,
 	}).Run(ctx, embed.WorkerOptions{
 		Once:        req.GetBool("once", false),
 		Concurrency: int(req.GetFloat("concurrency", 2)),
@@ -510,18 +506,14 @@ func (s *Server) embedder(ctx context.Context) (embed.Embedder, error) {
 	if s == nil || s.Cfg == nil {
 		return nil, errors.New("archive is not open")
 	}
-	if c, ok := s.Embedder.(*embed.OllamaClient); ok {
+	client := s.Embedder
+	if client == nil {
+		client = embed.NewOllamaClientFromConfig(s.Cfg.Ollama)
+	}
+	if c, ok := client.(*embed.OllamaClient); ok {
 		if err := c.Healthy(ctx); err != nil {
 			return nil, fmt.Errorf("%w (run: ollama serve)", err)
 		}
-		return c, nil
-	}
-	if s.Embedder != nil {
-		return s.Embedder, nil
-	}
-	client := embed.NewOllamaClientFromConfig(s.Cfg.Ollama)
-	if err := client.Healthy(ctx); err != nil {
-		return nil, fmt.Errorf("%w (run: ollama serve)", err)
 	}
 	return client, nil
 }

@@ -897,7 +897,10 @@ func TestToolEmbedReportsOllamaDown(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if res == nil || !res.IsError || !strings.Contains(toolErrorText(res), "ollama serve") {
+	got := mcpLogResult(res)
+	row, _ := got.(map[string]any)
+	text, _ := row["text"].(string)
+	if res == nil || !res.IsError || !strings.Contains(text, "ollama serve") {
 		t.Fatalf("embed result %+v", res)
 	}
 }
@@ -925,13 +928,6 @@ func symbolNamed(t *testing.T, st *store.Store, path, name string) bool {
 		}
 	}
 	return false
-}
-
-func toolErrorText(res *mcp.CallToolResult) string {
-	logged := mcpLogResult(res)
-	row, _ := logged.(map[string]any)
-	text, _ := row["text"].(string)
-	return text
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {
