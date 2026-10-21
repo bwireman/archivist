@@ -24,11 +24,11 @@ func ReindexPrompt(st *store.Store) (string, error) {
 		if err != nil || n == 0 {
 			return "", err
 		}
-		return "Code map has no extractor version. Run `archivist index` to rebuild it.", nil
+		return "Code map has no extractor version. Run `archivist index` or call MCP index to rebuild it.", nil
 	}
 	have, err := strconv.Atoi(raw)
 	if err != nil || have < codemap.Version {
-		return fmt.Sprintf("Code map extractor is %s; this binary is %d. Run `archivist index` to rebuild it.", raw, codemap.Version), nil
+		return fmt.Sprintf("Code map extractor is %s; this binary is %d. Run `archivist index` or call MCP index to rebuild it.", raw, codemap.Version), nil
 	}
 	return "", nil
 }

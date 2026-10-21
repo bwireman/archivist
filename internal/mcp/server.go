@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -77,7 +78,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
 		annotate("Explore code map", true, false, true),
-		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Run `archivist index` in a checkout before reading its map. When reindex is set, the stored extractor is older than this binary."),
+		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Call index (or run `archivist index`) in a checkout before reading its map. When reindex is set, the stored extractor is older than this binary."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
 	), s.toolMap)
@@ -115,12 +116,23 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolCite)
 	srv.AddTool(mcp.NewTool("status",
 		annotate("Archive status", true, false, true),
-		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health). When reindex is set, run `archivist index` before trusting the code map."),
+		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health, missing_vectors, embed_giveups). When reindex is set, call index before trusting the code map."),
 	), s.toolStatus)
 	srv.AddTool(mcp.NewTool("import",
 		annotate("Import markdown", false, true, true),
 		mcp.WithDescription("Import typed markdown from record directories and export copies into SQLite. Does not delete DB-only records."),
 	), s.toolImport)
+	srv.AddTool(mcp.NewTool("index",
+		annotate("Index code map", false, true, true),
+		mcp.WithDescription("Index this checkout's code map and recent git history. No Ollama. Does not ingest or delete records and does not walk configured archives. Optional scope limits the walk to a subdirectory. Returns files_indexed, files_removed, commits_new, and records."),
+		mcp.WithString("scope", mcp.Description("limit indexing to a subdirectory; empty indexes the checkout")),
+	), s.toolIndex)
+	srv.AddTool(mcp.NewTool("embed",
+		annotate("Embed records", false, true, true),
+		mcp.WithDescription("Drain the embed queue via Ollama and store vectors. Fails when Ollama is unreachable (run: ollama serve). once defaults to false and loops until the queue is empty; set once=true to process the queue a single time. concurrency is the parallel worker count (default 2). Returns embedded. Does not walk configured archives."),
+		mcp.WithBoolean("once", mcp.Description("process every queued item once, then return")),
+		mcp.WithNumber("concurrency", mcp.Description("parallel embed workers (default 2)")),
+	), s.toolEmbed)
 	registerAddPrompts(srv)
 	return srv
 }
@@ -130,7 +142,11 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 // all four. Archivist tools are closed-world: local SQLite and one configured
 // embedder. destructive and idempotent still apply when readOnly is false:
 // remember, update, retire, and import may replace record content, and a
-// repeat whose content hash matches is a no-op. cite only appends a log line.
+// repeat whose content hash matches is a no-op. index rewrites this checkout's
+// code map and drops files and commits outside the window; a repeat on the
+// same tree leaves that map unchanged aside from last_indexed_at. embed stores
+// vectors and may drop a queue row after giveup; a repeat on an empty queue
+// embeds nothing. cite only appends a log line.
 func annotate(title string, readOnly, destructive, idempotent bool) mcp.ToolOption {
 	return mcp.WithToolAnnotation(toolAnnotation(title, readOnly, destructive, idempotent))
 }
@@ -296,28 +312,48 @@ func (s *Server) writer() (*archive.Service, func(), error) {
 	if s == nil || s.Archive == nil {
 		return nil, noop, errors.New("archive is not open")
 	}
+	repo, home, done, err := s.writableStores()
+	if err != nil {
+		return nil, noop, err
+	}
+	if repo == s.RepoDB && home == s.HomeDB {
+		return s.Archive, done, nil
+	}
+	svc := archive.New(s.RepoRoot, s.Cfg, repo, home)
+	svc.ExtraRoots = s.Archive.ExtraRoots
+	return svc, done, nil
+}
+
+// writableStores returns checkout and home connections that can write.
+// Query connections stay read-only. A server built on store.Open keeps those
+// connections. A read-only server opens store.Open for the call, which creates
+// missing schema and purges orphan queue, vector, and FTS rows. The caller
+// closes a freshly opened pair.
+func (s *Server) writableStores() (repo, home *store.Store, done func(), err error) {
+	noop := func() {}
+	if s == nil {
+		return nil, nil, noop, errors.New("archive is not open")
+	}
 	repoRO := s.RepoDB != nil && s.RepoDB.ReadOnly()
 	homeRO := s.HomeDB != nil && s.HomeDB.ReadOnly()
 	if !repoRO && !homeRO {
-		return s.Archive, noop, nil
+		return s.RepoDB, s.HomeDB, noop, nil
 	}
-	repo, err := store.Open(config.StorePath(s.RepoRoot))
+	repo, err = store.Open(config.StorePath(s.RepoRoot))
 	if err != nil {
-		return nil, noop, err
+		return nil, nil, noop, err
 	}
 	homePath := config.HomeStorePath()
 	if homePath == "" {
 		_ = repo.Close()
-		return nil, noop, errors.New("cannot resolve home archive path (set $HOME)")
+		return nil, nil, noop, errors.New("cannot resolve home archive path (set $HOME)")
 	}
-	home, err := store.Open(homePath)
+	home, err = store.Open(homePath)
 	if err != nil {
 		_ = repo.Close()
-		return nil, noop, err
+		return nil, nil, noop, err
 	}
-	svc := archive.New(s.RepoRoot, s.Cfg, repo, home)
-	svc.ExtraRoots = s.Archive.ExtraRoots
-	return svc, func() {
+	return repo, home, func() {
 		_ = repo.Close()
 		_ = home.Close()
 	}, nil
@@ -397,6 +433,97 @@ func (s *Server) toolImport(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 		"updated":  res.Updated,
 		"skipped":  res.Skipped,
 	})
+}
+
+func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s == nil || s.Cfg == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	repo, home, done, err := s.writableStores()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
+	if repo == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	progress, err := (&index.Indexer{
+		RepoRoot: s.RepoRoot,
+		Cfg:      s.Cfg,
+		Store:    repo,
+		Home:     home,
+	}).Index(ctx, req.GetString("scope", ""))
+	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			return mcp.NewToolResultError(fmt.Errorf("indexing cancelled: %w", err).Error()), nil
+		}
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	count, _ := repo.RecordCount()
+	if home != nil {
+		n, _ := home.RecordCount()
+		count += n
+	}
+	return jsonResult(map[string]any{
+		"files_indexed": progress.FilesIndexed,
+		"files_removed": progress.FilesRemoved,
+		"commits_new":   progress.CommitsNew,
+		"records":       count,
+	})
+}
+
+func (s *Server) toolEmbed(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	client, err := s.embedder(ctx)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	repo, home, done, err := s.writableStores()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
+	if repo == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	model := ""
+	if s.Cfg != nil {
+		model = s.Cfg.Ollama.EmbedModel
+	}
+	n, err := (&embed.Worker{
+		Stores:   []*store.Store{repo, home},
+		Embedder: client,
+		Model:    model,
+	}).Run(ctx, embed.WorkerOptions{
+		Once:        req.GetBool("once", false),
+		Concurrency: int(req.GetFloat("concurrency", 2)),
+	})
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(map[string]int{"embedded": n})
+}
+
+// embedder is the server's client when one exists. A nil client means Ollama
+// was down at startup, so this opens a new one and checks it. A non-Ollama
+// embedder is used as-is so tests can drain the queue without a server.
+func (s *Server) embedder(ctx context.Context) (embed.Embedder, error) {
+	if s == nil || s.Cfg == nil {
+		return nil, errors.New("archive is not open")
+	}
+	if c, ok := s.Embedder.(*embed.OllamaClient); ok {
+		if err := c.Healthy(ctx); err != nil {
+			return nil, fmt.Errorf("%w (run: ollama serve)", err)
+		}
+		return c, nil
+	}
+	if s.Embedder != nil {
+		return s.Embedder, nil
+	}
+	client := embed.NewOllamaClientFromConfig(s.Cfg.Ollama)
+	if err := client.Healthy(ctx); err != nil {
+		return nil, fmt.Errorf("%w (run: ollama serve)", err)
+	}
+	return client, nil
 }
 
 func (s *Server) toolCite(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

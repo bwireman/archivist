@@ -92,6 +92,8 @@ func TestToolAnnotations(t *testing.T) {
 		"update":   toolAnnotation("Update record", false, true, true),
 		"retire":   toolAnnotation("Retire record", false, true, true),
 		"import":   toolAnnotation("Import markdown", false, true, true),
+		"index":    toolAnnotation("Index code map", false, true, true),
+		"embed":    toolAnnotation("Embed records", false, true, true),
 		"cite":     toolAnnotation("Cite record", false, false, false),
 	}
 	listed := srv.ListTools()
@@ -110,6 +112,33 @@ func TestToolAnnotations(t *testing.T) {
 			!sameBool(got.OpenWorldHint, hint.OpenWorldHint) {
 			t.Fatalf("%s annotations: %+v", name, got)
 		}
+	}
+	indexTool := srv.GetTool("index")
+	if indexTool == nil || !strings.Contains(indexTool.Tool.Description, "Does not ingest or delete records") {
+		t.Fatalf("index description: %+v", indexTool)
+	}
+	if _, ok := indexTool.Tool.InputSchema.Properties["scope"]; !ok {
+		t.Fatal("index schema missing scope")
+	}
+	if slices.Contains(indexTool.Tool.InputSchema.Required, "scope") {
+		t.Fatal("index scope should be optional")
+	}
+	embedTool := srv.GetTool("embed")
+	if embedTool == nil || !strings.Contains(embedTool.Tool.Description, "once=true") {
+		t.Fatalf("embed description: %+v", embedTool)
+	}
+	if _, ok := embedTool.Tool.InputSchema.Properties["once"]; !ok {
+		t.Fatal("embed schema missing once")
+	}
+	if _, ok := embedTool.Tool.InputSchema.Properties["concurrency"]; !ok {
+		t.Fatal("embed schema missing concurrency")
+	}
+	if slices.Contains(embedTool.Tool.InputSchema.Required, "once") || slices.Contains(embedTool.Tool.InputSchema.Required, "concurrency") {
+		t.Fatal("embed once and concurrency should be optional")
+	}
+	status := srv.GetTool("status")
+	if status == nil || !strings.Contains(status.Tool.Description, "missing_vectors") || !strings.Contains(status.Tool.Description, "call index") {
+		t.Fatalf("status description: %+v", status)
 	}
 }
 
@@ -341,6 +370,10 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 		res, err = s.toolStatus(context.Background(), req)
 	case "map":
 		res, err = s.toolMap(context.Background(), req)
+	case "index":
+		res, err = s.toolIndex(context.Background(), req)
+	case "embed":
+		res, err = s.toolEmbed(context.Background(), req)
 	default:
 		t.Fatalf("unknown tool %s", name)
 	}
@@ -698,6 +731,207 @@ func TestMCPCheckEmbedsQwenPrefix(t *testing.T) {
 	if emb.got != retrieve.QueryText("qwen3-embedding:8b", "hybrid rules") {
 		t.Fatalf("check embed %q", emb.got)
 	}
+}
+
+func TestToolIndexWritesCheckoutMap(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	writeGoFile(t, root, "widget.go", "package widget\n\nfunc UniqueWidget() {}\n")
+	repo, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.Close(); err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := homeDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	repoRO, err := store.OpenReadOnly(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer repoRO.Close()
+	homeRO, err := store.OpenReadOnly(config.HomeStorePath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer homeRO.Close()
+
+	extra := t.TempDir()
+	extraPath := config.StorePath(extra)
+	extraDB, err := store.Open(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := extraDB.ReplaceFileMap(
+		store.FileRecord{Path: "extra.go", ContentHash: "e", IndexedAt: time.Now().UTC()},
+		[]store.Symbol{{Name: "ExtraWidget", Kind: "function_declaration", Line: 1, Exported: true}},
+		nil,
+	); err != nil {
+		t.Fatal(err)
+	}
+	if err := extraDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	before, err := os.ReadFile(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extraRO, err := store.OpenReadOnly(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer extraRO.Close()
+
+	s := New(root, config.Default(), repoRO, homeRO, nil)
+	s.Archive.Extras = []archive.Extra{{Root: extra, DB: extraRO}}
+
+	got := callTool(t, s, "index", map[string]any{}).(map[string]any)
+	assertJSONKeys(t, got, "files_indexed", "files_removed", "commits_new", "records")
+	if got["files_indexed"] != float64(1) {
+		t.Fatalf("index %#v", got)
+	}
+
+	fresh, err := store.OpenReadOnly(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if !symbolNamed(t, fresh, "widget.go", "UniqueWidget") {
+		t.Fatal("missing UniqueWidget")
+	}
+	after, err := os.ReadFile(extraPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(before) != string(after) {
+		t.Fatal("index changed the extra database")
+	}
+
+	writeGoFile(t, root, "sub/scoped.go", "package scoped\n\nfunc ScopedOnly() {}\n")
+	scoped := callTool(t, s, "index", map[string]any{"scope": "sub"}).(map[string]any)
+	if scoped["files_indexed"] != float64(1) {
+		t.Fatalf("scoped index %#v", scoped)
+	}
+	if err := fresh.Close(); err != nil {
+		t.Fatal(err)
+	}
+	fresh, err = store.OpenReadOnly(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close()
+	if !symbolNamed(t, fresh, "sub/scoped.go", "ScopedOnly") {
+		t.Fatal("missing ScopedOnly")
+	}
+	if !symbolNamed(t, fresh, "widget.go", "UniqueWidget") {
+		t.Fatal("scope index removed UniqueWidget")
+	}
+}
+
+func TestToolEmbedDrainsQueue(t *testing.T) {
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	if err := repoDB.UpsertRecord(&record.Record{
+		ID: "rec_embedme", Slug: "embed-me", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "Embed me", Body: "queue this", Status: record.StatusAccepted,
+		SourcePath: "docs/features/embed-me.md",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	depth, err := repoDB.QueueDepth()
+	if err != nil || depth != 1 {
+		t.Fatalf("queue %d err=%v", depth, err)
+	}
+	emb := &textEmbedder{}
+	s := New(t.TempDir(), config.Default(), repoDB, homeDB, emb)
+	got := callTool(t, s, "embed", map[string]any{"once": true, "concurrency": 1}).(map[string]any)
+	if got["embedded"] != float64(1) {
+		t.Fatalf("embed %#v", got)
+	}
+	if emb.got == "" || !strings.Contains(emb.got, "Embed me") {
+		t.Fatalf("embedded text %q", emb.got)
+	}
+	depth, err = repoDB.QueueDepth()
+	if err != nil || depth != 0 {
+		t.Fatalf("queue after %d err=%v", depth, err)
+	}
+}
+
+func TestToolEmbedReportsOllamaDown(t *testing.T) {
+	cfg := config.Default()
+	cfg.Ollama.BaseURL = "http://127.0.0.1:1"
+	cfg.Ollama.EmbedTimeout = "1s"
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		_ = repoDB.Close()
+		_ = homeDB.Close()
+	})
+	s := New(t.TempDir(), cfg, repoDB, homeDB, nil)
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]any{"once": true}
+	res, err := s.toolEmbed(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res == nil || !res.IsError || !strings.Contains(toolErrorText(res), "ollama serve") {
+		t.Fatalf("embed result %+v", res)
+	}
+}
+
+func writeGoFile(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func symbolNamed(t *testing.T, st *store.Store, path, name string) bool {
+	t.Helper()
+	syms, err := st.SymbolsForFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, sym := range syms {
+		if sym.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func toolErrorText(res *mcp.CallToolResult) string {
+	logged := mcpLogResult(res)
+	row, _ := logged.(map[string]any)
+	text, _ := row["text"].(string)
+	return text
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {

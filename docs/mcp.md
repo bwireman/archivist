@@ -2,7 +2,7 @@
 
 `archivist mcp` is the primary query surface. It speaks MCP over stdio (JSON-RPC on stdin/stdout).
 
-The server opens the repo and home SQLite files read-only, so the process cwd must be the repo, or you must pass `--path`. Search, get, check, map, status, and cite do not create a database, schema, or orphan cleanup. A missing database says to run `archivist init`. `remember`, `update`, `retire`, and `import` open a separate writable connection. Search still works if Ollama is down (keyword-only). Writes never need Ollama. With `log_commands` on, a read-only checkout skips the command-log append and the query still succeeds.
+The server opens the repo and home SQLite files read-only, so the process cwd must be the repo, or you must pass `--path`. Search, get, check, map, status, and cite do not create a database, schema, or orphan cleanup. A missing database says to run `archivist init`. `remember`, `update`, `retire`, `import`, `index`, and `embed` open a separate writable connection for that call (`store.Open`, including orphan cleanup). They stay on this checkout and do not write configured extra archives. Search still works if Ollama is down (keyword-only). Record writes and `index` do not need Ollama. `embed` does. With `log_commands` on, a read-only checkout skips the command-log append and the query still succeeds.
 
 ## Cursor
 
@@ -68,7 +68,9 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `retire` | Mark superseded when a later choice replaces it |
 | `cite` | Optional. Record that a retrieved record changed the work (`id`, one-line `effect`). Requires `log_commands`. |
 | `import` | Upsert typed markdown into SQLite (no prune) |
-| `status` | Counts, embed queue, Ollama health, missing_vectors, and embed giveups |
+| `index` | This checkout's code map and recent git history (`scope` limits the walk to a subdirectory). No Ollama. Does not ingest or delete records. Returns `files_indexed`, `files_removed`, `commits_new`, and `records`. |
+| `embed` | Drain the embed queue via Ollama (`once` defaults false and loops until empty; `once=true` matches `archivist embed --once`; `concurrency` defaults to 2). Returns `embedded`. Fails with `run: ollama serve` when Ollama is down. |
+| `status` | Counts, embed queue, Ollama health, missing_vectors, and embed giveups. `reindex` means call `index` before trusting the code map. |
 
 ## Prompts
 
