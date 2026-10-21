@@ -132,7 +132,7 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(currentData), "alwaysApply: true") || !strings.Contains(string(currentData), "archivist index") {
+	if !strings.Contains(string(currentData), "alwaysApply: true") || !strings.Contains(string(currentData), "MCP `index`") {
 		t.Fatalf("current rule should stay always-on and reindex: %s", currentData)
 	}
 	if !strings.Contains(string(currentData), "Keep the Archivist code map current") {
@@ -160,7 +160,7 @@ func TestInstallCursorEmbeddedTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(initData), "Scan") || !strings.Contains(string(initData), "archivist embed --once") {
+	if !strings.Contains(string(initData), "Scan") || !strings.Contains(string(initData), "MCP `embed`") {
 		t.Fatalf("init-archive skill should scan then embed: %s", initData)
 	}
 }

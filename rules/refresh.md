@@ -1,16 +1,14 @@
 # Refresh the archive
 
-After a turn that changed records (via MCP/CLI), Go sources, or markdown you want in SQLite, run:
+After a turn that changed records (via MCP/CLI), Go sources, or markdown you want in SQLite, call the MCP tools. Use the CLI only when MCP is unavailable.
 
-```bash
-archivist import
-archivist index
-archivist embed --once
-archivist export
-```
+1. `import` (or `archivist import`). Upserts typed markdown from `records.repo`, `records.global`, dev records, and export copies. It never prunes DB-only rows. Skip when no markdown record dirs exist.
+2. `index` (or `archivist index`). Code map and git only. No Ollama. Does not ingest or delete records.
+3. `embed` with `once` true (or `archivist embed --once`). Skip if Ollama is down.
+4. `archivist export`. There is no MCP export tool. No-op unless `records.write_docs` is true (`--bundle` and publish still write).
 
-SQLite is the source of truth for records; `remember`/`update`/`retire` write the DB only. `import` upserts typed markdown from `records.repo`, `records.global`, dev records, and export copies — it never prunes DB-only rows. Skip `import` when no markdown record dirs exist. `index` is code map + git only (no Ollama). Skip embed if Ollama is down. `export` is a no-op unless `records.write_docs` is true (`--bundle` and publish still write). Skip the whole sequence if you only touched `docs/archive/` or `.archivist/`.
+SQLite is the source of truth for records; `remember`/`update`/`retire` write the DB only. Skip the whole sequence if you only touched `docs/archive/` or `.archivist/`.
 
 If the turn changed how a capability behaves, update (or create) its `feature` record first.
 
-Source edits also follow the current rule: `archivist index` as the code changes, not only in this end-of-turn sequence.
+Source edits also follow the current rule: call MCP `index` as the code changes, not only in this end-of-turn sequence.

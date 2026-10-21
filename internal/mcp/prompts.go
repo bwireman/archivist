@@ -74,7 +74,7 @@ func (p addPrompt) text(topic, scope string) string {
 		fmt.Fprintf(&b, "%d. %s\n", step, p.after)
 		step++
 	}
-	fmt.Fprintf(&b, "%d. Run archivist embed --once if the body changed. Skip embed when Ollama is down. archivist export writes only when records.write_docs is true.\n", step)
+	fmt.Fprintf(&b, "%d. Call embed with once true if the body changed. Skip embed when Ollama is down. archivist embed --once only when MCP is unavailable. archivist export writes only when records.write_docs is true.\n", step)
 	return b.String()
 }
 

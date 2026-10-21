@@ -28,4 +28,4 @@ archivist remember --type rule --scope repo --severity must-not --title "..." --
 
 Or MCP `remember`.
 
-6. Verify with `archivist check --paths <touched files>` (add `--strict` in CI). Then `archivist embed --once` if the body changed. Records live in SQLite; `remember` does not write markdown.
+6. Verify with `archivist check --paths <touched files>` (add `--strict` in CI). Then call MCP `embed` with `once` true if the body changed. `archivist embed --once` only when MCP is unavailable. Records live in SQLite; `remember` does not write markdown.

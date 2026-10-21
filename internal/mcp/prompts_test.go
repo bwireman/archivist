@@ -51,7 +51,7 @@ func TestAddPrompts(t *testing.T) {
 			"Suggested scope: repo",
 			"archive names a listed extra root",
 			"Do not pass scope to search.",
-			"embed --once",
+			"Call embed with once true",
 		} {
 			if !strings.Contains(text, needle) {
 				t.Fatalf("%s prompt missing %q:\n%s", spec.name, needle, text)

@@ -26,4 +26,4 @@ Or MCP `remember` with the same fields.
 
    The `--scope repo` flag in the example is a checkout-only decision. It is not the default for every decision.
 
-   Then `archivist embed --once`. Records live in SQLite; `remember` does not write markdown. Use `archivist export` only when `records.write_docs` is true. `records.repo` / `records.global` / `records.dev` are optional import drop folders.
+   Then call MCP `embed` with `once` true. `archivist embed --once` only when MCP is unavailable. Records live in SQLite; `remember` does not write markdown. Use `archivist export` only when `records.write_docs` is true. `records.repo` / `records.global` / `records.dev` are optional import drop folders.

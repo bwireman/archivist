@@ -6,17 +6,17 @@
     "ask.md": "e4f3aafd07ddb95752dd069ed978e10741c469b86be5fef7bdaea6b2810f836b",
     "cite.md": "ed92687e0d5e92c094c11c63b855f92c46c890e952ea8e7192396d9b508ba7be",
     "consult.md": "60f1f164dd66d08e2624739470f333f4ae7cbd19b2023c35e4dd409bc0975e8e",
-    "current.md": "f018590c1c559ace69bbc994bfb3a99360aecd4656c32dda98c47703ec4a722f",
+    "current.md": "e11deb47a5ea2e762245b3cd18bf7629ee89fdc092a30787b8fd6918c7eb4525",
     "record.md": "ada3fb7d5d0fdfdde04516263cc4bd73d91201a3e71f7494417650abafffaaa6",
-    "refresh.md": "d4d354a95fb022d096d3121d1740b0c0252bab22507c22b3cabc8725b1fb7ba9"
+    "refresh.md": "135cb9fffc617ed15c966cef9dee072c21fdd182be91100ce5c6e0fbf66cb96c"
   },
   "skills": {
-    "init-archive/SKILL.md": "2c6f406ddd8fd1ab937ad759e1ab4f388df36d9b2d868884ddad86b2ef35ba9e",
+    "init-archive/SKILL.md": "429659218185ec1b309a5aa2022bdb9d2fefde20297a84c6a51cae5c63a64072",
     "plan-changes/SKILL.md": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79",
     "publish-archive/SKILL.md": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",
-    "record-decision/SKILL.md": "3b33b1ba25c67a3b45c8e7982ea6a3a6693742f6ab00392a816702a9f66d6a7a",
-    "record-feature/SKILL.md": "21bab6aab3ed28b82deb278dc3ec6774539d307f889a557346b4a8c8b79b45b4",
-    "record-rule/SKILL.md": "30c507b5b520680853c46b4ecf3710bd90bb6200c4de3806a04828f30c856bd1",
-    "refresh-archive/SKILL.md": "5fd706ba44519b316ef4b9cf8595d27e03a182cc94138914ba8800df3c8702f7"
+    "record-decision/SKILL.md": "86b3bbf2d76d37e1db2b90ebd7143dabb8223ba8640ded40f75bd541dd898649",
+    "record-feature/SKILL.md": "2710f012ea96b22ea61b855afefed001a51875e1d8bdc06b8a06494580fe1d56",
+    "record-rule/SKILL.md": "df094bcd091e400a2e66a0b47aca0e3deadbe84971c3f455a9ebea14ca0457e2",
+    "refresh-archive/SKILL.md": "7dac8f0a0255e133b39345056f9cca56e9d13332951036a1dc3f1af6eca77bf0"
   }
 }

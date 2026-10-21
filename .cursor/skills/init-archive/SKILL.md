@@ -10,9 +10,9 @@ description: Scan a repository for existing decisions, rules, features, guides, 
 ## 1. Prepare
 
 1. If `.archivist.json` is missing, run `archivist init`.
-2. `archivist import` so typed markdown already on disk is in SQLite. Import never deletes DB-only rows.
-3. `archivist index` so the code map exists. No Ollama.
-4. `status` (MCP or `archivist status`). Continue when records already exist; skip topics search already covers.
+2. MCP `import` so typed markdown already on disk is in SQLite. Import never deletes DB-only rows. `archivist import` only when MCP is unavailable.
+3. MCP `index` so the code map exists. No Ollama. `archivist index` only when MCP is unavailable.
+4. MCP `status`. `archivist status` only when MCP is unavailable. Continue when records already exist; skip topics search already covers.
 
 ## 2. Scan
 
@@ -42,11 +42,8 @@ A scan of this checkout does not use `dev`.
 
 ## 4. Embed
 
-```bash
-archivist embed --once
-archivist export
-```
+Call MCP `embed` with `once` true, then `archivist export`.
 
-`embed --once` drains the queue so hybrid search can use the new records. Skip embed if Ollama is down; keyword search still works. `export` is a no-op unless `records.write_docs` is true.
+`embed` drains the queue so hybrid search can use the new records. Skip embed if Ollama is down; keyword search still works. `archivist embed --once` only when MCP is unavailable. `export` has no MCP tool and is a no-op unless `records.write_docs` is true.
 
 Report what was added, what was already present, and whether embed ran.

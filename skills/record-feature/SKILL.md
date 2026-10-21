@@ -46,4 +46,4 @@ Or MCP `remember` with `type=feature`.
 
    The `--scope global` flag in the example is a product capability. It is not the default for every feature.
 
-   Then `archivist embed --once` if the body changed. Records live in SQLite; `remember` does not write markdown.
+   Then call MCP `embed` with `once` true if the body changed. `archivist embed --once` only when MCP is unavailable. Records live in SQLite; `remember` does not write markdown.
