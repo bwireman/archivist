@@ -64,6 +64,7 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newCiteCmd())
 	root.AddCommand(newTraceCmd())
 	root.AddCommand(newSkillsCmd())
+	root.AddCommand(newReposCmd())
 	wrapArchiveCommandLogs(root)
 	return root
 }
