@@ -140,9 +140,11 @@ func formatEdge(edge repolinks.Edge) string {
 	var b strings.Builder
 	switch edge.Kind {
 	case repolinks.KindRelated:
-		fmt.Fprintf(&b, "related\t%s\t%s", edge.A, edge.B)
+		fmt.Fprintf(&b, "%s\t%s\t%s", edge.Kind, edge.A, edge.B)
+	case repolinks.KindDependsOn:
+		fmt.Fprintf(&b, "%s\t%s\t%s", edge.Kind, edge.From, edge.To)
 	default:
-		fmt.Fprintf(&b, "depends-on\t%s\t%s", edge.From, edge.To)
+		b.WriteString(edge.Kind)
 	}
 	for _, ref := range edge.Records {
 		root := ref.Root

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
@@ -16,11 +15,10 @@ import (
 )
 
 func TestReposLinkRoundTrip(t *testing.T) {
-	realHome, err := os.UserHomeDir()
-	if err != nil || realHome == "" {
-		t.Fatal(err)
+	realLinks := config.RepoLinksPath()
+	if realLinks == "" {
+		t.Fatal("cannot resolve home archive path")
 	}
-	realLinks := filepath.Join(realHome, ".archivist", "repo-links.json")
 	before, beforeErr := os.ReadFile(realLinks)
 	if beforeErr != nil && !os.IsNotExist(beforeErr) {
 		t.Fatal(beforeErr)

@@ -241,10 +241,10 @@ func prepareRecords(primary string, records []RecordRef) ([]RecordRef, error) {
 			return nil, fmt.Errorf("repo links: duplicate record %s", ref.ID)
 		}
 		seen[key] = struct{}{}
-		if err := recordExists(ref); err != nil {
-			return nil, err
-		}
 		out[i] = ref
+	}
+	if err := recordsExist(out); err != nil {
+		return nil, err
 	}
 	slices.SortFunc(out, func(a, b RecordRef) int {
 		if c := cmp.Compare(a.Root, b.Root); c != 0 {
@@ -255,28 +255,48 @@ func prepareRecords(primary string, records []RecordRef) ([]RecordRef, error) {
 	return out, nil
 }
 
-func recordExists(ref RecordRef) error {
-	dbPath := config.HomeStorePath()
-	if ref.Root != "" {
-		dbPath = config.StorePath(ref.Root)
+func recordsExist(refs []RecordRef) error {
+	ids := map[string][]string{}
+	var order []string
+	for _, ref := range refs {
+		dbPath := config.HomeStorePath()
+		if ref.Root != "" {
+			dbPath = config.StorePath(ref.Root)
+		}
+		if dbPath == "" {
+			return errors.New("repo links: cannot resolve home archive path (set $HOME)")
+		}
+		if _, ok := ids[dbPath]; !ok {
+			order = append(order, dbPath)
+		}
+		ids[dbPath] = append(ids[dbPath], ref.ID)
 	}
-	if dbPath == "" {
-		return errors.New("repo links: cannot resolve home archive path (set $HOME)")
+	for _, dbPath := range order {
+		if err := recordsInStore(dbPath, ids[dbPath]); err != nil {
+			return err
+		}
 	}
+	return nil
+}
+
+func recordsInStore(dbPath string, ids []string) error {
 	db, err := store.OpenReadOnly(dbPath)
 	if err != nil {
 		return fmt.Errorf("repo links: %w", err)
 	}
 	defer db.Close()
-	rec, ok, err := db.GetRecordByID(ref.ID)
+	got, err := db.GetRecordsByIDs(ids)
 	if err != nil {
 		return err
 	}
-	if !ok {
-		return fmt.Errorf("repo links: record %s not found", ref.ID)
-	}
-	if !record.ValidType(rec.Type) {
-		return fmt.Errorf("repo links: record %s has type %s", ref.ID, rec.Type)
+	for _, id := range ids {
+		rec, ok := got[id]
+		if !ok {
+			return fmt.Errorf("repo links: record %s not found", id)
+		}
+		if !record.ValidType(rec.Type) {
+			return fmt.Errorf("repo links: record %s has type %s", id, rec.Type)
+		}
 	}
 	return nil
 }
@@ -287,9 +307,6 @@ func save(path string, edges []Edge) error {
 		return err
 	}
 	sortEdges(edges)
-	if edges == nil {
-		edges = []Edge{}
-	}
 	body, err := json.MarshalIndent(file{Links: edges}, "", "  ")
 	if err != nil {
 		return err
