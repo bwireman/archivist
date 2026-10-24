@@ -78,17 +78,29 @@ func Follow(ctx context.Context, e *Engine, embedder embed.Embedder, opts Option
 	for _, edge := range edges {
 		switch edge.Kind {
 		case store.LinkPin:
-			out = append(out, withSearchSource(searchRecordLink(edge, opts.Query, opened), budget))
+			link, err := withSearchSource(searchRecordLink(edge, opts.Query, opened), budget)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, link)
 		case store.LinkRecord:
 			if _, ok := repoHits[edge.FromID]; !ok {
 				continue
 			}
-			out = append(out, withSearchSource(searchRecordLink(edge, opts.Query, opened), budget))
+			link, err := withSearchSource(searchRecordLink(edge, opts.Query, opened), budget)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, link)
 		case store.LinkRepo:
 			if _, ok := repoHits[edge.FromID]; !ok {
 				continue
 			}
-			out = append(out, withSearchSource(searchRepoLink(ctx, e, embedder, opts, edge, opened, repoSearch), budget))
+			link, err := withSearchSource(searchRepoLink(ctx, e, embedder, opts, edge, opened, repoSearch), budget)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, link)
 		}
 	}
 	return out, nil
@@ -130,7 +142,11 @@ func LinksForRecord(repo *store.Store, rec *record.Record) ([]GetLink, error) {
 		case store.LinkRepo:
 			out = append(out, GetLink{Kind: edge.Kind, FromID: edge.FromID, Archive: edge.ToRoot})
 		case store.LinkRecord:
-			out = append(out, withGetSource(getRecordLink(edge, opened), budget))
+			link, err := withGetSource(getRecordLink(edge, opened), budget)
+			if err != nil {
+				return nil, err
+			}
+			out = append(out, link)
 		}
 	}
 	return out, nil
@@ -217,23 +233,28 @@ func recordIn(root, id string, opened map[string]*store.Store) (*record.Record, 
 	return rec, nil
 }
 
-func withSearchSource(link SearchLink, budget *sourceBudget) SearchLink {
-	patterns := sourcePatterns(link)
-	files, omitted := takeSource(link.Archive, patterns, budget)
+func withSearchSource(link SearchLink, budget *sourceBudget) (SearchLink, error) {
+	files, omitted, err := takeSource(link.Archive, sourcePatterns(link), budget)
+	if err != nil {
+		return SearchLink{}, err
+	}
 	link.Files = files
 	link.FilesOmitted = omitted
-	return link
+	return link, nil
 }
 
-func withGetSource(link GetLink, budget *sourceBudget) GetLink {
+func withGetSource(link GetLink, budget *sourceBudget) (GetLink, error) {
 	var patterns []string
 	if link.Record != nil {
 		patterns = link.Record.AppliesTo
 	}
-	files, omitted := takeSource(link.Archive, patterns, budget)
+	files, omitted, err := takeSource(link.Archive, patterns, budget)
+	if err != nil {
+		return GetLink{}, err
+	}
 	link.Files = files
 	link.FilesOmitted = omitted
-	return link
+	return link, nil
 }
 
 func sourcePatterns(link SearchLink) []string {
@@ -249,18 +270,14 @@ func sourcePatterns(link SearchLink) []string {
 	return link.Record.AppliesTo
 }
 
-func takeSource(root string, patterns []string, budget *sourceBudget) ([]SourceFile, bool) {
+func takeSource(root string, patterns []string, budget *sourceBudget) ([]SourceFile, bool, error) {
 	if len(patterns) == 0 {
-		return nil, false
+		return nil, false, nil
 	}
 	if budget.remain() == 0 {
-		return nil, true
+		return nil, true, nil
 	}
-	files, omitted, err := readSource(root, patterns, budget)
-	if err != nil {
-		return nil, false
-	}
-	return files, omitted
+	return readSource(root, patterns, budget)
 }
 
 func openLinked(root string, opened map[string]*store.Store) (*store.Store, error) {

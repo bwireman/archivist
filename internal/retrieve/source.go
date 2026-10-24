@@ -25,7 +25,8 @@ type SourceFile struct {
 }
 
 type sourceBudget struct {
-	used int
+	used    int
+	filters map[string]*index.Filter
 }
 
 func (b *sourceBudget) remain() int {
@@ -44,13 +45,12 @@ func readSource(root string, patterns []string, budget *sourceBudget) ([]SourceF
 	if len(patterns) == 0 || budget == nil || budget.remain() == 0 {
 		return nil, budget != nil && budget.remain() == 0 && len(patterns) > 0, nil
 	}
-	cfg, err := config.Load(root)
+	filter, err := budget.filter(root)
 	if err != nil {
 		return nil, false, err
 	}
-	filter, err := index.NewFilter(root, cfg)
-	if err != nil {
-		return nil, false, err
+	if allLiteral(patterns) {
+		return readLiteral(root, patterns, budget, filter)
 	}
 	var files []SourceFile
 	omitted := false
@@ -108,6 +108,69 @@ func readSource(root string, patterns []string, budget *sourceBudget) ([]SourceF
 	})
 	if err != nil {
 		return nil, false, err
+	}
+	return files, omitted, nil
+}
+
+func (b *sourceBudget) filter(root string) (*index.Filter, error) {
+	if b.filters == nil {
+		b.filters = map[string]*index.Filter{}
+	}
+	if f, ok := b.filters[root]; ok {
+		return f, nil
+	}
+	cfg, err := config.Load(root)
+	if err != nil {
+		return nil, err
+	}
+	f, err := index.NewFilter(root, cfg)
+	if err != nil {
+		return nil, err
+	}
+	b.filters[root] = f
+	return f, nil
+}
+
+func allLiteral(patterns []string) bool {
+	for _, p := range patterns {
+		if strings.ContainsAny(p, "*?[") {
+			return false
+		}
+	}
+	return true
+}
+
+func readLiteral(root string, patterns []string, budget *sourceBudget, filter *index.Filter) ([]SourceFile, bool, error) {
+	var files []SourceFile
+	omitted := false
+	for _, rel := range patterns {
+		rel = filepath.ToSlash(filepath.Clean(rel))
+		if escaped(rel) || filter.SkipFile(rel) {
+			continue
+		}
+		if len(files) >= maxFilesPerRecord || budget.remain() == 0 {
+			return files, true, nil
+		}
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		info, err := os.Lstat(path)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, false, err
+		}
+		if info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		text, _, err := readPrefix(path, min(maxBytesPerFile, budget.remain()))
+		if err != nil {
+			return nil, false, err
+		}
+		if text == "" {
+			continue
+		}
+		budget.used += len(text)
+		files = append(files, SourceFile{Path: rel, Text: text})
 	}
 	return files, omitted, nil
 }
