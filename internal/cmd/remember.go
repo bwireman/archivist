@@ -100,11 +100,7 @@ func newUpdateCmd() *cobra.Command {
 			svc := archive.New(root, cfg, repo, home)
 			svc.ExtraRoots = roots
 			err = svc.Update(args[0], func(r *record.Record) error {
-				var paths []string
-				if appliesTo != "" {
-					paths = check.SplitPathList(appliesTo)
-				}
-				archive.PatchText(r, title, body, status, paths)
+				archive.PatchText(r, title, body, status, check.SplitPathList(appliesTo))
 				return nil
 			})
 			if err != nil {

@@ -76,9 +76,6 @@ func newLinkListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if edges == nil {
-				edges = []store.Link{}
-			}
 			payload := map[string]any{"links": edges}
 			noteResult(cmd, payload)
 			if asJSON {
@@ -99,7 +96,7 @@ func writeLink(kind, from, to string, remove bool) (store.Link, error) {
 	if err != nil {
 		return store.Link{}, err
 	}
-	edge, err := linkFromFlags(root, kind, from, to)
+	edge, err := store.NewLink(root, kind, from, to)
 	if err != nil {
 		return store.Link{}, err
 	}
@@ -115,8 +112,4 @@ func writeLink(kind, from, to string, remove bool) (store.Link, error) {
 		return store.Link{}, err
 	}
 	return edge, nil
-}
-
-func linkFromFlags(primary, kind, from, to string) (store.Link, error) {
-	return store.NewLink(primary, kind, from, to)
 }

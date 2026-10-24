@@ -415,11 +415,7 @@ func (s *Server) toolUpdate(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	defer done()
 	id := req.GetString("id", "")
 	err = svc.Update(id, func(r *record.Record) error {
-		var applies []string
-		if raw := req.GetString("applies_to", ""); raw != "" {
-			applies = check.SplitPathList(raw)
-		}
-		archive.PatchText(r, req.GetString("title", ""), req.GetString("body", ""), req.GetString("status", ""), applies)
+		archive.PatchText(r, req.GetString("title", ""), req.GetString("body", ""), req.GetString("status", ""), check.SplitPathList(req.GetString("applies_to", "")))
 		return nil
 	})
 	if err != nil {
@@ -468,9 +464,6 @@ func (s *Server) toolLinks(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallT
 	edges, err := s.RepoDB.ListLinks()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
-	}
-	if edges == nil {
-		edges = []store.Link{}
 	}
 	return jsonResult(map[string]any{"links": edges})
 }

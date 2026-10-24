@@ -945,12 +945,7 @@ func TestMCPLinkRoundTrip(t *testing.T) {
 	peer := t.TempDir()
 	repoDB := openMCPCheckout(t, primary, "rec_local")
 	_ = openMCPCheckout(t, peer, "rec_remote")
-	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = homeDB.Close() })
-	s := New(primary, config.Default(), repoDB, homeDB, nil)
+	s := New(primary, config.Default(), repoDB, nil, nil)
 
 	callTool(t, s, "link", map[string]any{"kind": "record", "from_id": "rec_local", "to": peer + "#rec_remote"})
 	listed, _ := callTool(t, s, "links", nil).(map[string]any)

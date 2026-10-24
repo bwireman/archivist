@@ -832,14 +832,25 @@ ORDER BY r.id
 
 // EmbedGiveups lists records the worker dropped after repeated embed failures.
 // A database without the table returns an empty list.
-func (s *Store) EmbedGiveups() ([]EmbedGap, error) {
-	var name string
-	err := s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'embed_giveup'`).Scan(&name)
+func (s *Store) tableExists(name string) (bool, error) {
+	var got string
+	err := s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, name).Scan(&got)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, nil
+		return false, nil
 	}
 	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (s *Store) EmbedGiveups() ([]EmbedGap, error) {
+	ok, err := s.tableExists("embed_giveup")
+	if err != nil {
 		return nil, err
+	}
+	if !ok {
+		return nil, nil
 	}
 	rows, err := s.db.Query(`
 SELECT g.record_id, COALESCE(r.title, '')

@@ -1,7 +1,6 @@
 package store
 
 import (
-	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -33,14 +32,14 @@ func (s *Store) ListLinks() ([]Link, error) {
 		return nil, err
 	}
 	if !ok {
-		return nil, nil
+		return []Link{}, nil
 	}
 	rows, err := s.db.Query(`SELECT kind, from_id, to_root, to_id FROM record_links ORDER BY kind, from_id, to_root, to_id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var out []Link
+	out := []Link{}
 	for rows.Next() {
 		var link Link
 		if err := rows.Scan(&link.Kind, &link.FromID, &link.ToRoot, &link.ToID); err != nil {
@@ -189,7 +188,10 @@ func requireCheckout(root string) error {
 	}
 	db := config.StorePath(root)
 	st, err := os.Stat(db)
-	if err != nil || st.IsDir() {
+	if err != nil {
+		return fmt.Errorf("record links: %s: %w", db, err)
+	}
+	if st.IsDir() {
 		return fmt.Errorf("record links: %s has no .archivist/index.db", root)
 	}
 	return nil
@@ -232,13 +234,5 @@ func targetRecordExists(link Link) error {
 }
 
 func (s *Store) hasRecordLinks() (bool, error) {
-	var name string
-	err := s.db.QueryRow(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?`, "record_links").Scan(&name)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, err
-	}
-	return true, nil
+	return s.tableExists("record_links")
 }
