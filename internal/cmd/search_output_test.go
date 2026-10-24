@@ -148,7 +148,7 @@ func TestSearchJSONCompactFullAndLog(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := retrieve.FormatResults(results)
+	want := retrieve.FormatResults(results, nil)
 	if !strings.Contains(want, "Zqxcard fixture") {
 		t.Fatalf("format: %s", want)
 	}
@@ -170,6 +170,17 @@ func runSearch(t *testing.T, root string, args ...string) string {
 		t.Fatalf("search %v: %v\n%s", args, err, stderr.String())
 	}
 	return stdout.String()
+}
+
+func TestFormatResultsLinks(t *testing.T) {
+	text := retrieve.FormatResults(nil, []retrieve.SearchLink{{
+		Kind:    "record",
+		Archive: "/abs/other",
+		Record:  &retrieve.SearchCard{Title: "LinkTitleToken"},
+	}})
+	if !strings.Contains(text, "LinkTitleToken") {
+		t.Fatalf("text %q", text)
+	}
 }
 
 func TestSearchReadsListedArchive(t *testing.T) {

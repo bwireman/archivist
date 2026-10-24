@@ -597,6 +597,24 @@ func call(command string, at time.Time, args, result any) []cmdlog.Entry {
 	}
 }
 
+func TestParseSearchEnvelope(t *testing.T) {
+	// bare-array-and-object
+	hits, kind := parseSearch([]any{map[string]any{"id": "rec_old"}})
+	if kind != "hits" || len(hits) != 1 || hits[0].id != "rec_old" {
+		t.Fatalf("bare array %#v %s", hits, kind)
+	}
+	hits, kind = parseSearch(map[string]any{
+		"results": []any{map[string]any{"id": "rec_new"}},
+		"links":   []any{},
+	})
+	if kind != "hits" || len(hits) != 1 || hits[0].id != "rec_new" {
+		t.Fatalf("object %#v %s", hits, kind)
+	}
+	if _, kind = parseSearch(map[string]any{"truncated": true, "bytes": 1}); kind != "truncated" {
+		t.Fatalf("truncated %s", kind)
+	}
+}
+
 func roundTrip(t *testing.T, v any) any {
 	t.Helper()
 	b, err := json.Marshal(v)

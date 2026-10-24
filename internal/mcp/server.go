@@ -56,7 +56,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
 		annotate("Search archive", true, false, true),
-		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. The card includes a snippet, cosine, applies_to, and superseded_by. Call get for the body. Pass full=true for every stored field."),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, links}. results are the ranked cards; each card includes a snippet, cosine, applies_to, and superseded_by. links are record, pin, and repo edges followed from this checkout. A linked checkout does not need to be listed in archives. Source files are not included. Call get for the body. Pass full=true for every stored field of each ranked hit."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
@@ -65,7 +65,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
 		annotate("Get record", true, false, true),
-		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field."),
+		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field. When the record is in this checkout, links lists its record and repo edges. A record edge includes the full linked record. Lookup also opens a linked checkout when the id or slug is not in this checkout, the home store, or archives."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithBoolean("full", mcp.Description("When true, return every stored field.")),
 	), s.toolGet)
@@ -259,21 +259,46 @@ func (s *Server) toolSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	if req.GetBool("full", false) {
-		return jsonResult(results)
-	}
-	return jsonResult(retrieve.ProjectSearch(results))
-}
-
-func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	rec, err := s.Archive.Get(req.GetString("id", ""))
+	links, err := retrieve.Follow(ctx, s.Engine, s.Embedder, opts, results)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	if req.GetBool("full", false) {
-		return jsonResult(rec)
+	var ranked any = results
+	if !req.GetBool("full", false) {
+		ranked = retrieve.ProjectSearch(results)
 	}
-	return jsonResult(retrieve.ProjectRecord(rec))
+	return jsonResult(retrieve.Envelope(ranked, links))
+}
+
+func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	rec, origin, err := s.Archive.Lookup(req.GetString("id", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	var links []retrieve.GetLink
+	if origin == archive.OriginRepo {
+		links, err = retrieve.LinksForRecord(s.RepoDB, rec)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+	}
+	if req.GetBool("full", false) {
+		if len(links) == 0 {
+			return jsonResult(rec)
+		}
+		return jsonResult(struct {
+			*record.Record
+			Links []retrieve.GetLink `json:"links"`
+		}{rec, links})
+	}
+	card := retrieve.ProjectRecord(rec)
+	if len(links) == 0 {
+		return jsonResult(card)
+	}
+	return jsonResult(struct {
+		retrieve.RecordCard
+		Links []retrieve.GetLink `json:"links"`
+	}{card, links})
 }
 
 func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

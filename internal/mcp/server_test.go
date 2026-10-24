@@ -317,7 +317,7 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 		t.Fatalf("remember: %#v", created)
 	}
 
-	hits, _ := callTool(t, s, "search", map[string]any{"query": "Zqxcard"}).([]any)
+	hits := searchHits(t, callTool(t, s, "search", map[string]any{"query": "Zqxcard"}))
 	if len(hits) != 1 {
 		t.Fatalf("compact search: %#v", hits)
 	}
@@ -333,7 +333,7 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 	}
 	assertJSONKeys(t, got, "id", "slug", "type", "scope", "title", "status", "severity", "body", "tags", "applies_to", "superseded_by")
 
-	fullHits, _ := callTool(t, s, "search", map[string]any{"query": "Zqxcard", "full": true}).([]any)
+	fullHits := searchHits(t, callTool(t, s, "search", map[string]any{"query": "Zqxcard", "full": true}))
 	if len(fullHits) != 1 {
 		t.Fatalf("full search: %#v", fullHits)
 	}
@@ -347,6 +347,20 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 	if fullRec["ContentHash"] == "" || !strings.Contains(fmt.Sprint(fullRec["Body"]), "BODYTOKEN") {
 		t.Fatalf("full get: %#v", fullRec)
 	}
+}
+
+func searchHits(t *testing.T, v any) []any {
+	t.Helper()
+	// mcp-search-links
+	m, ok := v.(map[string]any)
+	if !ok {
+		t.Fatalf("search envelope %#v", v)
+	}
+	hits, _ := m["results"].([]any)
+	if _, ok := m["links"]; !ok {
+		t.Fatalf("search envelope missing links %#v", m)
+	}
+	return hits
 }
 
 func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
@@ -631,7 +645,7 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := New(root, config.Default(), repoRO, homeRO, nil)
-	hits, _ := callTool(t, s, "search", map[string]any{"query": "Frozen query"}).([]any)
+	hits := searchHits(t, callTool(t, s, "search", map[string]any{"query": "Frozen query"}))
 	if len(hits) != 1 {
 		t.Fatalf("search: %#v", hits)
 	}
@@ -679,7 +693,7 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 	}
 	defer homeRO.Close()
 	s = New(root, config.Default(), repoRO, homeRO, nil)
-	hits, _ = callTool(t, s, "search", map[string]any{"query": "Frozen query"}).([]any)
+	hits = searchHits(t, callTool(t, s, "search", map[string]any{"query": "Frozen query"}))
 	if len(hits) != 1 {
 		t.Fatalf("frozen search: %#v", hits)
 	}

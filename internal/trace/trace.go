@@ -476,10 +476,21 @@ func parseSearch(result any) ([]hit, string) {
 	if isTruncated(result) {
 		return nil, "truncated"
 	}
+	if m, ok := asMap(result); ok {
+		arr, ok := asSlice(mapField(m, "results", "Results"))
+		if !ok || len(arr) == 0 {
+			return nil, "empty"
+		}
+		return searchHits(arr)
+	}
 	arr, ok := asSlice(result)
 	if !ok || len(arr) == 0 {
 		return nil, "empty"
 	}
+	return searchHits(arr)
+}
+
+func searchHits(arr []any) ([]hit, string) {
 	var hits []hit
 	for _, item := range arr {
 		m, ok := asMap(item)

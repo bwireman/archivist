@@ -44,7 +44,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
 | `archivist index` | no | Index this checkout's code map + git history (feeds `map`). Does not walk `archives`. |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
-| `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field). Opens existing databases read-only. |
+| `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for `{results, links}`; `--full` with `--json` for every stored field of each ranked hit). `links` follows `record`, `pin`, and `repo` edges. A linked checkout does not need to be listed in `archives`. Source files are not included. Opens existing databases read-only. |
 | `archivist link` | no | Store a `record`, `pin`, or `repo` link in this checkout (`--kind`, `--from`, `--to`). `--to` is `checkout#id` for `record` and `pin`, and `checkout` for `repo`. |
 | `archivist unlink` | no | Remove one link. Same flags as `archivist link`. A missing link succeeds. |
 | `archivist link list` | no | List this checkout's record links (`--json`). |

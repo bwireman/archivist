@@ -296,13 +296,18 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload := any(results)
-			if !full {
-				payload = retrieve.ProjectSearch(results)
+			links, err := retrieve.Follow(cmd.Context(), engine, embedder, opts, results)
+			if err != nil {
+				return err
 			}
+			var ranked any = results
+			if !full {
+				ranked = retrieve.ProjectSearch(results)
+			}
+			payload := retrieve.Envelope(ranked, links)
 			noteResult(cmd, payload)
 			if !asJSON {
-				_, err := fmt.Fprint(cmd.OutOrStdout(), retrieve.FormatResults(results))
+				_, err := fmt.Fprint(cmd.OutOrStdout(), retrieve.FormatResults(results, links))
 				return err
 			}
 			return writeIndentedJSON(cmd.OutOrStdout(), payload)

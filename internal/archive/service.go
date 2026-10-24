@@ -151,13 +151,32 @@ func (s *Service) Retire(id, supersededBy string) error {
 	})
 }
 
+// Origin says which database satisfied a lookup.
+type Origin string
+
+const (
+	OriginRepo  Origin = "repo"
+	OriginOther Origin = "other"
+)
+
 func (s *Service) Get(idOrSlug string) (*record.Record, error) {
-	rec, _, ok, err := s.findPrimary(idOrSlug)
+	rec, _, err := s.Lookup(idOrSlug)
+	return rec, err
+}
+
+// Lookup finds a record in the primary checkout, the home store, listed archives,
+// then any checkout named by a link in this checkout. A link target is one hop:
+// that checkout's own links are not followed.
+func (s *Service) Lookup(idOrSlug string) (*record.Record, Origin, error) {
+	rec, st, ok, err := s.findPrimary(idOrSlug)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	if ok {
-		return rec, nil
+		if st == s.RepoDB {
+			return rec, OriginRepo, nil
+		}
+		return rec, OriginOther, nil
 	}
 	for _, ex := range s.Extras {
 		if ex.DB == nil {
@@ -165,13 +184,61 @@ func (s *Service) Get(idOrSlug string) (*record.Record, error) {
 		}
 		got, found, err := ex.DB.GetRecordByID(idOrSlug)
 		if err != nil {
+			return nil, "", err
+		}
+		if found {
+			return got, OriginOther, nil
+		}
+	}
+	got, err := s.recordFromLinks(idOrSlug)
+	if err != nil {
+		return nil, "", err
+	}
+	if got != nil {
+		return got, OriginOther, nil
+	}
+	return nil, "", fmt.Errorf("record not found: %s", idOrSlug)
+}
+
+func (s *Service) recordFromLinks(idOrSlug string) (*record.Record, error) {
+	if s.RepoDB == nil {
+		return nil, nil
+	}
+	edges, err := s.RepoDB.ListLinks()
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]struct{}{}
+	for _, edge := range edges {
+		if edge.ToRoot == "" {
+			continue
+		}
+		if _, ok := seen[edge.ToRoot]; ok {
+			continue
+		}
+		seen[edge.ToRoot] = struct{}{}
+		db, err := store.OpenReadOnly(config.StorePath(edge.ToRoot))
+		if err != nil {
+			continue
+		}
+		got, found, err := db.GetRecordByID(idOrSlug)
+		if err != nil {
+			_ = db.Close()
 			return nil, err
 		}
+		if !found {
+			got, found, err = db.GetRecordBySlug(idOrSlug)
+			if err != nil {
+				_ = db.Close()
+				return nil, err
+			}
+		}
+		_ = db.Close()
 		if found {
 			return got, nil
 		}
 	}
-	return nil, fmt.Errorf("record not found: %s", idOrSlug)
+	return nil, nil
 }
 
 func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bool, error) {

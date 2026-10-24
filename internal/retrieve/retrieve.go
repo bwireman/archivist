@@ -316,7 +316,7 @@ func rrfScore(ftsRank, vectorRank int) float64 {
 	return score
 }
 
-func FormatResults(results []Result) string {
+func FormatResults(results []Result, links []SearchLink) string {
 	var b strings.Builder
 	for i, r := range results {
 		if i > 0 {
@@ -333,6 +333,22 @@ func FormatResults(results []Result) string {
 	}
 	if len(results) == 0 {
 		b.WriteString("No results.\n")
+	}
+	if len(links) == 0 {
+		return b.String()
+	}
+	b.WriteString("\nLinks\n")
+	for _, link := range links {
+		title := link.Kind
+		switch {
+		case link.Record != nil && link.Record.Title != "":
+			title = link.Record.Title
+		case len(link.Hits) > 0 && link.Hits[0].Title != "":
+			title = link.Hits[0].Title
+		case link.Missing != "":
+			title = link.Missing
+		}
+		fmt.Fprintf(&b, "%s\t%s\t%s\n", link.Kind, link.Archive, title)
 	}
 	return b.String()
 }
