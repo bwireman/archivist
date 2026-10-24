@@ -56,7 +56,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
 		annotate("Search archive", true, false, true),
-		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, links}. results are the ranked cards; each card includes a snippet, cosine, applies_to, and superseded_by. links are record, pin, and repo edges followed from this checkout. A linked checkout does not need to be listed in archives. Source files are not included. Call get for the body. Pass full=true for every stored field of each ranked hit."),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, links}. results are the ranked cards; each card includes a snippet, cosine, applies_to, and superseded_by. links are record, pin, and repo edges followed from this checkout. A linked checkout does not need to be listed in archives. Followed records include source files named by applies_to, at most 4 files and 2KiB each, and 24KiB for the whole response. Call get for the body. Pass full=true for every stored field of each ranked hit."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
@@ -65,7 +65,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
 		annotate("Get record", true, false, true),
-		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field. When the record is in this checkout, links lists its record and repo edges. A record edge includes the full linked record. Lookup also opens a linked checkout when the id or slug is not in this checkout, the home store, or archives."),
+		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field. When the record is in this checkout, links lists its record and repo edges. A record edge includes the full linked record and source files named by that record's applies_to (at most 4 files, 2KiB each, 24KiB for the response). A repo edge has no source. Lookup also opens a linked checkout when the id or slug is not in this checkout, the home store, or archives."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithBoolean("full", mcp.Description("When true, return every stored field.")),
 	), s.toolGet)

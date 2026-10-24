@@ -13,22 +13,26 @@ import (
 // SearchLink is one followed edge on a search response.
 // record and pin carry a search card. repo carries search cards in hits.
 type SearchLink struct {
-	Kind    string       `json:"kind"`
-	FromID  string       `json:"from_id,omitempty"`
-	Archive string       `json:"archive,omitempty"`
-	Record  *SearchCard  `json:"record,omitempty"`
-	Hits    []SearchCard `json:"hits,omitempty"`
-	Missing string       `json:"missing,omitempty"`
+	Kind         string       `json:"kind"`
+	FromID       string       `json:"from_id,omitempty"`
+	Archive      string       `json:"archive,omitempty"`
+	Record       *SearchCard  `json:"record,omitempty"`
+	Hits         []SearchCard `json:"hits,omitempty"`
+	Files        []SourceFile `json:"files,omitempty"`
+	FilesOmitted bool         `json:"files_omitted,omitempty"`
+	Missing      string       `json:"missing,omitempty"`
 }
 
 // GetLink is one edge attached to a record found in this checkout.
 // record edges carry the full record. repo edges carry only the checkout.
 type GetLink struct {
-	Kind    string      `json:"kind"`
-	FromID  string      `json:"from_id,omitempty"`
-	Archive string      `json:"archive,omitempty"`
-	Record  *RecordCard `json:"record,omitempty"`
-	Missing string      `json:"missing,omitempty"`
+	Kind         string       `json:"kind"`
+	FromID       string       `json:"from_id,omitempty"`
+	Archive      string       `json:"archive,omitempty"`
+	Record       *RecordCard  `json:"record,omitempty"`
+	Files        []SourceFile `json:"files,omitempty"`
+	FilesOmitted bool         `json:"files_omitted,omitempty"`
+	Missing      string       `json:"missing,omitempty"`
 }
 
 type SearchEnvelope struct {
@@ -69,21 +73,22 @@ func Follow(ctx context.Context, e *Engine, embedder embed.Embedder, opts Option
 		}
 	}()
 	repoSearch := map[string]SearchLink{}
+	budget := &sourceBudget{}
 	out := []SearchLink{}
 	for _, edge := range edges {
 		switch edge.Kind {
 		case store.LinkPin:
-			out = append(out, searchRecordLink(edge, opts.Query, opened))
+			out = append(out, withSearchSource(searchRecordLink(edge, opts.Query, opened), budget))
 		case store.LinkRecord:
 			if _, ok := repoHits[edge.FromID]; !ok {
 				continue
 			}
-			out = append(out, searchRecordLink(edge, opts.Query, opened))
+			out = append(out, withSearchSource(searchRecordLink(edge, opts.Query, opened), budget))
 		case store.LinkRepo:
 			if _, ok := repoHits[edge.FromID]; !ok {
 				continue
 			}
-			out = append(out, searchRepoLink(ctx, e, embedder, opts, edge, opened, repoSearch))
+			out = append(out, withSearchSource(searchRepoLink(ctx, e, embedder, opts, edge, opened, repoSearch), budget))
 		}
 	}
 	return out, nil
@@ -115,6 +120,7 @@ func LinksForRecord(repo *store.Store, rec *record.Record) ([]GetLink, error) {
 			_ = db.Close()
 		}
 	}()
+	budget := &sourceBudget{}
 	out := []GetLink{}
 	for _, edge := range edges {
 		if edge.FromID != rec.ID {
@@ -124,7 +130,7 @@ func LinksForRecord(repo *store.Store, rec *record.Record) ([]GetLink, error) {
 		case store.LinkRepo:
 			out = append(out, GetLink{Kind: edge.Kind, FromID: edge.FromID, Archive: edge.ToRoot})
 		case store.LinkRecord:
-			out = append(out, getRecordLink(edge, opened))
+			out = append(out, withGetSource(getRecordLink(edge, opened), budget))
 		}
 	}
 	return out, nil
@@ -209,6 +215,52 @@ func recordIn(root, id string, opened map[string]*store.Store) (*record.Record, 
 		return nil, fmt.Errorf("record links: record %s not found", id)
 	}
 	return rec, nil
+}
+
+func withSearchSource(link SearchLink, budget *sourceBudget) SearchLink {
+	patterns := sourcePatterns(link)
+	files, omitted := takeSource(link.Archive, patterns, budget)
+	link.Files = files
+	link.FilesOmitted = omitted
+	return link
+}
+
+func withGetSource(link GetLink, budget *sourceBudget) GetLink {
+	var patterns []string
+	if link.Record != nil {
+		patterns = link.Record.AppliesTo
+	}
+	files, omitted := takeSource(link.Archive, patterns, budget)
+	link.Files = files
+	link.FilesOmitted = omitted
+	return link
+}
+
+func sourcePatterns(link SearchLink) []string {
+	if link.Kind == store.LinkRepo {
+		if len(link.Hits) == 0 {
+			return nil
+		}
+		return link.Hits[0].AppliesTo
+	}
+	if link.Record == nil {
+		return nil
+	}
+	return link.Record.AppliesTo
+}
+
+func takeSource(root string, patterns []string, budget *sourceBudget) ([]SourceFile, bool) {
+	if len(patterns) == 0 {
+		return nil, false
+	}
+	if budget.remain() == 0 {
+		return nil, true
+	}
+	files, omitted, err := readSource(root, patterns, budget)
+	if err != nil {
+		return nil, false
+	}
+	return files, omitted
 }
 
 func openLinked(root string, opened map[string]*store.Store) (*store.Store, error) {

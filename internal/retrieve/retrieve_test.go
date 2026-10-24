@@ -2,10 +2,13 @@ package retrieve_test
 
 import (
 	"context"
+	"encoding/json"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
 	"github.com/bwireman/archivist/internal/store"
@@ -652,5 +655,153 @@ func TestSearchWrongDimStaysKeywordSource(t *testing.T) {
 	}
 	if len(results) != 1 || results[0].Source != retrieve.SourceFTS {
 		t.Fatalf("results %+v", results)
+	}
+}
+
+func TestLinkSourceSkipsIgnored(t *testing.T) {
+	// symlink-escapes-checkout
+	primary := t.TempDir()
+	peer := t.TempDir()
+	outside := t.TempDir()
+	if err := os.WriteFile(filepath.Join(outside, "secret.go"), []byte("package outside\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(peer, ".gitignore"), []byte("secret.go\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(peer, "keep.go"), []byte("package keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(peer, "secret.go"), []byte("package secret\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(peer, "pic.png"), []byte("not-text"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(filepath.Join(outside, "secret.go"), filepath.Join(peer, "escape.go")); err != nil {
+		t.Fatal(err)
+	}
+	repo := openSourceDB(t, primary)
+	peerDB := openSourceDB(t, peer)
+	mustSeed(t, repo, &record.Record{
+		ID: "rec_local", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "local", Slug: "local", Status: record.StatusAccepted,
+		Body: "local", SourcePath: "docs/local.md",
+	})
+	mustSeed(t, peerDB, &record.Record{
+		ID: "rec_remote", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "remote", Slug: "remote", Status: record.StatusAccepted,
+		Body: "remote", SourcePath: "docs/remote.md",
+		AppliesTo: []string{"*.go", "*.png"},
+	})
+	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkPin, ToRoot: peer, ToID: "rec_remote"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := retrieve.Follow(context.Background(), &retrieve.Engine{Repo: repo}, nil, retrieve.Options{Query: "remote"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || len(got[0].Files) != 1 || got[0].Files[0].Path != "keep.go" || !strings.Contains(got[0].Files[0].Text, "package keep") {
+		t.Fatalf("files %#v", got)
+	}
+	blob, _ := json.Marshal(got[0])
+	if strings.Contains(string(blob), "package secret") || strings.Contains(string(blob), "package outside") || strings.Contains(string(blob), "not-text") {
+		t.Fatalf("skipped file leaked %s", blob)
+	}
+}
+
+func TestLinkSourceCap(t *testing.T) {
+	primary := t.TempDir()
+	peer := t.TempDir()
+	for _, name := range []string{"a.go", "b.go", "c.go", "d.go", "e.go"} {
+		if err := os.WriteFile(filepath.Join(peer, name), []byte("package "+name+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	repo := openSourceDB(t, primary)
+	peerDB := openSourceDB(t, peer)
+	mustSeed(t, peerDB, &record.Record{
+		ID: "rec_remote", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "remote", Slug: "remote", Status: record.StatusAccepted,
+		Body: "remote", SourcePath: "docs/remote.md",
+		AppliesTo: []string{"*.go"},
+	})
+	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkPin, ToRoot: peer, ToID: "rec_remote"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := retrieve.Follow(context.Background(), &retrieve.Engine{Repo: repo}, nil, retrieve.Options{Query: "remote"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || len(got[0].Files) != 4 || !got[0].FilesOmitted {
+		t.Fatalf("cap %#v", got)
+	}
+	blob, _ := json.Marshal(got[0])
+	if !strings.Contains(string(blob), "files_omitted") {
+		t.Fatalf("files_omitted missing %s", blob)
+	}
+}
+
+func TestGetRecordLinkSource(t *testing.T) {
+	// get-record-link-source
+	primary := t.TempDir()
+	peer := t.TempDir()
+	if err := os.WriteFile(filepath.Join(peer, "keep.go"), []byte("package keep\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repo := openSourceDB(t, primary)
+	peerDB := openSourceDB(t, peer)
+	mustSeed(t, repo, &record.Record{
+		ID: "rec_local", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "local", Slug: "local", Status: record.StatusAccepted,
+		Body: "local", SourcePath: "docs/local.md",
+	})
+	mustSeed(t, peerDB, &record.Record{
+		ID: "rec_remote", Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: "remote", Slug: "remote", Status: record.StatusAccepted,
+		Body: "remote", SourcePath: "docs/remote.md",
+		AppliesTo: []string{"keep.go"},
+	})
+	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkRecord, FromID: "rec_local", ToRoot: peer, ToID: "rec_remote"}); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkRepo, FromID: "rec_local", ToRoot: peer}); err != nil {
+		t.Fatal(err)
+	}
+	links, err := retrieve.LinksForRecord(repo, &record.Record{ID: "rec_local"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recordLink, repoLink *retrieve.GetLink
+	for i := range links {
+		switch links[i].Kind {
+		case store.LinkRecord:
+			recordLink = &links[i]
+		case store.LinkRepo:
+			repoLink = &links[i]
+		}
+	}
+	if recordLink == nil || len(recordLink.Files) != 1 || !strings.Contains(recordLink.Files[0].Text, "package keep") {
+		t.Fatalf("record link %#v", recordLink)
+	}
+	if repoLink == nil || len(repoLink.Files) != 0 {
+		t.Fatalf("repo link %#v", repoLink)
+	}
+}
+
+func openSourceDB(t *testing.T, dir string) *store.Store {
+	t.Helper()
+	db, err := store.Open(config.StorePath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	return db
+}
+
+func mustSeed(t *testing.T, db *store.Store, rec *record.Record) {
+	t.Helper()
+	if err := db.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
 	}
 }
