@@ -39,10 +39,14 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record))
+	link, err := ruletmpl.FS.ReadFile("link.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record)) + "\n\n" + strings.TrimSpace(string(link))
 	got := agentInstructions()
 	if got != want {
-		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/cite.md + rules/ask.md + rules/record.md")
+		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/cite.md + rules/ask.md + rules/record.md + rules/link.md")
 	}
 	for _, needle := range []string{
 		"Consult the archive",

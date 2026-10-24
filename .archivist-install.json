@@ -1,18 +1,19 @@
 {
   "version": "0.1.0",
-  "commit": "3b0645ee80d7e95498a51f16f8b2c93345ba5789",
   "target": "cursor",
   "rules": {
     "ask.md": "e4f3aafd07ddb95752dd069ed978e10741c469b86be5fef7bdaea6b2810f836b",
     "cite.md": "ed92687e0d5e92c094c11c63b855f92c46c890e952ea8e7192396d9b508ba7be",
     "consult.md": "60f1f164dd66d08e2624739470f333f4ae7cbd19b2023c35e4dd409bc0975e8e",
     "current.md": "e11deb47a5ea2e762245b3cd18bf7629ee89fdc092a30787b8fd6918c7eb4525",
-    "record.md": "ada3fb7d5d0fdfdde04516263cc4bd73d91201a3e71f7494417650abafffaaa6",
+    "link.md": "4918f53f1e2b72e4679a3c0b6936bded915168d86bd52025beae95628509e64f",
+    "record.md": "e27cf241d8a37b2a7a831ea0603d092048b310fabdd97e2fc3b84043fb8998f4",
     "refresh.md": "135cb9fffc617ed15c966cef9dee072c21fdd182be91100ce5c6e0fbf66cb96c"
   },
   "skills": {
     "init-archive/SKILL.md": "429659218185ec1b309a5aa2022bdb9d2fefde20297a84c6a51cae5c63a64072",
-    "plan-changes/SKILL.md": "ae732468ce519ba5cbd869a4b7cbfa8060a5a9acd6ddf4212d6e4b985a805c79",
+    "link-records/SKILL.md": "e77f160e093873d970f542975a0716c3c5754318f9d7fda5fbda62280e0d402f",
+    "plan-changes/SKILL.md": "3e691cee2cc06943a4fbbdafa77a5339ab815748c70027653a608e3d6c829764",
     "publish-archive/SKILL.md": "8611bade828339106c5e2f4ac69714f8b1a94e8b2e95c0fe6af892ff8394d6e9",
     "record-decision/SKILL.md": "86b3bbf2d76d37e1db2b90ebd7143dabb8223ba8640ded40f75bd541dd898649",
     "record-feature/SKILL.md": "2710f012ea96b22ea61b855afefed001a51875e1d8bdc06b8a06494580fe1d56",

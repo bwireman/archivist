@@ -88,6 +88,6 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `add-map` | Packages and how they connect |
 | `add-pitfall` | Confirmed gotcha |
 
-Initialize `instructions` are the consult, cite, ask, and record rule templates, so MCP-only hosts still look things up, cite a record that changed the work, ask when a choice or preference is unsettled, and write a short record when a later session would look it up.
+Initialize `instructions` are the consult, cite, ask, record, and link rule templates, so MCP-only hosts still look things up, cite a record that changed the work, ask when a choice or preference is unsettled, write a short record when a later session would look it up, and link a record in another checkout when it would help.
 
 Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search includes a snippet, cosine, applies_to, and superseded_by, and get keeps the body while dropping hash, timestamps, provenance, and source path. Call `get` for the body. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.

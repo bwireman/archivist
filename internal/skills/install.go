@@ -376,6 +376,8 @@ func cursorRuleDescription(name string) string {
 		return "Ask the user when a choice or preference is unsettled after archive search"
 	case "cite":
 		return "Cite an Archivist record that changed the work before the turn ends"
+	case "link":
+		return "Link a record in another checkout when it would help a later session in this one"
 	default:
 		return "Archivist rule " + name
 	}

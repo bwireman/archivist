@@ -5,12 +5,13 @@ description: >
   stop before phase 1. A later accept only sets Status: accepted. A later
   continue implements the first pending phase and stops. Use when planning
   work, or when the user accepts, revises, or continues a file in .archivist/plans/.
-  The planning turn does not write archive records.
+  The planning turn does not write archive records. Do not call link or unlink
+  on that turn.
 ---
 
 # Plan a change
 
-Search the archive before asking. The always-on ask rule handles one unsettled user-facing choice or missing preference. This skill is the full interview. The planning turn stops before phase 1.
+Search the archive before asking. The always-on ask rule handles one unsettled user-facing choice or missing preference. This skill is the full interview. The planning turn stops before phase 1. Do not call `link` or `unlink` on that turn.
 
 ## 1. Source the archive
 

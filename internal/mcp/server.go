@@ -226,7 +226,7 @@ func mcpLogResult(res *mcp.CallToolResult) any {
 // agentInstructions is returned on MCP initialize so hosts without skills
 // install still consult the archive, cite a record that changed the work, ask when a gap is unsettled, and distill lasting facts.
 func agentInstructions() string {
-	return mustRule("consult.md") + "\n\n" + mustRule("cite.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md")
+	return mustRule("consult.md") + "\n\n" + mustRule("cite.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md") + "\n\n" + mustRule("link.md")
 }
 
 func mustRule(name string) string {

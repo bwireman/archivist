@@ -4,7 +4,7 @@ Scan this conversation for anything a later session would look up. When that fac
 
 When search returns nothing and this turn answers the question, remember that answer.
 
-On a plan-changes planning turn, do not remember, update, or retire, including interview answers. Those writes happen only in the accepted phase the plan names. This ban wins over the same-turn write above.
+On a plan-changes planning turn, do not remember, update, or retire, including interview answers. Do not call `link` or `unlink` on that turn. Those writes happen only in the accepted phase the plan names. This ban wins over the same-turn write above.
 
 - `decision` — a real choice among alternatives (Context, Decision, Consequences).
 - `rule` — must/must-not or should/should-not that future work should follow.
