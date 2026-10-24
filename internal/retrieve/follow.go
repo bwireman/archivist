@@ -31,7 +31,6 @@ type GetLink struct {
 	Missing string      `json:"missing,omitempty"`
 }
 
-// SearchEnvelope is the CLI --json and MCP search payload.
 type SearchEnvelope struct {
 	Results any          `json:"results"`
 	Links   []SearchLink `json:"links"`
@@ -69,21 +68,22 @@ func Follow(ctx context.Context, e *Engine, embedder embed.Embedder, opts Option
 			_ = db.Close()
 		}
 	}()
+	repoSearch := map[string]SearchLink{}
 	out := []SearchLink{}
 	for _, edge := range edges {
 		switch edge.Kind {
 		case store.LinkPin:
-			out = append(out, searchRecordLink(edge, "", opts.Query, opened))
+			out = append(out, searchRecordLink(edge, opts.Query, opened))
 		case store.LinkRecord:
 			if _, ok := repoHits[edge.FromID]; !ok {
 				continue
 			}
-			out = append(out, searchRecordLink(edge, edge.FromID, opts.Query, opened))
+			out = append(out, searchRecordLink(edge, opts.Query, opened))
 		case store.LinkRepo:
 			if _, ok := repoHits[edge.FromID]; !ok {
 				continue
 			}
-			out = append(out, searchRepoLink(ctx, e, embedder, opts, edge, opened))
+			out = append(out, searchRepoLink(ctx, e, embedder, opts, edge, opened, repoSearch))
 		}
 	}
 	return out, nil
@@ -149,31 +149,38 @@ func repoHitIDs(repo *store.Store, results []Result) (map[string]struct{}, error
 	return out, nil
 }
 
-func searchRecordLink(edge store.Link, fromID, query string, opened map[string]*store.Store) SearchLink {
-	link := SearchLink{Kind: edge.Kind, FromID: fromID, Archive: edge.ToRoot}
+func searchRecordLink(edge store.Link, query string, opened map[string]*store.Store) SearchLink {
+	link := SearchLink{Kind: edge.Kind, FromID: edge.FromID, Archive: edge.ToRoot}
 	rec, err := recordIn(edge.ToRoot, edge.ToID, opened)
 	if err != nil {
 		link.Missing = err.Error()
 		return link
 	}
-	card := cardFor(rec, query)
-	link.Record = &card
+	cards := ProjectSearch([]Result{{Record: rec, Snippet: Snippet(rec.Body, query)}})
+	link.Record = &cards[0]
 	return link
 }
 
-func searchRepoLink(ctx context.Context, parent *Engine, embedder embed.Embedder, opts Options, edge store.Link, opened map[string]*store.Store) SearchLink {
+func searchRepoLink(ctx context.Context, parent *Engine, embedder embed.Embedder, opts Options, edge store.Link, opened map[string]*store.Store, cache map[string]SearchLink) SearchLink {
+	if prev, ok := cache[edge.ToRoot]; ok {
+		prev.FromID = edge.FromID
+		return prev
+	}
 	link := SearchLink{Kind: edge.Kind, FromID: edge.FromID, Archive: edge.ToRoot}
 	db, err := openLinked(edge.ToRoot, opened)
 	if err != nil {
 		link.Missing = err.Error()
+		cache[edge.ToRoot] = link
 		return link
 	}
 	hits, err := RepoEngine(parent, db).Search(ctx, embedder, opts)
 	if err != nil {
 		link.Missing = err.Error()
+		cache[edge.ToRoot] = link
 		return link
 	}
 	link.Hits = ProjectSearch(hits)
+	cache[edge.ToRoot] = link
 	return link
 }
 
@@ -214,12 +221,4 @@ func openLinked(root string, opened map[string]*store.Store) (*store.Store, erro
 	}
 	opened[root] = db
 	return db, nil
-}
-
-func cardFor(rec *record.Record, query string) SearchCard {
-	cards := ProjectSearch([]Result{{
-		Record:  rec,
-		Snippet: Snippet(rec.Body, query),
-	}})
-	return cards[0]
 }

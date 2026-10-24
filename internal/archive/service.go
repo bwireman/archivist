@@ -4,6 +4,7 @@ package archive
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -219,7 +220,10 @@ func (s *Service) recordFromLinks(idOrSlug string) (*record.Record, error) {
 		seen[edge.ToRoot] = struct{}{}
 		db, err := store.OpenReadOnly(config.StorePath(edge.ToRoot))
 		if err != nil {
-			continue
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, err
 		}
 		got, found, err := db.GetRecordByID(idOrSlug)
 		if err != nil {
