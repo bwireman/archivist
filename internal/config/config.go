@@ -321,16 +321,6 @@ func ArchivistHome() string {
 	return filepath.Join(home, DefaultDataDir)
 }
 
-// RepoLinksPath is the machine-local checkout graph, ~/.archivist/repo-links.json.
-// An empty home directory yields an empty path.
-func RepoLinksPath() string {
-	home := ArchivistHome()
-	if home == "" {
-		return ""
-	}
-	return filepath.Join(home, "repo-links.json")
-}
-
 func HomeStorePath() string {
 	home := ArchivistHome()
 	if home == "" {

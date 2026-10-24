@@ -271,6 +271,14 @@ CREATE TABLE IF NOT EXISTS commits (
     authored_at TEXT,
     indexed_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS record_links (
+    kind TEXT NOT NULL,
+    from_id TEXT NOT NULL DEFAULT '',
+    to_root TEXT NOT NULL,
+    to_id TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (kind, from_id, to_root, to_id)
+);
 `
 	if _, err := s.db.Exec(schema); err != nil {
 		return err

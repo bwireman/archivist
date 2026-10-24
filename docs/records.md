@@ -45,6 +45,9 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist index` | no | Index this checkout's code map + git history (feeds `map`). Does not walk `archives`. |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
 | `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for the search card; `--full` with `--json` for every stored field). Opens existing databases read-only. |
+| `archivist link` | no | Store a `record`, `pin`, or `repo` link in this checkout (`--kind`, `--from`, `--to`). `--to` is `checkout#id` for `record` and `pin`, and `checkout` for `repo`. |
+| `archivist unlink` | no | Remove one link. Same flags as `archivist link`. A missing link succeeds. |
+| `archivist link list` | no | List this checkout's record links (`--json`). |
 | `archivist map <query>` | no | Explore the code map: symbols, imports, importers, commits. Also reads listed `archives`; does not index them. |
 | `archivist check` | optional | Match rules to a change |
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |

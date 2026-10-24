@@ -465,6 +465,18 @@ func insertOrphan(t *testing.T, path string) {
 	}
 }
 
+func TestPatchTextReplacesAppliesTo(t *testing.T) {
+	rec := &record.Record{AppliesTo: []string{"old/**"}}
+	PatchText(rec, "", "", "", nil)
+	if len(rec.AppliesTo) != 1 || rec.AppliesTo[0] != "old/**" {
+		t.Fatalf("empty applies_to changed the list: %#v", rec.AppliesTo)
+	}
+	PatchText(rec, "Title", "", "", []string{"internal/store/**", "internal/cmd/link.go"})
+	if rec.Title != "Title" || len(rec.AppliesTo) != 2 || rec.AppliesTo[1] != "internal/cmd/link.go" {
+		t.Fatalf("patch %#v", rec)
+	}
+}
+
 func hasOrphan(t *testing.T, path string) bool {
 	t.Helper()
 	db, err := sql.Open("sqlite", path)

@@ -64,7 +64,10 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `check` | Rules for a change (`description`, `paths`, `diff`) |
 | `map` | Explore the code map: matching symbols and files, the imports those files declare, the files importing the query, and recent commits mentioning it (`query`, optional `limit`). The top level is this checkout. Listed `archives` are returned under `archives` and are not indexed by this call. |
 | `remember` | Create a record in SQLite after search shows a gap (`type` is `decision`, `rule`, `feature`, `guide`, `map`, or `pitfall`). Optional `archive` is the listed checkout a repo record is about; omit it when that context is the process checkout. Distill lasting facts; do not dump chat. No markdown file. |
-| `update` | Amend title, body, or status in place (prefer over a parallel `remember`) |
+| `update` | Amend title, body, status, or `applies_to` in place (prefer over a parallel `remember`). Empty `applies_to` leaves the list unchanged. |
+| `link` | Store a `record`, `pin`, or `repo` link in this checkout (`kind`, `from_id`, `to`). `to` is `checkout#id` for `record` and `pin`, and `checkout` for `repo`. A duplicate succeeds. |
+| `unlink` | Remove one link. Same arguments as `link`. A missing link succeeds. |
+| `links` | List this checkout's record links. A missing table returns `{"links":[]}`. |
 | `retire` | Mark superseded when a later choice replaces it |
 | `cite` | Optional. Record that a retrieved record changed the work (`id`, one-line `effect`). Requires `log_commands`. |
 | `import` | Upsert typed markdown into SQLite (no prune) |

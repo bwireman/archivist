@@ -225,7 +225,7 @@ func (s *Service) devDir() string {
 	return (&config.Config{Records: s.Records}).DevRecordsDir()
 }
 
-func PatchText(r *record.Record, title, body, status string) {
+func PatchText(r *record.Record, title, body, status string, appliesTo []string) {
 	if title != "" {
 		r.Title = title
 	}
@@ -234,6 +234,9 @@ func PatchText(r *record.Record, title, body, status string) {
 	}
 	if status != "" {
 		r.Status = record.Status(status)
+	}
+	if len(appliesTo) > 0 {
+		r.AppliesTo = append([]string(nil), appliesTo...)
 	}
 }
 

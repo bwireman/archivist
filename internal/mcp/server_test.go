@@ -95,6 +95,9 @@ func TestToolAnnotations(t *testing.T) {
 		"index":    toolAnnotation("Index code map", false, true, true),
 		"embed":    toolAnnotation("Embed records", false, true, true),
 		"cite":     toolAnnotation("Cite record", false, false, false),
+		"link":     toolAnnotation("Link records", false, true, true),
+		"unlink":   toolAnnotation("Unlink records", false, true, true),
+		"links":    toolAnnotation("List record links", true, false, true),
 	}
 	listed := srv.ListTools()
 	if len(listed) != len(want) {
@@ -374,6 +377,12 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 		res, err = s.toolIndex(context.Background(), req)
 	case "embed":
 		res, err = s.toolEmbed(context.Background(), req)
+	case "link":
+		res, err = s.toolLink(context.Background(), req)
+	case "unlink":
+		res, err = s.toolUnlink(context.Background(), req)
+	case "links":
+		res, err = s.toolLinks(context.Background(), req)
 	default:
 		t.Fatalf("unknown tool %s", name)
 	}
@@ -928,6 +937,51 @@ func symbolNamed(t *testing.T, st *store.Store, path, name string) bool {
 		}
 	}
 	return false
+}
+
+func TestMCPLinkRoundTrip(t *testing.T) {
+	// mcp-link-roundtrip
+	primary := t.TempDir()
+	peer := t.TempDir()
+	repoDB := openMCPCheckout(t, primary, "rec_local")
+	_ = openMCPCheckout(t, peer, "rec_remote")
+	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = homeDB.Close() })
+	s := New(primary, config.Default(), repoDB, homeDB, nil)
+
+	callTool(t, s, "link", map[string]any{"kind": "record", "from_id": "rec_local", "to": peer + "#rec_remote"})
+	listed, _ := callTool(t, s, "links", nil).(map[string]any)
+	rows, _ := listed["links"].([]any)
+	if len(rows) != 1 {
+		t.Fatalf("links %#v", listed)
+	}
+	callTool(t, s, "unlink", map[string]any{"kind": "record", "from_id": "rec_local", "to": peer + "#rec_remote"})
+	listed, _ = callTool(t, s, "links", nil).(map[string]any)
+	rows, _ = listed["links"].([]any)
+	if len(rows) != 0 {
+		t.Fatalf("after unlink %#v", listed)
+	}
+}
+
+func openMCPCheckout(t *testing.T, dir, id string) *store.Store {
+	t.Helper()
+	db, err := store.Open(config.StorePath(dir))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	rec := &record.Record{
+		ID: id, Type: record.TypeFeature, Scope: record.ScopeRepo,
+		Title: id, Slug: id, Status: record.StatusAccepted,
+		Body: "body", SourcePath: "docs/" + id + ".md",
+	}
+	if err := db.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	return db
 }
 
 func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {

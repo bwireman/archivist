@@ -76,7 +76,7 @@ func newRememberCmd() *cobra.Command {
 }
 
 func newUpdateCmd() *cobra.Command {
-	var title, body, status string
+	var title, body, status, appliesTo string
 	var asJSON bool
 	cmd := &cobra.Command{
 		Use:   "update <id>",
@@ -100,7 +100,11 @@ func newUpdateCmd() *cobra.Command {
 			svc := archive.New(root, cfg, repo, home)
 			svc.ExtraRoots = roots
 			err = svc.Update(args[0], func(r *record.Record) error {
-				archive.PatchText(r, title, body, status)
+				var paths []string
+				if appliesTo != "" {
+					paths = check.SplitPathList(appliesTo)
+				}
+				archive.PatchText(r, title, body, status, paths)
 				return nil
 			})
 			if err != nil {
@@ -117,6 +121,7 @@ func newUpdateCmd() *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "new title")
 	cmd.Flags().StringVar(&body, "body", "", "new body")
 	cmd.Flags().StringVar(&status, "status", "", "new status")
+	cmd.Flags().StringVar(&appliesTo, "applies-to", "", "comma- or newline-separated path globs; empty leaves the list unchanged")
 	cmd.Flags().BoolVar(&asJSON, "json", false, "output JSON")
 	return cmd
 }

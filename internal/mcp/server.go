@@ -96,12 +96,31 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolRemember)
 	srv.AddTool(mcp.NewTool("update",
 		annotate("Update record", false, true, true),
-		mcp.WithDescription("Update an existing record in place when the same topic already has a current document. Prefer this over remember for refinements."),
+		mcp.WithDescription("Update an existing record in place when the same topic already has a current document. Prefer this over remember for refinements. Optional applies_to replaces the path list when non-empty."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithString("title"),
 		mcp.WithString("body"),
 		mcp.WithString("status"),
+		mcp.WithString("applies_to", mcp.Description("comma- or newline-separated path globs; empty leaves the list unchanged")),
 	), s.toolUpdate)
+	srv.AddTool(mcp.NewTool("link",
+		annotate("Link records", false, true, true),
+		mcp.WithDescription("Store a record, pin, or repo link in this checkout. kind is record, pin, or repo. from_id is a record in this checkout and is required for record and repo. to is checkout#id for record and pin, and checkout for repo. A duplicate is success and does not change the row."),
+		mcp.WithString("kind", mcp.Required(), mcp.Description("record, pin, or repo")),
+		mcp.WithString("from_id", mcp.Description("record id in this checkout; required for record and repo")),
+		mcp.WithString("to", mcp.Required(), mcp.Description("checkout for repo, or checkout#id for record and pin")),
+	), s.toolLink)
+	srv.AddTool(mcp.NewTool("unlink",
+		annotate("Unlink records", false, true, true),
+		mcp.WithDescription("Remove one record, pin, or repo link. Same arguments as link. A missing link is success."),
+		mcp.WithString("kind", mcp.Required(), mcp.Description("record, pin, or repo")),
+		mcp.WithString("from_id", mcp.Description("record id in this checkout; required for record and repo")),
+		mcp.WithString("to", mcp.Required(), mcp.Description("checkout for repo, or checkout#id for record and pin")),
+	), s.toolUnlink)
+	srv.AddTool(mcp.NewTool("links",
+		annotate("List record links", true, false, true),
+		mcp.WithDescription("List record links stored in this checkout. A missing table returns {\"links\":[]}."),
+	), s.toolLinks)
 	srv.AddTool(mcp.NewTool("retire",
 		annotate("Retire record", false, true, true),
 		mcp.WithDescription("Mark a record superseded when a later choice replaces it. Leave a stub plus superseded_by; do not keep two accepted documents on the same topic."),
@@ -396,13 +415,64 @@ func (s *Server) toolUpdate(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	defer done()
 	id := req.GetString("id", "")
 	err = svc.Update(id, func(r *record.Record) error {
-		archive.PatchText(r, req.GetString("title", ""), req.GetString("body", ""), req.GetString("status", ""))
+		var applies []string
+		if raw := req.GetString("applies_to", ""); raw != "" {
+			applies = check.SplitPathList(raw)
+		}
+		archive.PatchText(r, req.GetString("title", ""), req.GetString("body", ""), req.GetString("status", ""), applies)
 		return nil
 	})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return mcp.NewToolResultText("ok"), nil
+}
+
+func (s *Server) toolLink(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return s.mutateLink(req, false)
+}
+
+func (s *Server) toolUnlink(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return s.mutateLink(req, true)
+}
+
+func (s *Server) mutateLink(req mcp.CallToolRequest, remove bool) (*mcp.CallToolResult, error) {
+	repo, _, done, err := s.writableStores()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	defer done()
+	if repo == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	edge, err := store.NewLink(s.RepoRoot, req.GetString("kind", ""), req.GetString("from_id", ""), req.GetString("to", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if remove {
+		if err := repo.DeleteLink(s.RepoRoot, edge); err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return jsonResult(map[string]string{"status": "ok"})
+	}
+	if err := repo.InsertLink(s.RepoRoot, edge); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(edge)
+}
+
+func (s *Server) toolLinks(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s == nil || s.RepoDB == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	edges, err := s.RepoDB.ListLinks()
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	if edges == nil {
+		edges = []store.Link{}
+	}
+	return jsonResult(map[string]any{"links": edges})
 }
 
 func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
