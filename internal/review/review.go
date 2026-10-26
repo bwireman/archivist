@@ -110,8 +110,7 @@ func Clock(root string, cfg *config.Config, now time.Time) (DueReport, error) {
 	return DueReport{Due: due(last, now), LastReview: last}, nil
 }
 
-// Collect reads the checkout and home stores and builds a report.
-// repo may be nil only when the caller has already failed open.
+// Collect loads this checkout and the home store into a report.
 func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.Time) (*Report, error) {
 	if repo == nil {
 		return nil, fmt.Errorf("review: checkout database is not open")
@@ -185,11 +184,10 @@ func Build(in Input) (*Report, error) {
 		rep.WideDiff = wide
 		for _, hit := range missed {
 			rec := byID[hit.ID]
-			card := Card{ID: hit.ID, Title: hit.Title, Type: string(record.TypeRule), AppliesTo: hit.AppliesTo}
-			if rec != nil {
-				card = cardFrom(rec)
+			if rec == nil {
+				continue
 			}
-			rep.MissedRules = append(rep.MissedRules, card)
+			rep.MissedRules = append(rep.MissedRules, cardFrom(rec))
 		}
 	}
 	dirs := map[string]struct{}{}
@@ -264,7 +262,7 @@ func LastReview(entries []cmdlog.Entry) time.Time {
 			}
 			c.hasOut = true
 			c.outAt = parseStamp(e.TS)
-			c.failed = e.Error != ""
+			c.failed = reviewFailed(e)
 		}
 	}
 	var last time.Time
@@ -277,6 +275,21 @@ func LastReview(entries []cmdlog.Entry) time.Time {
 		}
 	}
 	return last
+}
+
+// reviewFailed is a Go error or an MCP tool result with is_error set.
+// MCP handlers return a tool error and a nil Go error, so the log line
+// has an empty Error and the failure lives on the result.
+func reviewFailed(e cmdlog.Entry) bool {
+	if e.Error != "" {
+		return true
+	}
+	m, ok := e.Result.(map[string]any)
+	if !ok {
+		return false
+	}
+	failed, ok := m["is_error"].(bool)
+	return ok && failed
 }
 
 func due(last, now time.Time) bool {
@@ -575,9 +588,6 @@ func FormatDue(r DueReport) string {
 
 // Format renders the evidence list for stdout.
 func Format(r *Report) string {
-	if r == nil {
-		return ""
-	}
 	var b strings.Builder
 	if !r.Since.IsZero() {
 		fmt.Fprintf(&b, "Since: %s\n", r.Since.UTC().Format(time.RFC3339))

@@ -20,6 +20,11 @@ func TestLastReviewIgnoresDueChecksAndFailures(t *testing.T) {
 	entries = append(entries, reviewCall("c_due", now.Add(-time.Minute), map[string]any{"due": true}, "")...)
 	entries = append(entries, reviewCall("c_cli", now.Add(-2*time.Minute), map[string]any{"flags": map[string]any{"due": "true"}}, "")...)
 	entries = append(entries, reviewCall("c_fail", now.Add(-30*time.Minute), nil, "boom")...)
+	mcpAt := now.Add(-5 * time.Minute).UTC().Format(time.RFC3339Nano)
+	entries = append(entries,
+		cmdlog.Entry{ID: "c_mcp", TS: mcpAt, Dir: "in", Source: "mcp", Command: "review"},
+		cmdlog.Entry{ID: "c_mcp", TS: mcpAt, Dir: "out", Source: "mcp", Command: "review", Result: map[string]any{"is_error": true, "text": "archive is not open"}},
+	)
 	entries = append(entries, reviewCall("c_full", full, map[string]any{"flags": map[string]any{"json": "true"}}, "")...)
 	last := LastReview(entries)
 	if !last.Equal(full) {

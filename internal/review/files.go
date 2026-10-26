@@ -63,6 +63,5 @@ func topDirs(root string) ([]string, error) {
 		}
 		dirs = append(dirs, name)
 	}
-	slices.Sort(dirs)
 	return dirs, nil
 }
