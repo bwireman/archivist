@@ -17,11 +17,9 @@ const (
 	noteNotAncestor = "; revision is not an ancestor of HEAD, so these are not the commits on the current branch since that revision"
 )
 
-// CommitChange is one commit at or after a time, oldest first when listed.
-// At is the committer time. Paths are the files in that commit.
+// CommitChange is one commit. At is the committer time.
 type CommitChange struct {
 	At    time.Time
-	Hash  string
 	Paths []string
 }
 
@@ -53,21 +51,17 @@ func CommitsSince(repoRoot string, since time.Time) (commits []CommitChange, dir
 		if err != nil {
 			return nil, nil, "", err
 		}
-		commits = append(commits, CommitChange{At: when, Hash: strings.TrimSpace(hash), Paths: paths})
+		commits = append(commits, CommitChange{At: when, Paths: paths})
 	}
 	dirty, err = gitLines(repoRoot, "diff", "--name-only", "HEAD")
 	if err != nil {
-		if noCommits(err) {
-			return commits, nil, "", nil
-		}
 		return nil, nil, "", err
 	}
 	return commits, dirty, "", nil
 }
 
 func noCommits(err error) bool {
-	msg := err.Error()
-	return strings.Contains(msg, "does not have any commits") || strings.Contains(msg, "bad revision 'HEAD'")
+	return strings.Contains(err.Error(), "does not have any commits")
 }
 
 // GitJoin is the path set and lower time cutoff for a --since trace.

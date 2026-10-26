@@ -247,6 +247,15 @@ func TestLogSlicesBoundEachChange(t *testing.T) {
 	if !got[2].After.Equal(second.Add(time.Nanosecond)) || !got[2].Until.Equal(now) || got[2].Paths[0] != "c.go" {
 		t.Fatalf("dirty %+v", got[2])
 	}
+	same := since.Add(2 * time.Hour)
+	tied := logSlices([]trace.CommitChange{
+		{At: same, Paths: []string{"later.go"}},
+		{At: first, Paths: []string{"earlier.go"}},
+		{At: same, Paths: []string{"also.go"}},
+	}, nil, since, now)
+	if len(tied) != 3 || tied[0].Paths[0] != "earlier.go" || tied[1].Paths[0] != "later.go" || tied[2].Paths[0] != "also.go" {
+		t.Fatalf("tied %+v", tied)
+	}
 }
 
 func TestListFilesSkipsArchiveDir(t *testing.T) {

@@ -84,7 +84,7 @@ type Report struct {
 }
 
 // Slice is one change. The log interval is inclusive: After <= timestamp <= Until.
-// Paths are that change's files. The week's files stay on Input.Paths.
+// The week's files stay on Input.Paths.
 type Slice struct {
 	After time.Time
 	Until time.Time
@@ -106,7 +106,9 @@ type Input struct {
 	Vectors    map[string][]float32
 }
 
-const reviewGitNote = "missed rules use each commit's files and the log through that commit, then uncommitted tracked files and the log after HEAD; a change with more than 30 paths is left out"
+func reviewGitNote() string {
+	return fmt.Sprintf("missed rules use each commit's files and the log through that commit, then uncommitted tracked files and the log after HEAD; a change with more than %d paths is left out", trace.WidePathCount)
+}
 
 // Clock reports whether a full review is due. log_commands off has no clock.
 func Clock(root string, cfg *config.Config, now time.Time) (DueReport, error) {
@@ -140,7 +142,7 @@ func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.
 	}
 	note := ""
 	if skipped == "" {
-		note = reviewGitNote
+		note = reviewGitNote()
 	}
 	files, err := ListFiles(root, cfg)
 	if err != nil {
@@ -429,17 +431,24 @@ func currentRecords(recs []*record.Record) []*record.Record {
 }
 
 func logSlices(commits []trace.CommitChange, dirty []string, since, now time.Time) []Slice {
+	ordered := append([]trace.CommitChange(nil), commits...)
+	slices.SortStableFunc(ordered, func(a, b trace.CommitChange) int {
+		return a.At.Compare(b.At)
+	})
 	var out []Slice
 	prev := since
-	for _, c := range commits {
+	for _, c := range ordered {
 		if c.At.Before(since) {
 			continue
 		}
-		if c.At.Before(prev) {
-			continue
+		start, end := prev, c.At
+		if end.Before(start) {
+			start = end
 		}
-		out = append(out, Slice{After: prev, Until: c.At, Paths: append([]string(nil), c.Paths...)})
-		prev = c.At.Add(time.Nanosecond)
+		out = append(out, Slice{After: start, Until: end, Paths: append([]string(nil), c.Paths...)})
+		if next := end.Add(time.Nanosecond); next.After(prev) {
+			prev = next
+		}
 	}
 	if len(dirty) > 0 && !now.Before(prev) {
 		out = append(out, Slice{After: prev, Until: now, Paths: append([]string(nil), dirty...)})
@@ -486,7 +495,6 @@ func missedAcross(entries []cmdlog.Entry, slicesIn []Slice, recs []*record.Recor
 	for _, hit := range seen {
 		out = append(out, hit)
 	}
-	slices.SortFunc(out, func(a, b trace.RecordHit) int { return cmp.Compare(a.ID, b.ID) })
 	return out, wide, nil
 }
 
@@ -683,7 +691,7 @@ func Format(r *Report) string {
 		}
 	}
 	if r.WideDiff {
-		b.WriteString("Wide changes: some changes had more than 30 paths and were left out of missed rules\n")
+		fmt.Fprintf(&b, "Wide changes: some changes had more than %d paths and were left out of missed rules\n", trace.WidePathCount)
 	}
 	writeCards(&b, "Missed rules", r.MissedRules)
 	writeCards(&b, "Stale applies_to", r.StaleAppliesTo)
