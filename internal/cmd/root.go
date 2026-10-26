@@ -63,6 +63,7 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newCheckCmd())
 	root.AddCommand(newCiteCmd())
 	root.AddCommand(newTraceCmd())
+	root.AddCommand(newReviewCmd())
 	root.AddCommand(newSkillsCmd())
 	root.AddCommand(newLinkCmd())
 	root.AddCommand(newUnlinkCmd())

@@ -115,7 +115,7 @@ func TestArchiveCommandSelection(t *testing.T) {
 	root := NewRoot()
 	want := map[string]bool{
 		"search": true, "status": true, "remember": true, "index": true,
-		"cite": true, "trace": false,
+		"cite": true, "trace": false, "review": true,
 		"version": false, "init": false, "mcp": false, "skills": false,
 	}
 	found := map[string]bool{}

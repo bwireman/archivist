@@ -704,6 +704,38 @@ func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error
 	return emb, model, true, err
 }
 
+// StoredVector is one row from record_vectors.
+type StoredVector struct {
+	ID     string
+	Model  string
+	Values []float32
+}
+
+// StoredVectors returns every stored embedding. The caller drops a model that
+// does not match the configured embedder.
+func (s *Store) StoredVectors() ([]StoredVector, error) {
+	rows, err := s.db.Query(`SELECT record_id, model, embedding FROM record_vectors`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []StoredVector
+	for rows.Next() {
+		var v StoredVector
+		var blob []byte
+		if err := rows.Scan(&v.ID, &v.Model, &blob); err != nil {
+			return nil, err
+		}
+		emb, err := decodeEmbedding(blob)
+		if err != nil {
+			return nil, err
+		}
+		v.Values = emb
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
 // EmbedGap is one record status should list for a missing vector or a giveup.
 type EmbedGap struct {
 	ID      string `json:"id"`

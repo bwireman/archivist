@@ -20,6 +20,7 @@ import (
 	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
+	"github.com/bwireman/archivist/internal/review"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/bwireman/archivist/internal/trace"
 	"github.com/bwireman/archivist/internal/version"
@@ -137,6 +138,11 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		annotate("Archive status", true, false, true),
 		mcp.WithDescription("Archive and embedder status (record count, queue depth, Ollama health, missing_vectors, embed_giveups). When reindex is set, call index before trusting the code map."),
 	), s.toolStatus)
+	srv.AddTool(mcp.NewTool("review",
+		annotate("Review archive", true, false, true),
+		mcp.WithDescription("List evidence for an occasional archive review: rules that matched the last 7 days of work and were absent from the log, close current records to read for disagreement, records whose applies_to matches no file, and features with up to 4 matching paths. Global and dev rows are stale only when a leading directory of applies_to exists in this checkout. Does not update, retire, or rank records. due=true reports only whether a full review is due (every 7 days) and does not count as a review. With log_commands off there is no clock and missed rules are not computed."),
+		mcp.WithBoolean("due", mcp.Description("when true, report only whether a full review is due")),
+	), s.toolReview)
 	srv.AddTool(mcp.NewTool("import",
 		annotate("Import markdown", false, true, true),
 		mcp.WithDescription("Import typed markdown from record directories and export copies into SQLite. Does not delete DB-only records."),
@@ -224,9 +230,9 @@ func mcpLogResult(res *mcp.CallToolResult) any {
 }
 
 // agentInstructions is returned on MCP initialize so hosts without skills
-// install still consult the archive, cite a record that changed the work, ask when a gap is unsettled, and distill lasting facts.
+// install still consult the archive, cite a record that changed the work, ask when a gap is unsettled, distill lasting facts, and review the archive when one is due.
 func agentInstructions() string {
-	return mustRule("consult.md") + "\n\n" + mustRule("cite.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md") + "\n\n" + mustRule("link.md")
+	return mustRule("consult.md") + "\n\n" + mustRule("cite.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md") + "\n\n" + mustRule("link.md") + "\n\n" + mustRule("review.md")
 }
 
 func mustRule(name string) string {
@@ -620,6 +626,28 @@ func (s *Server) toolCite(_ context.Context, req mcp.CallToolRequest) (*mcp.Call
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	return jsonResult(map[string]string{"id": rec.ID, "effect": effect})
+}
+
+func (s *Server) toolReview(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s == nil || s.Cfg == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	now := time.Now()
+	if req.GetBool("due", false) {
+		rep, err := review.Clock(s.RepoRoot, s.Cfg, now)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		return jsonResult(rep)
+	}
+	if s.RepoDB == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
+	rep, err := review.Collect(s.RepoRoot, s.Cfg, s.RepoDB, s.HomeDB, now)
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	return jsonResult(rep)
 }
 
 func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {

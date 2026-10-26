@@ -52,6 +52,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist check` | optional | Match rules to a change |
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
 | `archivist trace` | no | Digest `commands.log`. `--since` joins consulted records to `git diff` of the work tree versus that rev (staged and unstaged tracked changes included; untracked files omitted). `--until` is an inclusive RFC3339 end for log lines and does not change those paths. Without `--until`, later log lines stay in the digest. |
+| `archivist review` | no | List missed rules, close records, stale `applies_to`, and features to compare. Does not update, retire, or rank. `--due` reports whether a full review is due (every 7 days) and does not count as a review. |
 | `archivist remember` | no | Create a record in SQLite (no markdown file). `--archive` names a listed checkout when the repo record is about that checkout. |
 | `archivist update` / `retire` | no | Amend or supersede |
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |

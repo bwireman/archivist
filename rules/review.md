@@ -1,0 +1,12 @@
+# Review the archive occasionally
+
+After the user's request is done, call MCP `review` with `due` true (`archivist review --due` when MCP is unavailable). When `due` is false, or `logging_off` is set, stop. When `due` is true, call `review` and report the list after the answer. Do not update, retire, or re-rank from that list.
+
+A full review is due every 7 days. A due check does not count as a review. With `log_commands` off there is no clock.
+
+- `missed_rules`: current rules whose paths match the last 7 days of work and never appeared in that log. Report each one as a retrieval gap. When `wide_diff` is true, say the diff is too broad for a miss to mean the rule was skipped.
+- `similar`: current records whose embeddings are close. Read each pair. Report it only when the two records disagree. Name update or retire. Do not write.
+- `stale_applies_to`: records whose `applies_to` matches no file. Repo records are always about this checkout. Global and dev records are listed only when a leading directory of `applies_to` exists here. Report them.
+- `features`: current features with matching files, up to 4 paths each. Read each body against those files. Report when the behavior text no longer matches the code. Do not write.
+
+This pass does not score importance. A record that was not retrieved is not ranked lower.

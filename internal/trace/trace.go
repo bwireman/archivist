@@ -114,6 +114,7 @@ var countOrder = []string{"search", "get", "map", "check", "remember", "update",
 
 var skippedCommand = map[string]bool{
 	"index": true, "embed": true, "import": true, "export": true, "publish": true, "status": true,
+	"review": true,
 }
 
 // ParseUntil parses an explicit log end. Empty is a zero time.

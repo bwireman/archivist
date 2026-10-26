@@ -14,6 +14,17 @@ import (
 	"github.com/bwireman/archivist/internal/retrieve"
 )
 
+func TestBuildSkipsReview(t *testing.T) {
+	at := time.Date(2026, 10, 26, 12, 0, 0, 0, time.UTC)
+	rep, err := Build(call("review", at, nil, map[string]any{"ok": true}), Options{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.Counts["review"] != 0 {
+		t.Fatalf("counts %+v", rep.Counts)
+	}
+}
+
 func TestBuildEmpty(t *testing.T) {
 	rep, err := Build(nil, Options{}, nil)
 	if err != nil {

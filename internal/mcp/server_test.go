@@ -43,10 +43,14 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record)) + "\n\n" + strings.TrimSpace(string(link))
+	reviewRule, err := ruletmpl.FS.ReadFile("review.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record)) + "\n\n" + strings.TrimSpace(string(link)) + "\n\n" + strings.TrimSpace(string(reviewRule))
 	got := agentInstructions()
 	if got != want {
-		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/cite.md + rules/ask.md + rules/record.md + rules/link.md")
+		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/cite.md + rules/ask.md + rules/record.md + rules/link.md + rules/review.md")
 	}
 	for _, needle := range []string{
 		"Consult the archive",
@@ -102,6 +106,7 @@ func TestToolAnnotations(t *testing.T) {
 		"link":     toolAnnotation("Link records", false, true, true),
 		"unlink":   toolAnnotation("Unlink records", false, true, true),
 		"links":    toolAnnotation("List record links", true, false, true),
+		"review":   toolAnnotation("Review archive", true, false, true),
 	}
 	listed := srv.ListTools()
 	if len(listed) != len(want) {
@@ -146,6 +151,13 @@ func TestToolAnnotations(t *testing.T) {
 	status := srv.GetTool("status")
 	if status == nil || !strings.Contains(status.Tool.Description, "missing_vectors") || !strings.Contains(status.Tool.Description, "call index") {
 		t.Fatalf("status description: %+v", status)
+	}
+	reviewTool := srv.GetTool("review")
+	if reviewTool == nil || !strings.Contains(reviewTool.Tool.Description, "Does not update, retire, or rank") {
+		t.Fatalf("review description: %+v", reviewTool)
+	}
+	if _, ok := reviewTool.Tool.InputSchema.Properties["due"]; !ok {
+		t.Fatal("review schema missing due")
 	}
 }
 

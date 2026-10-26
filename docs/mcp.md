@@ -74,6 +74,7 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `index` | This checkout's code map and recent git history (`scope` limits the walk to a subdirectory). No Ollama. Does not ingest or delete records. Returns `files_indexed`, `files_removed`, `commits_new`, and `records`. |
 | `embed` | Drain the embed queue via Ollama (`once` defaults false and loops until empty; `once=true` matches `archivist embed --once`; `concurrency` defaults to 2). Returns `embedded`. Fails with `run: ollama serve` when Ollama is down. |
 | `status` | Counts, embed queue, Ollama health, missing_vectors, and embed giveups. `reindex` means call `index` before trusting the code map. |
+| `review` | Evidence for an occasional pass: missed rules over the last 7 days, close current records, records whose `applies_to` matches no file, and features with up to 4 matching paths. Global and dev rows are stale only when a leading directory of `applies_to` exists here. Does not update, retire, or rank. `due=true` reports only whether a full review is due and does not count as a review. |
 
 ## Prompts
 
@@ -88,6 +89,6 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `add-map` | Packages and how they connect |
 | `add-pitfall` | Confirmed gotcha |
 
-Initialize `instructions` are the consult, cite, ask, record, and link rule templates, so MCP-only hosts still look things up, cite a record that changed the work, ask when a choice or preference is unsettled, write a short record when a later session would look it up, and link a record in another checkout when it would help.
+Initialize `instructions` are the consult, cite, ask, record, link, and review rule templates, so MCP-only hosts still look things up, cite a record that changed the work, ask when a choice or preference is unsettled, write a short record when a later session would look it up, link a record in another checkout when it would help, and review the archive when one is due.
 
-Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search includes a snippet, cosine, applies_to, and superseded_by, and get keeps the body while dropping hash, timestamps, provenance, and source path. Call `get` for the body. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, and `archivist trace`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
+Tool output is JSON, the same shape as CLI `--json`. The default is a short card: search includes a snippet, cosine, applies_to, and superseded_by, and get keeps the body while dropping hash, timestamps, provenance, and source path. Call `get` for the body. `full` and `--full` restore every stored field. Without MCP, use `archivist search`, `archivist cite`, `archivist trace`, and `archivist review`. The generated `docs/archive/` tree is an optional export when `records.write_docs` is true, not the live archive.
