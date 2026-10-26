@@ -8,7 +8,7 @@ import (
 
 // Version is the CLI / product version. Override at build time with
 // -ldflags "-X github.com/bwireman/archivist/internal/version.Version=..."
-var Version = "0.1.0"
+var Version = "0.2.0"
 
 // Commit is the source revision. Override at build time with
 // -ldflags "-X github.com/bwireman/archivist/internal/version.Commit=..."

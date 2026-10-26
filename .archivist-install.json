@@ -1,6 +1,6 @@
 {
-  "version": "0.1.0",
-  "commit": "a2f71845f061a7aaea79092aca7c264366a2bc89",
+  "version": "0.2.0",
+  "commit": "f325cd950431a4cb753c5c632ec28603edd5b90c",
   "target": "cursor",
   "rules": {
     "ask.md": "e4f3aafd07ddb95752dd069ed978e10741c469b86be5fef7bdaea6b2810f836b",
