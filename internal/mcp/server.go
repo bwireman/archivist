@@ -140,7 +140,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolStatus)
 	srv.AddTool(mcp.NewTool("review",
 		annotate("Review archive", true, false, true),
-		mcp.WithDescription("List evidence for an occasional archive review: rules that matched the last 7 days of work and were absent from the log, close current records to read for disagreement, records whose applies_to matches no file, and features with up to 4 matching paths. Global and dev rows are stale only when a leading directory of applies_to exists in this checkout. Does not update, retire, or rank records. due=true reports only whether a full review is due (every 7 days) and does not count as a review. With log_commands off there is no clock and missed rules are not computed."),
+		mcp.WithDescription("List evidence for an occasional archive review: missed rules per commit and for uncommitted files over the last 7 days (a change with more than 30 paths is left out), close current records to read for disagreement, records whose applies_to matches no file, and features with up to 4 matching paths. Global and dev rows are stale only when a leading directory of applies_to exists in this checkout. Does not update, retire, or rank records. due=true reports only whether a full review is due (every 7 days) and does not count as a review. With log_commands off there is no clock and missed rules are not computed."),
 		mcp.WithBoolean("due", mcp.Description("when true, report only whether a full review is due")),
 	), s.toolReview)
 	srv.AddTool(mcp.NewTool("import",

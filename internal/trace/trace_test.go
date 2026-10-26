@@ -147,6 +147,56 @@ func TestBuildPairsCallIDWhenLaterSearchFinishesFirst(t *testing.T) {
 	}
 }
 
+func TestCommitsSinceSplitsEachCommit(t *testing.T) {
+	dir := t.TempDir()
+	runGit(t, dir, "init")
+	writeRepoFile(t, dir, "a.go")
+	commitAt(t, dir, "2026-10-20T15:00:00Z", "add a")
+	writeRepoFile(t, dir, "b.go")
+	commitAt(t, dir, "2026-10-21T15:00:00Z", "add b")
+	writeRepoFile(t, dir, "c.go")
+	since := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
+	commits, dirty, skipped, err := CommitsSince(dir, since)
+	if err != nil || skipped != "" {
+		t.Fatalf("commits %v skipped %q err %v", commits, skipped, err)
+	}
+	if len(commits) != 2 || len(commits[0].Paths) != 1 || commits[0].Paths[0] != "a.go" || commits[1].Paths[0] != "b.go" {
+		t.Fatalf("commits %+v", commits)
+	}
+	if len(dirty) != 1 || dirty[0] != "c.go" {
+		t.Fatalf("dirty %v", dirty)
+	}
+	_, _, skipped, err = CommitsSince(t.TempDir(), since)
+	if err != nil || skipped != "not a git repository" {
+		t.Fatalf("skipped %q err %v", skipped, err)
+	}
+}
+
+func writeRepoFile(t *testing.T, dir, name string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte("package p\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, dir, "add", name)
+}
+
+func commitAt(t *testing.T, dir, stamp, msg string) {
+	t.Helper()
+	cmd := exec.Command("git", "-C", dir, "commit", "-m", msg)
+	cmd.Env = append(os.Environ(),
+		"GIT_AUTHOR_NAME=test",
+		"GIT_AUTHOR_EMAIL=test@example.com",
+		"GIT_COMMITTER_NAME=test",
+		"GIT_COMMITTER_EMAIL=test@example.com",
+		"GIT_AUTHOR_DATE="+stamp,
+		"GIT_COMMITTER_DATE="+stamp,
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("git commit: %v\n%s", err, out)
+	}
+}
+
 func TestBuildSinceOverlap(t *testing.T) {
 	dir := t.TempDir()
 	runGit(t, dir, "init")

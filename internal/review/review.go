@@ -83,7 +83,15 @@ type Report struct {
 	Unembedded     int       `json:"unembedded,omitempty"`
 }
 
-// Input is the evidence Build reads. Paths are ignored when GitSkipped is set.
+// Slice is one change. The log interval is inclusive: After <= timestamp <= Until.
+// Paths are that change's files. The week's files stay on Input.Paths.
+type Slice struct {
+	After time.Time
+	Until time.Time
+	Paths []string
+}
+
+// Input is the evidence Build reads. Paths and Slices are ignored when GitSkipped is set.
 type Input struct {
 	Since      time.Time
 	Entries    []cmdlog.Entry
@@ -91,11 +99,14 @@ type Input struct {
 	GitSkipped string
 	GitNote    string
 	Paths      []string
+	Slices     []Slice
 	Files      []string
 	Dirs       []string // top-level directories in the checkout
 	Records    []*record.Record
 	Vectors    map[string][]float32
 }
+
+const reviewGitNote = "missed rules use each commit's files and the log through that commit, then uncommitted tracked files and the log after HEAD; a change with more than 30 paths is left out"
 
 // Clock reports whether a full review is due. log_commands off has no clock.
 func Clock(root string, cfg *config.Config, now time.Time) (DueReport, error) {
@@ -123,9 +134,13 @@ func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.
 	if err != nil {
 		return nil, err
 	}
-	join, err := trace.GitChanged(root, since.UTC().Format(time.RFC3339))
+	commits, dirty, skipped, err := trace.CommitsSince(root, since)
 	if err != nil {
 		return nil, err
+	}
+	note := ""
+	if skipped == "" {
+		note = reviewGitNote
 	}
 	files, err := ListFiles(root, cfg)
 	if err != nil {
@@ -147,9 +162,10 @@ func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.
 		Since:      since,
 		Entries:    entries,
 		LoggingOff: off,
-		GitSkipped: join.Skipped,
-		GitNote:    join.Note,
-		Paths:      join.Paths,
+		GitSkipped: skipped,
+		GitNote:    note,
+		Paths:      unionPaths(commits, dirty),
+		Slices:     logSlices(commits, dirty, since, now),
 		Files:      files,
 		Dirs:       dirs,
 		Records:    recs,
@@ -177,7 +193,7 @@ func Build(in Input) (*Report, error) {
 		byID[rec.ID] = rec
 	}
 	if !in.LoggingOff && in.GitSkipped == "" {
-		missed, wide, err := missedRules(in.Entries, in.Since, paths, current)
+		missed, wide, err := missedAcross(in.Entries, in.Slices, current)
 		if err != nil {
 			return nil, err
 		}
@@ -412,16 +428,79 @@ func currentRecords(recs []*record.Record) []*record.Record {
 	return out
 }
 
-func missedRules(entries []cmdlog.Entry, since time.Time, paths []string, recs []*record.Record) ([]trace.RecordHit, bool, error) {
+func logSlices(commits []trace.CommitChange, dirty []string, since, now time.Time) []Slice {
+	var out []Slice
+	prev := since
+	for _, c := range commits {
+		if c.At.Before(since) {
+			continue
+		}
+		if c.At.Before(prev) {
+			continue
+		}
+		out = append(out, Slice{After: prev, Until: c.At, Paths: append([]string(nil), c.Paths...)})
+		prev = c.At.Add(time.Nanosecond)
+	}
+	if len(dirty) > 0 && !now.Before(prev) {
+		out = append(out, Slice{After: prev, Until: now, Paths: append([]string(nil), dirty...)})
+	}
+	return out
+}
+
+func unionPaths(commits []trace.CommitChange, dirty []string) []string {
+	var all []string
+	for _, c := range commits {
+		all = append(all, c.Paths...)
+	}
+	all = append(all, dirty...)
+	if len(all) == 0 {
+		return nil
+	}
+	slices.Sort(all)
+	return slices.Compact(all)
+}
+
+func missedAcross(entries []cmdlog.Entry, slicesIn []Slice, recs []*record.Record) ([]trace.RecordHit, bool, error) {
+	seen := map[string]trace.RecordHit{}
+	wide := false
+	for _, sl := range slicesIn {
+		if len(sl.Paths) == 0 {
+			continue
+		}
+		if len(sl.Paths) > trace.WidePathCount {
+			wide = true
+			continue
+		}
+		if !sl.Until.IsZero() && sl.Until.Before(sl.After) {
+			continue
+		}
+		hits, err := missedRules(entries, sl.After, sl.Until, sl.Paths, recs)
+		if err != nil {
+			return nil, false, err
+		}
+		for _, hit := range hits {
+			seen[hit.ID] = hit
+		}
+	}
+	out := make([]trace.RecordHit, 0, len(seen))
+	for _, hit := range seen {
+		out = append(out, hit)
+	}
+	slices.SortFunc(out, func(a, b trace.RecordHit) int { return cmp.Compare(a.ID, b.ID) })
+	return out, wide, nil
+}
+
+func missedRules(entries []cmdlog.Entry, after, until time.Time, paths []string, recs []*record.Record) ([]trace.RecordHit, error) {
 	rep, err := trace.Build(entries, trace.Options{
-		Since: since.UTC().Format(time.RFC3339),
-		After: since,
+		Since: after.UTC().Format(time.RFC3339),
+		After: after,
+		Until: until,
 		Paths: paths,
 	}, recordCatalog{recs: recs})
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	return rep.MissedRules, rep.WideDiff, nil
+	return rep.MissedRules, nil
 }
 
 type recordCatalog struct {
@@ -604,7 +683,7 @@ func Format(r *Report) string {
 		}
 	}
 	if r.WideDiff {
-		b.WriteString("Wide diff: the path set is too broad for a miss to mean the rule was skipped\n")
+		b.WriteString("Wide changes: some changes had more than 30 paths and were left out of missed rules\n")
 	}
 	writeCards(&b, "Missed rules", r.MissedRules)
 	writeCards(&b, "Stale applies_to", r.StaleAppliesTo)

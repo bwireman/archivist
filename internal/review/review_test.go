@@ -11,6 +11,7 @@ import (
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
+	"github.com/bwireman/archivist/internal/trace"
 )
 
 func TestLastReviewIgnoresDueChecksAndFailures(t *testing.T) {
@@ -90,6 +91,7 @@ func TestBuildListsEvidence(t *testing.T) {
 		Since:   since,
 		Entries: entries,
 		Paths:   []string{"e.go", "internal/cmd/review.go"},
+		Slices:  []Slice{{After: since, Until: at.Add(time.Hour), Paths: []string{"internal/cmd/review.go"}}},
 		Files:   files,
 		Dirs:    []string{"internal"},
 		Records: []*record.Record{seen, miss, old, global, gone, stale, feat, near, far, base, plain},
@@ -171,16 +173,18 @@ func TestBuildWideDiffAndSimilarCap(t *testing.T) {
 		vecs[id] = []float32{1, 0}
 	}
 	recs = append(recs, rule)
+	since := time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC)
 	rep, err := Build(Input{
-		Since:   time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC),
+		Since:   since,
 		Paths:   paths,
+		Slices:  []Slice{{After: since, Until: since.Add(time.Hour), Paths: paths}},
 		Records: recs,
 		Vectors: vecs,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !rep.WideDiff || len(rep.MissedRules) != 1 {
+	if !rep.WideDiff || len(rep.MissedRules) != 0 {
 		t.Fatalf("wide %v missed %+v", rep.WideDiff, rep.MissedRules)
 	}
 	if len(rep.Similar) != maxSimilar || rep.SimilarOmitted != 1 {
@@ -188,6 +192,60 @@ func TestBuildWideDiffAndSimilarCap(t *testing.T) {
 	}
 	if rep.Similar[0].A.ID != "rec_a" || rep.Similar[0].B.ID != "rec_b" {
 		t.Fatalf("first pair %+v %+v", rep.Similar[0].A, rep.Similar[0].B)
+	}
+}
+
+func TestMissesStayInsideEachChange(t *testing.T) {
+	start := time.Date(2026, 10, 20, 12, 0, 0, 0, time.UTC)
+	mid := start.Add(time.Hour)
+	end := mid.Add(time.Hour)
+	seen := &record.Record{ID: "rec_seen", Type: record.TypeRule, Scope: record.ScopeRepo, Title: "Seen", Status: record.StatusAccepted, AppliesTo: []string{"internal/cmd/**"}}
+	later := &record.Record{ID: "rec_later", Type: record.TypeRule, Scope: record.ScopeRepo, Title: "Later", Status: record.StatusAccepted, AppliesTo: []string{"internal/trace/**"}}
+	result := map[string]any{
+		"results": []any{map[string]any{"id": "rec_seen", "title": "Seen", "source": "fts", "applies_to": []any{"internal/cmd/**"}}},
+	}
+	stamp := start.Add(time.Minute).UTC().Format(time.RFC3339Nano)
+	entries := []cmdlog.Entry{
+		{ID: "c_search", TS: stamp, Dir: "in", Source: "mcp", Command: "search", Args: map[string]any{"query": "cmd"}},
+		{ID: "c_search", TS: stamp, Dir: "out", Source: "mcp", Command: "search", Result: result},
+	}
+	rep, err := Build(Input{
+		Since:   start,
+		Entries: entries,
+		Slices: []Slice{
+			{After: start, Until: mid, Paths: []string{"internal/cmd/review.go"}},
+			{After: mid.Add(time.Nanosecond), Until: end, Paths: []string{"internal/trace/trace.go"}},
+		},
+		Records: []*record.Record{seen, later},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if rep.WideDiff || len(rep.MissedRules) != 1 || rep.MissedRules[0].ID != "rec_later" {
+		t.Fatalf("wide %v missed %+v", rep.WideDiff, rep.MissedRules)
+	}
+}
+
+func TestLogSlicesBoundEachChange(t *testing.T) {
+	since := time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC)
+	first := since.Add(time.Hour)
+	second := first.Add(time.Hour)
+	now := second.Add(time.Hour)
+	got := logSlices([]trace.CommitChange{
+		{At: first, Paths: []string{"a.go"}},
+		{At: second, Paths: []string{"b.go"}},
+	}, []string{"c.go"}, since, now)
+	if len(got) != 3 {
+		t.Fatalf("%d slices", len(got))
+	}
+	if !got[0].After.Equal(since) || !got[0].Until.Equal(first) || got[0].Paths[0] != "a.go" {
+		t.Fatalf("first %+v", got[0])
+	}
+	if !got[1].After.Equal(first.Add(time.Nanosecond)) || !got[1].Until.Equal(second) || got[1].Paths[0] != "b.go" {
+		t.Fatalf("second %+v", got[1])
+	}
+	if !got[2].After.Equal(second.Add(time.Nanosecond)) || !got[2].Until.Equal(now) || got[2].Paths[0] != "c.go" {
+		t.Fatalf("dirty %+v", got[2])
 	}
 }
 

@@ -17,6 +17,59 @@ const (
 	noteNotAncestor = "; revision is not an ancestor of HEAD, so these are not the commits on the current branch since that revision"
 )
 
+// CommitChange is one commit at or after a time, oldest first when listed.
+// At is the committer time. Paths are the files in that commit.
+type CommitChange struct {
+	At    time.Time
+	Hash  string
+	Paths []string
+}
+
+// CommitsSince lists commits at or after since, oldest first, and the
+// uncommitted tracked paths versus HEAD. A directory that is not a git
+// repository sets skipped and does not fail. A repository with no commits
+// returns no changes.
+func CommitsSince(repoRoot string, since time.Time) (commits []CommitChange, dirty []string, skipped string, err error) {
+	if !gitindex.IsGitRepo(repoRoot) {
+		return nil, nil, "not a git repository", nil
+	}
+	lines, err := gitLines(repoRoot, "log", "--since="+since.UTC().Format(time.RFC3339), "--reverse", "--pretty=format:%cI%x09%H")
+	if err != nil {
+		if noCommits(err) {
+			return nil, nil, "", nil
+		}
+		return nil, nil, "", err
+	}
+	for _, line := range lines {
+		stamp, hash, ok := strings.Cut(line, "\t")
+		if !ok || strings.TrimSpace(hash) == "" {
+			continue
+		}
+		when, err := time.Parse(time.RFC3339, strings.TrimSpace(stamp))
+		if err != nil {
+			return nil, nil, "", fmt.Errorf("commit time %q: %w", stamp, err)
+		}
+		paths, err := gitLines(repoRoot, "diff-tree", "--no-commit-id", "--name-only", "-r", "--root", strings.TrimSpace(hash))
+		if err != nil {
+			return nil, nil, "", err
+		}
+		commits = append(commits, CommitChange{At: when, Hash: strings.TrimSpace(hash), Paths: paths})
+	}
+	dirty, err = gitLines(repoRoot, "diff", "--name-only", "HEAD")
+	if err != nil {
+		if noCommits(err) {
+			return commits, nil, "", nil
+		}
+		return nil, nil, "", err
+	}
+	return commits, dirty, "", nil
+}
+
+func noCommits(err error) bool {
+	msg := err.Error()
+	return strings.Contains(msg, "does not have any commits") || strings.Contains(msg, "bad revision 'HEAD'")
+}
+
 // GitJoin is the path set and lower time cutoff for a --since trace.
 // Note qualifies how Paths were chosen. An upper log bound is not applied here.
 type GitJoin struct {

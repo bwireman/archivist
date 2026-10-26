@@ -16,8 +16,8 @@ import (
 
 const followWindow = 30 * time.Minute
 
-// widePathCount is when a --since diff is too broad for overlap to mean much.
-const widePathCount = 30
+// WidePathCount is when one change's path set is too broad for overlap to mean much.
+const WidePathCount = 30
 
 // Catalog loads records for the git join. Record returns nil when id is unknown.
 type Catalog interface {
@@ -303,7 +303,7 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 		rep.GitNote = opts.GitNote
 		if opts.GitSkipped == "" {
 			rep.ChangedPaths = append([]string(nil), opts.Paths...)
-			rep.WideDiff = len(opts.Paths) > widePathCount
+			rep.WideDiff = len(opts.Paths) > WidePathCount
 			for _, id := range consultedOrder {
 				hit, err := resolve(cat, id, meta[id])
 				if err != nil {

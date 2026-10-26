@@ -9,7 +9,7 @@ After the user's request is done, call MCP `review` with `due` true (`archivist 
 
 A full review is due every 7 days. A due check does not count as a review. With `log_commands` off there is no clock.
 
-- `missed_rules`: current rules whose paths match the last 7 days of work and never appeared in that log. Report each one as a retrieval gap. When `wide_diff` is true, say the diff is too broad for a miss to mean the rule was skipped.
+- `missed_rules`: current rules that match one commit's files, or the uncommitted files, and never appeared in that change's log. The log for a commit runs from the previous commit, or the start of the 7 days, through that commit. The log for uncommitted work runs from HEAD through now. A change with more than 30 paths is left out. When `wide_diff` is true, say those broad changes were left out. The misses that remain are from the narrower changes. Report each one as a retrieval gap.
 - `similar`: current records whose embeddings are close. Read each pair. A disagreement is a potential update or retire. Overlap that repeats the same facts is a potential condensation: keep one current record and shorten or retire the other. A feature and its decision stay two records.
 - `stale_applies_to`: records whose `applies_to` matches no file. Repo records are always about this checkout. Global and dev records are listed only when a leading directory of `applies_to` exists here. Each one is a potential update.
 - `features`: current features with matching files, up to 4 paths each. Read each body against those files. A behavior text that no longer matches the code is a potential update.

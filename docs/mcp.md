@@ -74,7 +74,7 @@ Claude Code keeps one MCP process on the checkout it started in. List the other 
 | `index` | This checkout's code map and recent git history (`scope` limits the walk to a subdirectory). No Ollama. Does not ingest or delete records. Returns `files_indexed`, `files_removed`, `commits_new`, and `records`. |
 | `embed` | Drain the embed queue via Ollama (`once` defaults false and loops until empty; `once=true` matches `archivist embed --once`; `concurrency` defaults to 2). Returns `embedded`. Fails with `run: ollama serve` when Ollama is down. |
 | `status` | Counts, embed queue, Ollama health, missing_vectors, and embed giveups. `reindex` means call `index` before trusting the code map. |
-| `review` | Evidence for an occasional pass: missed rules over the last 7 days, close current records, records whose `applies_to` matches no file, and features with up to 4 matching paths. Global and dev rows are stale only when a leading directory of `applies_to` exists here. Does not update, retire, or rank. `due=true` reports only whether a full review is due and does not count as a review. |
+| `review` | Evidence for an occasional pass: missed rules per commit and for uncommitted files over the last 7 days (a change with more than 30 paths is left out), close current records, records whose `applies_to` matches no file, and features with up to 4 matching paths. Global and dev rows are stale only when a leading directory of `applies_to` exists here. Does not update, retire, or rank. `due=true` reports only whether a full review is due and does not count as a review. |
 
 ## Prompts
 

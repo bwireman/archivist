@@ -1,5 +1,6 @@
 {
   "version": "0.1.0",
+  "commit": "a2f71845f061a7aaea79092aca7c264366a2bc89",
   "target": "cursor",
   "rules": {
     "ask.md": "e4f3aafd07ddb95752dd069ed978e10741c469b86be5fef7bdaea6b2810f836b",
@@ -9,7 +10,7 @@
     "link.md": "a14e99fe39c53306b2c0250dac222a4931779803e1a3f943b9fde1e235c650ce",
     "record.md": "e27cf241d8a37b2a7a831ea0603d092048b310fabdd97e2fc3b84043fb8998f4",
     "refresh.md": "135cb9fffc617ed15c966cef9dee072c21fdd182be91100ce5c6e0fbf66cb96c",
-    "review.md": "96db7d6037823bfb88f06ab06ae6cf566b1aaf5b5bc193506ecc3e8111db6471"
+    "review.md": "d8019aa792c69278b3b4232ade446eca523f90335b35ec66151f740e9ee27cb5"
   },
   "skills": {
     "init-archive/SKILL.md": "429659218185ec1b309a5aa2022bdb9d2fefde20297a84c6a51cae5c63a64072",
