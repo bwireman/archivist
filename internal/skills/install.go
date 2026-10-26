@@ -379,7 +379,7 @@ func cursorRuleDescription(name string) string {
 	case "link":
 		return "Link a record in another checkout when it would help a later session in this one"
 	case "review":
-		return "Review the archive for disagreements, stale paths, and missed rules"
+		return "Review the archive and ask before a condensation, update, or retire"
 	default:
 		return "Archivist rule " + name
 	}
