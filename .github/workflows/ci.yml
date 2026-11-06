@@ -13,8 +13,8 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - run: go vet ./...
@@ -30,8 +30,8 @@ jobs:
       short_sha: ${{ steps.build.outputs.short_sha }}
       tag: ${{ steps.build.outputs.tag }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - id: build
@@ -53,7 +53,7 @@ jobs:
             printf 'tag=%s\n' "$tag"
             printf 'archive=%s\n' "$archive"
           } >> "$GITHUB_OUTPUT"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: source
           path: |
@@ -78,8 +78,8 @@ jobs:
             goarch: arm64
             runner: macos-14
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version-file: go.mod
       - shell: bash
@@ -98,7 +98,7 @@ jobs:
             printf 'goos=%s\n' "${{ matrix.goos }}"
             printf 'goarch=%s\n' "${{ matrix.goarch }}"
           } > "dist/${binary}.build-info.txt"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: archivist-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
@@ -112,7 +112,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true

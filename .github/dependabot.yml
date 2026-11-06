@@ -1,0 +1,16 @@
+# Security update pull requests only. A limit of 0 turns off version-update
+# pull requests. Security updates are not subject to that limit.
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
+    exclude-paths:
+      - testdata/**
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 0
