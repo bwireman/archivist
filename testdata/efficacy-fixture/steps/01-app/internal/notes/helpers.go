@@ -10,8 +10,6 @@ import (
 
 const noteColumns = `id, notebook_id, title, body`
 
-var errNotFound = errors.New("not found")
-
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
@@ -33,16 +31,16 @@ func serverError(w http.ResponseWriter, err error) {
 	http.Error(w, err.Error(), http.StatusInternalServerError)
 }
 
-// writeError maps errNotFound and sql.ErrNoRows to 404 and anything else to 500.
+// writeError maps sql.ErrNoRows to 404 and anything else to 500.
 func writeError(w http.ResponseWriter, r *http.Request, err error) {
-	if errors.Is(err, errNotFound) || errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, sql.ErrNoRows) {
 		http.NotFound(w, r)
 		return
 	}
 	serverError(w, err)
 }
 
-// execOne runs a write that must touch exactly one row, or returns errNotFound.
+// execOne runs a write that must touch exactly one row, or returns sql.ErrNoRows.
 func execOne(db *sql.DB, query string, args ...any) error {
 	res, err := db.Exec(query, args...)
 	if err != nil {
@@ -53,7 +51,7 @@ func execOne(db *sql.DB, query string, args ...any) error {
 		return err
 	}
 	if n == 0 {
-		return errNotFound
+		return sql.ErrNoRows
 	}
 	return nil
 }

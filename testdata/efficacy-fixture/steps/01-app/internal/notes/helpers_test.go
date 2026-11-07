@@ -34,18 +34,11 @@ func newTestApp(t *testing.T) *testApp {
 
 func (a *testApp) do(method, path, body string) *httptest.ResponseRecorder {
 	a.t.Helper()
-	var req *http.Request
-	if body == "" {
-		req = httptest.NewRequest(method, path, nil)
-	} else {
-		req = httptest.NewRequest(method, path, strings.NewReader(body))
-	}
 	rec := httptest.NewRecorder()
-	a.h.ServeHTTP(rec, req)
+	a.h.ServeHTTP(rec, httptest.NewRequest(method, path, strings.NewReader(body)))
 	return rec
 }
 
-// doJSON sends the request, requires want, and decodes the body into dest when dest is non-nil.
 func (a *testApp) doJSON(method, path, body string, want int, dest any) {
 	a.t.Helper()
 	rec := a.do(method, path, body)
@@ -133,28 +126,20 @@ func mustJSON(t *testing.T, v any) string {
 	return string(b)
 }
 
-func noteIDs(notes []note) []string {
-	ids := make([]string, len(notes))
-	for i, n := range notes {
-		ids[i] = n.ID
-	}
-	return ids
-}
-
-func titles(notes []note) []string {
-	out := make([]string, len(notes))
-	for i, n := range notes {
-		out[i] = n.Title
+func pluck[T any](xs []T, f func(T) string) []string {
+	out := make([]string, len(xs))
+	for i, x := range xs {
+		out[i] = f(x)
 	}
 	return out
 }
+
+func noteIDs(notes []note) []string { return pluck(notes, func(n note) string { return n.ID }) }
+
+func titles(notes []note) []string { return pluck(notes, func(n note) string { return n.Title }) }
 
 func notebookNames(nbs []notebook) []string {
-	out := make([]string, len(nbs))
-	for i, n := range nbs {
-		out[i] = n.Name
-	}
-	return out
+	return pluck(nbs, func(n notebook) string { return n.Name })
 }
 
 func expectStrings(t *testing.T, got, want []string) {
