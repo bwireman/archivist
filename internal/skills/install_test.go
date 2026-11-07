@@ -401,3 +401,47 @@ func fileSHA256(t *testing.T, path string) string {
 	t.Helper()
 	return sha256Hex(fileBytes(t, path))
 }
+
+func TestInstallCLIPinsAndStaysFresh(t *testing.T) {
+	root := t.TempDir()
+	if err := InstallCLI(root, TargetCursor, "./bin/archivist"); err != nil {
+		t.Fatal(err)
+	}
+	data := string(fileBytes(t, filepath.Join(root, ".cursor", "rules", "archivist-refresh.mdc")))
+	if !strings.Contains(data, "./bin/archivist import") {
+		t.Fatalf("refresh rule not pinned: %s", data)
+	}
+	if strings.Contains(data, "`archivist ") {
+		t.Fatalf("refresh rule keeps a bare command: %s", data)
+	}
+	if strings.Contains(data, "./bin/./bin/") {
+		t.Fatalf("double pin: %s", data)
+	}
+	stale, _, err := RulesStale(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stale {
+		t.Fatal("fresh pinned install reported stale")
+	}
+	if readManifest(t, root).CLI != "./bin/archivist" {
+		t.Fatal("manifest should record cli")
+	}
+}
+
+func TestPinCLI(t *testing.T) {
+	cases := map[string]string{
+		"run `archivist index`":     "run `./bin/archivist index`",
+		"./bin/archivist search":    "./bin/archivist search",
+		"~/.archivist/archive.db":   "~/.archivist/archive.db",
+		"internal/archivist/x":      "internal/archivist/x",
+		"archivist-refresh.mdc":     "./bin/archivist-refresh.mdc",
+		"archivists":                "archivists",
+		"Archivist MCP":             "Archivist MCP",
+	}
+	for in, want := range cases {
+		if got := PinCLI(in, "./bin/archivist"); got != want {
+			t.Errorf("PinCLI(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

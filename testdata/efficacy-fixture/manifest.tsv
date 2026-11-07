@@ -3,3 +3,4 @@
 2026-11-03T12:00:00+0000	supersede the README transfer section	03-rule
 2026-11-04T12:00:00+0000	restate the README transfer section	04-restate
 2026-11-05T12:00:00+0000	add failing transfer tests	05-tests
+2026-11-06T12:00:00+0000	tidy docs	06-drop-rule

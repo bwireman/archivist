@@ -20,7 +20,7 @@ func TestGoldenFactsSynthetic(t *testing.T) {
 		mustUpsert(t, st, &record.Record{
 			ID: "rec_rule", Slug: "keep-id", Type: record.TypeRule, Scope: record.ScopeRepo,
 			Title: "Keep the note id", Status: record.StatusAccepted,
-			Body:       "KEEP-NOTE-ID and WRITE-LEDGER-ROW",
+			Body:       "KEEP-NOTE-ID and WRITE-LEDGER-ROW with kind notebook-transfer",
 			SourcePath: "docs/decisions/keep.md",
 		})
 		mustUpsert(t, st, &record.Record{
@@ -34,6 +34,28 @@ func TestGoldenFactsSynthetic(t *testing.T) {
 		}
 		if err := CheckGolden(path); err != nil {
 			t.Fatal(err)
+		}
+	})
+	t.Run("fail without kind", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "index.db")
+		st := openWritable(t, path)
+		mustUpsert(t, st, &record.Record{
+			ID: "rec_rule", Slug: "keep-id", Type: record.TypeRule, Scope: record.ScopeRepo,
+			Title: "Keep the note id", Status: record.StatusAccepted,
+			Body:       "KEEP-NOTE-ID and WRITE-LEDGER-ROW",
+			SourcePath: "docs/decisions/keep.md",
+		})
+		mustUpsert(t, st, &record.Record{
+			ID: "rec_pit", Slug: "decoy", Type: record.TypePitfall, Scope: record.ScopeRepo,
+			Title: "Copy then delete", Status: record.StatusAccepted,
+			Body:       "COPY-THEN-DELETE drops the id",
+			SourcePath: "docs/decisions/decoy.md",
+		})
+		if err := st.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := CheckGolden(path); err == nil {
+			t.Fatal("expected golden failure without notebook-transfer")
 		}
 	})
 	t.Run("fail", func(t *testing.T) {
@@ -55,10 +77,7 @@ func TestGoldenFactsSynthetic(t *testing.T) {
 }
 
 func TestGoldenFactsOnDB(t *testing.T) {
-	path := os.Getenv("EFFICACY_DB")
-	if path == "" {
-		t.Skip("EFFICACY_DB unset")
-	}
+	path := envPath(t, "EFFICACY_DB")
 	if err := CheckGolden(path); err != nil {
 		t.Fatal(err)
 	}
@@ -76,10 +95,7 @@ func TestCheckpointWAL(t *testing.T) {
 }
 
 func TestCheckpointWALOnDB(t *testing.T) {
-	path := os.Getenv("EFFICACY_CHECKPOINT")
-	if path == "" {
-		t.Skip("EFFICACY_CHECKPOINT unset")
-	}
+	path := envPath(t, "EFFICACY_CHECKPOINT")
 	if err := Checkpoint(path); err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +125,9 @@ func CheckGolden(path string) error {
 	}
 	if !oneHasBoth(rules, "KEEP-NOTE-ID", "WRITE-LEDGER-ROW") {
 		return errors.New("missing KEEP-NOTE-ID and WRITE-LEDGER-ROW on one accepted rule or decision")
+	}
+	if !anyHas(rules, "notebook-transfer") {
+		return errors.New("missing notebook-transfer on an accepted rule or decision")
 	}
 	if !anyHas(pitfalls, "COPY-THEN-DELETE") {
 		return errors.New("missing COPY-THEN-DELETE on an accepted pitfall")
@@ -145,6 +164,20 @@ func anyHas(bodies []string, token string) bool {
 		}
 	}
 	return false
+}
+
+// go test runs in the package directory, so a relative path cannot name a
+// file under the repo root.
+func envPath(t *testing.T, name string) string {
+	t.Helper()
+	path := os.Getenv(name)
+	if path == "" {
+		t.Skip(name + " unset")
+	}
+	if !filepath.IsAbs(path) {
+		t.Fatalf("harness: %s must be absolute, got %q", name, path)
+	}
+	return path
 }
 
 func openWritable(t *testing.T, path string) *store.Store {

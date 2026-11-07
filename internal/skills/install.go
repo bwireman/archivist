@@ -27,6 +27,7 @@ type Manifest struct {
 	Version string            `json:"version"`
 	Commit  string            `json:"commit,omitempty"`
 	Target  string            `json:"target"`
+	CLI     string            `json:"cli,omitempty"`
 	Rules   map[string]string `json:"rules"`
 	Skills  map[string]string `json:"skills,omitempty"`
 }
@@ -57,6 +58,13 @@ func ParseTarget(s string) (Target, error) {
 
 // Install writes always-on rules and, for Cursor/Claude, on-demand skills.
 func Install(repoRoot string, target Target) error {
+	return InstallCLI(repoRoot, target, "")
+}
+
+// InstallCLI is Install with the bare `archivist` command in rules and skills
+// replaced by cli (for example `./bin/archivist`). The manifest records cli so
+// RulesStale compares against the same rendering.
+func InstallCLI(repoRoot string, target Target, cli string) error {
 	rules, err := loadRules(repoRoot)
 	if err != nil {
 		return err
@@ -65,6 +73,8 @@ func Install(repoRoot string, target Target) error {
 	if err != nil {
 		return err
 	}
+	rules = pinCLI(rules, cli)
+	skillFiles = pinCLI(skillFiles, cli)
 	if err := installRules(repoRoot, target, rules); err != nil {
 		return err
 	}
@@ -75,7 +85,52 @@ func Install(repoRoot string, target Target) error {
 	} else {
 		skillFiles = nil
 	}
-	return writeManifest(repoRoot, target, rules, skillFiles)
+	return writeManifest(repoRoot, target, cli, rules, skillFiles)
+}
+
+func pinCLI(files map[string][]byte, cli string) map[string][]byte {
+	if cli == "" {
+		return files
+	}
+	out := make(map[string][]byte, len(files))
+	for name, data := range files {
+		out[name] = []byte(PinCLI(string(data), cli))
+	}
+	return out
+}
+
+// PinCLI replaces each standalone `archivist` command word with cli. A word
+// preceded by a letter, digit, `_`, `.`, or `/` (a path or identifier) is kept.
+func PinCLI(text, cli string) string {
+	const word = "archivist"
+	var b strings.Builder
+	for i := 0; i < len(text); {
+		j := strings.Index(text[i:], word)
+		if j < 0 {
+			b.WriteString(text[i:])
+			break
+		}
+		j += i
+		end := j + len(word)
+		before := j > 0 && isPathByte(text[j-1])
+		after := end < len(text) && isWordByte(text[end])
+		b.WriteString(text[i:j])
+		if before || after {
+			b.WriteString(word)
+		} else {
+			b.WriteString(cli)
+		}
+		i = end
+	}
+	return b.String()
+}
+
+func isWordByte(c byte) bool {
+	return c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z'
+}
+
+func isPathByte(c byte) bool {
+	return isWordByte(c) || c == '.' || c == '/'
 }
 
 func loadRules(repoRoot string) (map[string][]byte, error) {
@@ -186,6 +241,7 @@ func RulesStale(repoRoot string) (stale bool, target string, err error) {
 	if err != nil {
 		return false, m.Target, err
 	}
+	rules = pinCLI(rules, m.CLI)
 	for rel, want := range renderedRuleFiles(parsed, rules) {
 		got, rerr := os.ReadFile(filepath.Join(repoRoot, rel))
 		if rerr != nil {
@@ -259,11 +315,12 @@ func installSkills(repoRoot string, target Target, skillFiles map[string][]byte)
 	return nil
 }
 
-func writeManifest(repoRoot string, target Target, rules, skillFiles map[string][]byte) error {
+func writeManifest(repoRoot string, target Target, cli string, rules, skillFiles map[string][]byte) error {
 	m := Manifest{
 		Version: version.Version,
 		Commit:  version.Revision(),
 		Target:  string(target),
+		CLI:     cli,
 		Rules:   hashRules(target, rules),
 		Skills:  hashSkills(skillFiles),
 	}

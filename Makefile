@@ -57,6 +57,15 @@ efficacy-fixture: ## Rebuild ~/.cache/archivist-efficacy/project from the templa
 efficacy-hidden: ## Score CHECKOUT with transfer tests the agent does not see
 	./scripts/efficacy-hidden.sh $(CHECKOUT)
 
+efficacy-preflight: ## Create RUN and check Ollama before an efficacy run
+	./scripts/efficacy-preflight.sh $(RUN)
+
+efficacy-score: ## Score ARM of RUN in the fixture (DB, AGENT optional)
+	./scripts/efficacy-score.sh $(RUN) $(ARM) $(DB) $(if $(AGENT),--agent $(AGENT))
+
+efficacy-review-prompt: ## Build RUN/review-prompt.txt from the arm patches
+	./scripts/efficacy-review-prompt.sh $(RUN)
+
 clean: ## Remove the local binary
 	rm -f $(BIN)
 

@@ -25,7 +25,8 @@ func newSkillsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			if err := skills.Install(root, t); err != nil {
+			cli, _ := cmd.Flags().GetString("cli")
+			if err := skills.InstallCLI(root, t, cli); err != nil {
 				return err
 			}
 			fmt.Printf("Installed agent rules and skills for %s\n", target)
@@ -33,6 +34,7 @@ func newSkillsCmd() *cobra.Command {
 		},
 	}
 	install.Flags().String("target", "cursor", "cursor|claude|agents-md|copilot|codex")
+	install.Flags().String("cli", "", "command written into rules and skills in place of `archivist` (for example ./bin/archivist)")
 	cmd.AddCommand(install)
 	return cmd
 }

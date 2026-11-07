@@ -22,11 +22,11 @@ usage() {
   cat <<'EOF'
 Usage: efficacy-fixture.sh [--prepare with|feature|plan|control] [snapshot-dir]
 
-With no flags, replay the checkout at commit 5 and push main.
+With no flags, replay the checkout at the last manifest commit and push main.
 --prepare with     checkout pre-transfer, install an empty archive
---prepare feature  restore snapshot onto commit 5 and drop plan-changes
---prepare plan     restore snapshot onto commit 5 and install the unattended skill
---prepare control  replay commit 5 with no archive and .archivist-disabled
+--prepare feature  restore snapshot onto main and drop plan-changes
+--prepare plan     restore snapshot onto main and install the unattended skill
+--prepare control  replay main with no archive and .archivist-disabled
 EOF
 }
 
@@ -87,7 +87,13 @@ replay() {
       echo "efficacy-fixture.sh: missing step $step" >&2
       exit 1
     fi
-    cp -a "$overlay/." "$dest/"
+    # A step's DELETE file lists paths to remove; cp -a cannot delete.
+    if [ -f "$overlay/DELETE" ]; then
+      while IFS= read -r gone || [ -n "$gone" ]; do
+        [ -n "$gone" ] && git -C "$dest" rm -q -- "$gone"
+      done <"$overlay/DELETE"
+    fi
+    tar -C "$overlay" --exclude=./DELETE -cf - . | tar -C "$dest" -xpf -
     git -C "$dest" -c core.autocrlf=false -c core.filemode=true add -A
     GIT_AUTHOR_DATE="$when" GIT_COMMITTER_DATE="$when" \
       git -C "$dest" -c extensions.objectFormat=sha1 -c commit.gpgsign=false \
@@ -120,8 +126,8 @@ install_shim() {
 EOF
 }
 
-# Installed rules and skills name the PATH binary. Point them at the shim
-# so a later agent does not open ~/.archivist.
+# `skills install --cli` pins installed files. The unattended plan skill is
+# copied after install, so it is pinned here. Already pinned text is skipped.
 pin_cli() {
   [ -d "$dest/.cursor" ] || return 0
   if ! command -v python3 >/dev/null 2>&1; then
@@ -139,6 +145,24 @@ for path in root.rglob("*"):
     updated = pat.sub("./bin/archivist", text)
     if updated != text:
         path.write_text(updated)
+PY
+}
+
+# Feature and plan arms inherit this through the snapshot's .archivist.json.
+set_embed() {
+  python3 - "$src/run.json" "$dest/.archivist.json" <<'PY'
+import json, sys
+run = json.load(open(sys.argv[1]))
+cfg = json.load(open(sys.argv[2]))
+# commands.log is how a run proves the seed called MCP.
+cfg["log_commands"] = True
+ollama = cfg.setdefault("ollama", {})
+for key in ("embed_model", "embed_num_ctx"):
+    if key in run:
+        ollama[key] = run[key]
+with open(sys.argv[2], "w") as f:
+    json.dump(cfg, f, indent=2)
+    f.write("\n")
 PY
 }
 
@@ -163,25 +187,29 @@ control)
   ;;
 with)
   replay
-  git -C "$dest" checkout -B pre-transfer HEAD~1 >/dev/null
+  pre=$(git -C "$dest" log --format=%H --fixed-strings --grep='restate the README transfer section' -n 1)
+  if [ -z "$pre" ]; then
+    echo "efficacy-fixture.sh: pre-transfer commit not found" >&2
+    exit 1
+  fi
+  git -C "$dest" checkout -B pre-transfer "$pre" >/dev/null
   git -C "$dest" push -u origin pre-transfer >/dev/null
   install_shim
   "$dest/bin/archivist" --path "$dest" init
-  "$dest/bin/archivist" --path "$dest" skills install --target cursor
+  set_embed
+  "$dest/bin/archivist" --path "$dest" skills install --target cursor --cli ./bin/archivist
   if [ -d "$dest/docs/decisions" ] && [ -z "$(ls -A "$dest/docs/decisions")" ]; then
     rmdir "$dest/docs/decisions"
   fi
-  pin_cli
   ;;
 feature)
   restore_snapshot
   rm -rf "$dest/.cursor/skills/plan-changes"
-  pin_cli
   ;;
 plan)
   restore_snapshot
-  pin_cli
   mkdir -p "$dest/.cursor/skills/plan-changes"
   cp -a "$src/skills/plan-changes/SKILL.md" "$dest/.cursor/skills/plan-changes/SKILL.md"
+  pin_cli
   ;;
 esac

@@ -1,5 +1,7 @@
 {
-  "model": "grok-4.7-high-fast",
+  "model": "claude-opus-5-5-low",
   "subagent_type": "generalPurpose",
-  "environment": "local"
+  "environment": "local",
+  "embed_model": "qwen3-embedding:8b",
+  "embed_num_ctx": 32768
 }
