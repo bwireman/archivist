@@ -12,8 +12,26 @@ import (
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
+	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
 )
+
+// openRememberStores opens only the database that will receive the row.
+// A repo record does not open the home store. --archive opens that checkout
+// inside Remember. A missing database is not created.
+func openRememberStores(root string, scope record.Scope, archiveRoot string) (*store.Store, *store.Store, error) {
+	switch scope {
+	case record.ScopeGlobal, record.ScopeDev:
+		home, err := openExistingHome()
+		return nil, home, err
+	default:
+		if strings.TrimSpace(archiveRoot) != "" {
+			return nil, nil, nil
+		}
+		repo, err := openExistingStore(root)
+		return repo, nil, err
+	}
+}
 
 func newRememberCmd() *cobra.Command {
 	var recType, scope, title, body, severity, archiveRoot string
@@ -27,12 +45,16 @@ func newRememberCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, err := openRememberStores(root, record.Scope(scope), archiveRoot)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
+			if repo != nil {
+				defer repo.Close()
+			}
+			if home != nil {
+				defer home.Close()
+			}
 			roots, err := cfg.ArchiveRoots(root)
 			if err != nil {
 				return err
@@ -87,12 +109,12 @@ func newUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, err := openExistingStores(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
+			defer closeStore(repo)
+			defer closeStore(home)
 			roots, err := cfg.ArchiveRoots(root)
 			if err != nil {
 				return err
@@ -134,12 +156,12 @@ func newRetireCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, home, err := openExistingStores(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
+			defer closeStore(repo)
+			defer closeStore(home)
 			roots, err := cfg.ArchiveRoots(root)
 			if err != nil {
 				return err

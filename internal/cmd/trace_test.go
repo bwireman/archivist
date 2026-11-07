@@ -138,6 +138,7 @@ func TestCiteWritesLog(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
+	ensureQueryStores(t, root)
 
 	remember := NewRoot()
 	var buf bytes.Buffer

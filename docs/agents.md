@@ -29,4 +29,4 @@ make cli-fixture      # rebuild testdata/cli-project and check map output
 
 ## CI
 
-Pull requests and pushes to `main` run the Go test suite and `go vet`. Each successful commit to `main` publishes a GitHub pre-release tagged `v<version>-<short-sha>` with a source archive plus compiled CLI binaries for Linux amd64 and Apple Silicon macOS. `scripts/install.sh` installs the newest of those releases. Every file includes a SHA-256 checksum. `build-info.txt` records the CLI version and full commit SHA. Each binary’s `*.build-info.txt` also records the UTC build time stamped into that binary.
+Pull requests and pushes to `main` run the Go test suite, `go vet`, and `make cli-fixture`. Each successful commit to `main` publishes a GitHub pre-release tagged `v<version>-<short-sha>` with a source archive plus compiled CLI binaries for Linux amd64 and Apple Silicon macOS. `scripts/install.sh` installs the newest of those releases. Every file includes a SHA-256 checksum. `build-info.txt` records the CLI version and full commit SHA. Each binary’s `*.build-info.txt` also records the UTC build time stamped into that binary.

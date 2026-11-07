@@ -19,18 +19,16 @@ func newIndexCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
-			defer home.Close()
 
 			idx := &index.Indexer{
 				RepoRoot: root,
 				Cfg:      cfg,
 				Store:    repo,
-				Home:     home,
 			}
 
 			progress, err := idx.Index(cmd.Context(), scope)
@@ -41,10 +39,6 @@ func newIndexCmd() *cobra.Command {
 				return err
 			}
 			count, _ := repo.RecordCount()
-			if home != nil {
-				n, _ := home.RecordCount()
-				count += n
-			}
 			noteResult(cmd, map[string]any{
 				"files_indexed": progress.FilesIndexed,
 				"files_removed": progress.FilesRemoved,

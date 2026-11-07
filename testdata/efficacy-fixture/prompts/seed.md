@@ -1,0 +1,1 @@
+Follow the init-archive skill. Use the Archivist MCP server in this checkout. New records are scope repo. Record the decoy as a pitfall and the superseding transfer doc as a rule or decision. Do not paste COPY-THEN-DELETE into that rule or decision. Do not edit application source. If you need a shell fallback, run ./bin/archivist in this checkout.

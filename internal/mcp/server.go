@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -376,9 +377,9 @@ func (s *Server) writer() (*archive.Service, func(), error) {
 
 // writableStores returns checkout and home connections that can write.
 // Query connections stay read-only. A server built on store.Open keeps those
-// connections. A read-only server opens store.Open for the call, which creates
-// missing schema and purges orphan queue, vector, and FTS rows. The caller
-// closes a freshly opened pair.
+// connections. A read-only server opens store.OpenExisting for the call and
+// does not create a missing database. A missing home store is left nil.
+// The caller closes a freshly opened pair.
 func (s *Server) writableStores() (repo, home *store.Store, done func(), err error) {
 	noop := func() {}
 	if s == nil {
@@ -389,19 +390,23 @@ func (s *Server) writableStores() (repo, home *store.Store, done func(), err err
 	if !repoRO && !homeRO {
 		return s.RepoDB, s.HomeDB, noop, nil
 	}
-	repo, err = store.Open(config.StorePath(s.RepoRoot))
+	repoPath := config.StorePath(s.RepoRoot)
+	repo, err = store.OpenExisting(repoPath)
 	if err != nil {
-		return nil, nil, noop, err
+		return nil, nil, noop, store.NeedsInit(repoPath, err)
 	}
 	homePath := config.HomeStorePath()
 	if homePath == "" {
 		_ = repo.Close()
 		return nil, nil, noop, errors.New("cannot resolve home archive path (set $HOME)")
 	}
-	home, err = store.Open(homePath)
+	home, err = store.OpenExisting(homePath)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return repo, nil, func() { _ = repo.Close() }, nil
+		}
 		_ = repo.Close()
-		return nil, nil, noop, err
+		return nil, nil, noop, store.NeedsInit(homePath, err)
 	}
 	return repo, home, func() {
 		_ = repo.Close()
@@ -533,19 +538,16 @@ func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if s == nil || s.Cfg == nil {
 		return mcp.NewToolResultError("archive is not open"), nil
 	}
-	repo, home, done, err := s.writableStores()
+	repoPath := config.StorePath(s.RepoRoot)
+	repo, err := store.OpenExisting(repoPath)
 	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
+		return mcp.NewToolResultError(store.NeedsInit(repoPath, err).Error()), nil
 	}
-	defer done()
-	if repo == nil {
-		return mcp.NewToolResultError("archive is not open"), nil
-	}
+	defer repo.Close()
 	progress, err := (&index.Indexer{
 		RepoRoot: s.RepoRoot,
 		Cfg:      s.Cfg,
 		Store:    repo,
-		Home:     home,
 	}).Index(ctx, req.GetString("scope", ""))
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -554,10 +556,6 @@ func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	count, _ := repo.RecordCount()
-	if home != nil {
-		n, _ := home.RecordCount()
-		count += n
-	}
 	return jsonResult(map[string]int{
 		"files_indexed": progress.FilesIndexed,
 		"files_removed": progress.FilesRemoved,

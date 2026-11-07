@@ -23,7 +23,6 @@ type Indexer struct {
 	RepoRoot string
 	Cfg      *config.Config
 	Store    *store.Store
-	Home     *store.Store
 
 	progress Progress
 	ignore   *gitindex.Ignore
@@ -79,11 +78,6 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) (Progress, erro
 	}
 	if scopePath == "" {
 		if err := idx.Store.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
-			return idx.progress, err
-		}
-	}
-	if idx.Home != nil {
-		if err := idx.Home.StampIndexed(now); err != nil {
 			return idx.progress, err
 		}
 	}

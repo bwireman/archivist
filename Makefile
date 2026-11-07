@@ -51,6 +51,12 @@ refresh-archive: import index embed export ## Import, index, embed, then export
 cli-fixture: ## Rebuild testdata/cli-project and check map output
 	./scripts/cli-fixture.sh
 
+efficacy-fixture: ## Rebuild ~/.cache/archivist-efficacy/project from the template
+	./scripts/efficacy-fixture.sh
+
+efficacy-hidden: ## Score CHECKOUT with transfer tests the agent does not see
+	./scripts/efficacy-hidden.sh $(CHECKOUT)
+
 clean: ## Remove the local binary
 	rm -f $(BIN)
 

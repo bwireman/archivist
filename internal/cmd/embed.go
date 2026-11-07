@@ -19,18 +19,26 @@ func newEmbedCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openStores(root)
+			repo, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
 			defer repo.Close()
-			defer home.Close()
 			client := embed.NewOllamaClientFromConfig(cfg.Ollama)
 			if err := client.Healthy(cmd.Context()); err != nil {
 				return fmt.Errorf("%w (run: ollama serve)", err)
 			}
+			stores := []*store.Store{repo}
+			home, err := openHomeIfPresent()
+			if err != nil {
+				return err
+			}
+			if home != nil {
+				defer home.Close()
+				stores = append(stores, home)
+			}
 			w := &embed.Worker{
-				Stores:   []*store.Store{repo, home},
+				Stores:   stores,
 				Embedder: client,
 				Model:    cfg.Ollama.EmbedModel,
 			}

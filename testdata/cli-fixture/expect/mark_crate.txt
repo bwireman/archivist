@@ -1,0 +1,2 @@
+rust/src/lib.rs:6 mark_crate (function_item)
+rust/src/lib.rs:2 weigh_crate (function_item) — Weigh a crate. The mark is unique-token-alpha.

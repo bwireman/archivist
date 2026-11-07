@@ -90,6 +90,15 @@ func OpenReadOnly(path string) (*Store, error) {
 	return s, nil
 }
 
+// NeedsInit wraps a missing-database error with the init hint. Other errors
+// are returned unchanged.
+func NeedsInit(path string, err error) error {
+	if err != nil && os.IsNotExist(err) {
+		return fmt.Errorf("%s does not exist; run archivist init: %w", path, err)
+	}
+	return err
+}
+
 // OpenExisting opens an existing database for writes. It does not create the
 // file or parent directories. It rebuilds records_fts when the tokenizer
 // marker is old and creates embed_giveup when that table is missing.

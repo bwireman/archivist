@@ -1,0 +1,4 @@
+src/pantry.gleam:12 note_bin (function)
+
+Imports
+  src/pantry.gleam -> gleam/io

@@ -40,7 +40,12 @@ func NewRoot() *cobra.Command {
 	}
 	root.Flags().BoolP("version", "v", false, "version for archivist")
 	root.PersistentFlags().StringVar(&repoPath, "path", ".", "repository root path")
-	root.PersistentPreRunE = warnStaleRules
+	root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if err := refuseDisabled(cmd); err != nil {
+			return err
+		}
+		return warnStaleRules(cmd, args)
+	}
 	defaultHelp := root.HelpFunc()
 	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
 		_ = warnStaleRules(cmd, args)
@@ -111,6 +116,28 @@ func warnStaleRules(cmd *cobra.Command, _ []string) error {
 	return nil
 }
 
+// refuseDisabled stops every command except version, help, and completion
+// before any database or home store is opened.
+func refuseDisabled(cmd *cobra.Command) error {
+	if !cmd.HasParent() {
+		return nil
+	}
+	for c := cmd; c != nil; c = c.Parent() {
+		switch c.Name() {
+		case "version", "help", "completion":
+			return nil
+		}
+	}
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	if marker := config.DisabledBy(root); marker != "" {
+		return fmt.Errorf("archivist is disabled here by %s", marker)
+	}
+	return nil
+}
+
 func repoRoot() (string, error) {
 	return config.Canonical(repoPath)
 }
@@ -137,6 +164,57 @@ func openHomeStore() (*store.Store, error) {
 		return nil, errors.New("cannot resolve home archive path (set $HOME)")
 	}
 	return store.Open(path)
+}
+
+func openExistingPath(path string) (*store.Store, error) {
+	db, err := store.OpenExisting(path)
+	if err != nil {
+		return nil, store.NeedsInit(path, err)
+	}
+	return db, nil
+}
+
+func openExistingStore(root string) (*store.Store, error) {
+	return openExistingPath(config.StorePath(root))
+}
+
+func openExistingHome() (*store.Store, error) {
+	path := config.HomeStorePath()
+	if path == "" {
+		return nil, errors.New("cannot resolve home archive path (set $HOME)")
+	}
+	return openExistingPath(path)
+}
+
+// openHomeIfPresent opens the home database when it already exists.
+// A missing file returns a nil store so a command can still use the checkout.
+func openHomeIfPresent() (*store.Store, error) {
+	home, err := openExistingHome()
+	if err != nil && errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	return home, err
+}
+
+// openExistingStores opens the checkout and home databases for commands that
+// may write either one. It does not create a missing database.
+func openExistingStores(root string) (*store.Store, *store.Store, error) {
+	repo, err := openExistingStore(root)
+	if err != nil {
+		return nil, nil, err
+	}
+	home, err := openHomeIfPresent()
+	if err != nil {
+		_ = repo.Close()
+		return nil, nil, err
+	}
+	return repo, home, nil
+}
+
+func closeStore(st *store.Store) {
+	if st != nil {
+		_ = st.Close()
+	}
 }
 
 func openStores(root string) (*store.Store, *store.Store, error) {

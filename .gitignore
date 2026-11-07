@@ -8,3 +8,4 @@ docs/*
 .archivist/
 .vscode
 testdata/cli-project/
+evals/

@@ -75,6 +75,9 @@ func (s *Service) contextStore(scope record.Scope, archiveRoot string) (*store.S
 		if strings.TrimSpace(archiveRoot) != "" {
 			return nil, nil, errors.New("global and dev records are written to the home store")
 		}
+		if s.HomeDB == nil {
+			return nil, nil, store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
+		}
 		return s.HomeDB, nil, nil
 	}
 	if strings.TrimSpace(archiveRoot) == "" {
@@ -84,9 +87,10 @@ func (s *Service) contextStore(scope record.Scope, archiveRoot string) (*store.S
 	if err != nil {
 		return nil, nil, err
 	}
-	db, err := store.OpenExisting(config.StorePath(root))
+	path := config.StorePath(root)
+	db, err := store.OpenExisting(path)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, store.NeedsInit(path, err)
 	}
 	return db, func() { _ = db.Close() }, nil
 }
@@ -113,9 +117,10 @@ func (s *Service) Update(id string, fn func(*record.Record) error) error {
 		return s.writeRecord(st, rec, fn)
 	}
 	for _, root := range s.ExtraRoots {
-		db, err := store.OpenExisting(config.StorePath(root))
+		path := config.StorePath(root)
+		db, err := store.OpenExisting(path)
 		if err != nil {
-			return err
+			return store.NeedsInit(path, err)
 		}
 		got, found, err := db.GetRecordByID(id)
 		if err != nil {

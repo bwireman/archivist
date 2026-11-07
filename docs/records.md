@@ -40,9 +40,9 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 
 | Command | Ollama | Purpose |
 | --- | --- | --- |
-| `archivist init` | no | Config, checkout and home SQLite databases, optional import drop folders. Query commands do not create a database; a missing one says to run init. |
+| `archivist init` | no | Config, checkout and home SQLite databases, optional import drop folders. Query commands, `index`, `remember`, and `embed` do not create a database; a missing one says to run init. |
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
-| `archivist index` | no | Index this checkout's code map + git history (feeds `map`). Does not walk `archives`. |
+| `archivist index` | no | Index this checkout's code map + git history (feeds `map`). Does not walk `archives` or open the home store. |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |
 | `archivist search <query>` | optional | Hybrid FTS + vector search, including listed `archives` (`--type feature` for capability docs; `--status` to include a retired status; `--json` for `{results, links}`; `--full` with `--json` for every stored field of each ranked hit). `links` follows `record`, `pin`, and `repo` edges. A linked checkout does not need to be listed in `archives`. Source files named by `applies_to` are included, at most 4 files and 2KiB each, and 24KiB for the response. Opens existing databases read-only. |
 | `archivist link` | no | Store a `record`, `pin`, or `repo` link in this checkout (`--kind`, `--from`, `--to`). `--to` is `checkout#id` for `record` and `pin`, and `checkout` for `repo`. |
@@ -53,7 +53,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 | `archivist cite <id>` | no | Record that a retrieved record changed the work (requires `log_commands`) |
 | `archivist trace` | no | Digest `commands.log`. `--since` joins consulted records to `git diff` of the work tree versus that rev (staged and unstaged tracked changes included; untracked files omitted). `--until` is an inclusive RFC3339 end for log lines and does not change those paths. Without `--until`, later log lines stay in the digest. |
 | `archivist review` | no | List missed rules per commit and for uncommitted files (a change with more than 30 paths is left out), close records, stale `applies_to`, and features to compare. Does not update, retire, or rank. `--due` reports whether a full review is due (every 7 days) and does not count as a review. |
-| `archivist remember` | no | Create a record in SQLite (no markdown file). `--archive` names a listed checkout when the repo record is about that checkout. |
+| `archivist remember` | no | Create a record in SQLite (no markdown file). `--archive` names a listed checkout when the repo record is about that checkout. A repo record does not open the home store. |
 | `archivist update` / `retire` | no | Amend or supersede |
 | `archivist export` | no | Generate `docs/archive/` (no-op unless `records.write_docs`) |
 | `archivist publish <name>` | no | Bundle + configured shell command |

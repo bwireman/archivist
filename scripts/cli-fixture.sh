@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Rebuild testdata/cli-project and check `archivist map` against saved output.
 # Author, dates, and subjects come from testdata/cli-fixture/manifest.tsv so a
-# second run produces the same commits. init and index use a HOME under the
-# temp dir, so this does not read or write ~/.archivist.
+# second run produces the same commits. Git config, hooks, and identity come
+# from this script, not the caller's environment. init and index use a HOME
+# under the temp dir, so this does not read or write ~/.archivist.
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -46,9 +47,20 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 (cd "$root" && go build -o "$work/archivist" ./cmd/archivist)
 
+# Empty config files so ~/.gitconfig, system config, and hooksPath cannot
+# change trees or commit hashes. -c below covers the settings that do.
+gitcfg="$work/gitconfig"
+: >"$gitcfg"
+export GIT_CONFIG_GLOBAL="$gitcfg"
+export GIT_CONFIG_SYSTEM="$gitcfg"
+export GIT_CONFIG_NOSYSTEM=1
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_NAMESPACE \
+  GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES \
+  GIT_CONFIG_COUNT GIT_CONFIG_PARAMETERS
+
 rm -rf "$dest"
 mkdir -p "$dest"
-git -C "$dest" init -b main >/dev/null
+git -C "$dest" -c init.defaultBranch=main -c extensions.objectFormat=sha1 init -b main >/dev/null
 
 export GIT_AUTHOR_NAME=Fixture
 export GIT_AUTHOR_EMAIL=fixture@example.com
@@ -66,9 +78,11 @@ while IFS=$'\t' read -r when subject step || [ -n "${when:-}" ]; do
     exit 1
   fi
   cp -a "$overlay/." "$dest/"
-  git -C "$dest" add -A
+  git -C "$dest" -c core.autocrlf=false -c core.filemode=true add -A
   GIT_AUTHOR_DATE="$when" GIT_COMMITTER_DATE="$when" \
-    git -C "$dest" -c commit.gpgsign=false commit -m "$subject" >/dev/null
+    git -C "$dest" -c extensions.objectFormat=sha1 -c commit.gpgsign=false \
+      -c core.autocrlf=false -c core.filemode=true \
+      commit --no-verify -m "$subject" >/dev/null
 done <"$src/manifest.tsv"
 
 export HOME="$work/home"

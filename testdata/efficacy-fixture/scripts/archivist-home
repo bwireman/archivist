@@ -1,0 +1,4 @@
+#!/bin/sh
+export HOME="__HOME__"
+mkdir -p "$HOME"
+exec "__BIN__" "$@"

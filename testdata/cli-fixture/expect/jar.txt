@@ -1,0 +1,16 @@
+list.js:4 listJars (function_declaration) — List the jars. Mentions kilnbrick once.
+pantry/jar/jar.go:5 Seal (function_declaration) — Seal closes a jar.
+pantry/shelf/shelf.go:6 Place (function_declaration) — Place sets a jar on the shelf.
+pantry/jar/jar.go:9 sealNote (function_declaration)
+pantry/jar/jar.go:13 cool (function_declaration)
+
+Imports
+  list.js -> { formatOunces } from "./web/format.js";
+  pantry/shelf/shelf.go -> example.com/pantry/jar
+
+Imported by
+  pantry/shelf/shelf.go -> example.com/pantry/jar
+
+Commits
+  4a7dc663 2026-10-18 fix the wax stamp on the jar
+  e3cea18b 2026-10-01 add the pantry jar and shelf

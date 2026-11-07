@@ -1,0 +1,4 @@
+.archivist/
+node_modules/
+web/dist/
+data/

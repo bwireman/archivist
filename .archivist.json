@@ -1,6 +1,6 @@
 {
   "index": {
-    "skip_globs": ["testdata/cli-fixture/**"]
+    "skip_globs": ["testdata/cli-fixture/**", "testdata/efficacy-fixture/**", "testdata/efficacy-hidden/**"]
   },
   "ollama": {
     "base_url": "http://localhost:11434",

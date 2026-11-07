@@ -12,6 +12,7 @@ import (
 
 const (
 	DefaultConfigName         = ".archivist.json"
+	DisabledMarker            = ".archivist-disabled"
 	DefaultDataDir            = ".archivist"
 	DefaultIndexDB            = "index.db"
 	DefaultCommandsLog        = "commands.log"
@@ -240,6 +241,22 @@ func Save(repoRoot string, cfg *Config) error {
 
 func DataDir(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir)
+}
+
+// DisabledBy returns the marker file in path or an ancestor, or "" when none.
+func DisabledBy(path string) string {
+	dir := path
+	for {
+		marker := filepath.Join(dir, DisabledMarker)
+		if _, err := os.Stat(marker); err == nil {
+			return marker
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
 }
 
 func StorePath(repoRoot string) string {

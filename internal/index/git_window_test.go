@@ -41,15 +41,10 @@ func TestIndexPrunesCommitsOutsideWindow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() {
 		_ = st.Close()
-		_ = home.Close()
 	})
-	idx := &Indexer{RepoRoot: root, Cfg: config.Default(), Store: st, Home: home}
+	idx := &Indexer{RepoRoot: root, Cfg: config.Default(), Store: st}
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}

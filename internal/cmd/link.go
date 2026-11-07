@@ -100,7 +100,7 @@ func writeLink(kind, from, to string, remove bool) (store.Link, error) {
 	if err != nil {
 		return store.Link{}, err
 	}
-	db, err := openStore(root)
+	db, err := openExistingStore(root)
 	if err != nil {
 		return store.Link{}, err
 	}

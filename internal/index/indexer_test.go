@@ -23,7 +23,7 @@ func writeFile(t *testing.T, root, rel, content string) {
 	}
 }
 
-func newIndexer(t *testing.T, root string) (*index.Indexer, *store.Store, *store.Store) {
+func newIndexer(t *testing.T, root string) (*index.Indexer, *store.Store) {
 	t.Helper()
 	t.Setenv("HOME", t.TempDir())
 	cfg := config.Default()
@@ -31,26 +31,20 @@ func newIndexer(t *testing.T, root string) (*index.Indexer, *store.Store, *store
 	if err != nil {
 		t.Fatal(err)
 	}
-	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
 	t.Cleanup(func() {
 		_ = st.Close()
-		_ = home.Close()
 	})
 	return &index.Indexer{
 		RepoRoot: root,
 		Cfg:      cfg,
 		Store:    st,
-		Home:     home,
-	}, st, home
+	}, st
 }
 
 func TestIndexCodeMap(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "foo.go", "package foo\n\nfunc Bar() {}\n")
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +64,7 @@ func TestIndexSymlinkedRoot(t *testing.T) {
 	if err := os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
-	idx, st, _ := newIndexer(t, link)
+	idx, st := newIndexer(t, link)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +80,7 @@ func TestIndexSymlinkedRoot(t *testing.T) {
 func TestIndexGleamCodeMap(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +96,7 @@ func TestIndexGleamCodeMap(t *testing.T) {
 func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +125,7 @@ func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
 func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "src/mod.gleam", "pub fn main() { Nil }\n")
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +162,7 @@ title: Use SQLite
 Yes.
 `
 	writeFile(t, root, "docs/decisions/001-sqlite.md", content)
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +174,7 @@ Yes.
 func TestIndexSkipsArchive(t *testing.T) {
 	root := t.TempDir()
 	writeFile(t, root, "docs/archive/INDEX.md", "# index\n")
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
@@ -192,7 +186,7 @@ func TestIndexSkipsArchive(t *testing.T) {
 
 func TestIndexDoesNotPruneDBOnlyRecord(t *testing.T) {
 	root := t.TempDir()
-	idx, st, _ := newIndexer(t, root)
+	idx, st := newIndexer(t, root)
 	rec := &record.Record{
 		ID:         "rec_dbonly",
 		Slug:       "db-only",

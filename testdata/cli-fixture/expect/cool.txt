@@ -1,0 +1,4 @@
+pantry/jar/jar.go:13 cool (function_declaration)
+
+Imported by
+  pantry/shelf/shelf.go -> example.com/pantry/jar

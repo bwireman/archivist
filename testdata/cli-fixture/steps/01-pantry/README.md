@@ -17,5 +17,7 @@ go run ./cmd/archivist --path testdata/cli-project map seal
 | `unique-token-alpha` | `weigh_crate` and the alpha commit |
 | `unique-token-beta` | the beta commit |
 | `wax stamp notes` | `Seal` and the wax-stamp commit |
-
-`jar` matches the `pantry/jar` path, comments that say jar, and the jar commits.
+| `jar` | symbols whose name, doc, or path contains jar, plus the jar commits |
+| `mark_crate` | `mark_crate`, then `weigh_crate` because that doc contains both words |
+| `note_bin` | `note_bin` from the beta step |
+| `cool` | `cool` from the wax step |

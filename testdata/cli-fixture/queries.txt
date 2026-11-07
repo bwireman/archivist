@@ -5,3 +5,7 @@ cedarwood
 unique-token-alpha
 unique-token-beta
 wax stamp notes
+jar
+mark_crate
+note_bin
+cool

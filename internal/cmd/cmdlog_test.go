@@ -9,7 +9,19 @@ import (
 
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/store"
 )
+
+func openCheckout(t *testing.T, root string) {
+	t.Helper()
+	db, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestCommandLogCLIRemember(t *testing.T) {
 	home := t.TempDir()
@@ -20,6 +32,7 @@ func TestCommandLogCLIRemember(t *testing.T) {
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
+	openCheckout(t, root)
 
 	cmd := NewRoot()
 	var buf bytes.Buffer
@@ -75,6 +88,7 @@ func TestCommandLogOffWritesNothing(t *testing.T) {
 	if err := config.Save(root, config.Default()); err != nil {
 		t.Fatal(err)
 	}
+	openCheckout(t, root)
 
 	cmd := NewRoot()
 	cmd.SetArgs([]string{
