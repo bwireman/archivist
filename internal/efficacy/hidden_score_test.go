@@ -61,7 +61,7 @@ func installTransferRoute(t *testing.T, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := strings.Replace(string(body), "\t\"strings\"\n)", "\t\"strings\"\n\n\t\"example.com/notes/transfer\"\n)", 1)
+	text := strings.Replace(string(body), "\t\"net/http\"\n)", "\t\"net/http\"\n\n\t\"example.com/notes/transfer\"\n)", 1)
 	text = strings.Replace(text, "\treturn mux\n", "\tmux.HandleFunc(\"POST /api/notes/{id}/transfer\", transfer.Handler(db))\n\treturn mux\n", 1)
 	if !strings.Contains(text, "example.com/notes/transfer") || !strings.Contains(text, "transfer.Handler") {
 		t.Fatal("handler was not patched")
