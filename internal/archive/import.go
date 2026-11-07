@@ -174,6 +174,9 @@ func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope,
 	}
 	st = s.storeFor(parsed.Scope)
 	if st == nil {
+		if parsed.Scope == record.ScopeGlobal || parsed.Scope == record.ScopeDev {
+			return store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
+		}
 		return fmt.Errorf("no store for scope %s", parsed.Scope)
 	}
 	parsed.SourcePath = sourcePath

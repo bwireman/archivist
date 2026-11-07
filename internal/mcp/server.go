@@ -397,8 +397,7 @@ func (s *Server) writableStores() (repo, home *store.Store, done func(), err err
 	}
 	homePath := config.HomeStorePath()
 	if homePath == "" {
-		_ = repo.Close()
-		return nil, nil, noop, errors.New("cannot resolve home archive path (set $HOME)")
+		return repo, nil, func() { _ = repo.Close() }, nil
 	}
 	home, err = store.OpenExisting(homePath)
 	if err != nil {

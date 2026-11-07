@@ -119,9 +119,6 @@ func warnStaleRules(cmd *cobra.Command, _ []string) error {
 // refuseDisabled stops every command except version, help, and completion
 // before any database or home store is opened.
 func refuseDisabled(cmd *cobra.Command) error {
-	if !cmd.HasParent() {
-		return nil
-	}
 	for c := cmd; c != nil; c = c.Parent() {
 		switch c.Name() {
 		case "version", "help", "completion":
