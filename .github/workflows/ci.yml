@@ -86,7 +86,7 @@ jobs:
             runner: ubuntu-latest
           - goos: darwin
             goarch: arm64
-            runner: macos-14
+            runner: macos-26
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
