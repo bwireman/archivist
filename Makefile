@@ -63,6 +63,12 @@ efficacy-preflight: ## Create RUN and check Ollama before an efficacy run
 efficacy-score: ## Score ARM of RUN in the fixture (DB, AGENT optional)
 	./scripts/efficacy-score.sh $(RUN) $(ARM) $(DB) $(if $(AGENT),--agent $(AGENT))
 
+efficacy-wall: ## Write a wall stamp: RUN NAME EDGE=start|end
+	./scripts/efficacy-wall.sh $(RUN) $(NAME) $(EDGE)
+
+efficacy-summary: ## Table of scored runs: RUNS="dir dir ..."
+	./scripts/efficacy-summary.sh $(RUNS)
+
 efficacy-review-prompt: ## Build RUN/review-prompt.txt from the arm patches
 	./scripts/efficacy-review-prompt.sh $(RUN)
 

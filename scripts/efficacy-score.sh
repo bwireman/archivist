@@ -36,6 +36,9 @@ if [ ! -f "$R/$arm-wall-end.txt" ]; then
   exit 1
 fi
 
+# Keep the printed score so efficacy-summary.sh can compare runs later.
+exec > >(tee "$R/$arm-score.txt")
+
 echo "== $arm"
 if (cd "$W" && go test ./transfer -count=1 >"$R/$arm-test.txt" 2>&1); then
   echo "go test ./transfer: pass"
@@ -115,6 +118,12 @@ print("mcp:", "used" if "mcp" in src else ("cli" if src else "none"))
 PY
 else
   echo "mcp: none"
+fi
+
+if [ -n "$db" ] && [ -f "$R/$db" ]; then
+  "$root/scripts/efficacy-logs.sh" "$R" "$arm" "$R/$db"
+else
+  echo "logs: skipped"
 fi
 
 transcript=""
