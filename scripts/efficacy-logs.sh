@@ -38,9 +38,9 @@ for line in open(sys.argv[1]):
         d = json.loads(line)
     except ValueError:
         continue
-    key = d.get("id") or d["ts"] + d["command"]
-    (ins if d["dir"] == "in" else outs)[key] = d
-    if d["dir"] == "in":
+    key = d.get("id") or f'{d.get("ts")}{d.get("command")}'
+    (ins if d.get("dir") == "in" else outs)[key] = d
+    if d.get("dir") == "in":
         order.append(key)
 
 def name(d):
@@ -51,6 +51,10 @@ def first_arg(a):
     if "id" in a:
         return a["id"]
     return (a.get("args") or [""])[0]
+
+def hit_id(h):
+    rec = h.get("Record") or h.get("record") or {}
+    return h.get("id") or rec.get("ID") or rec.get("id")
 
 searches, gets, cites = [], [], []
 transports = set()
@@ -63,17 +67,21 @@ for k in order:
         q = a.get("query") or first_arg(a)
         res = o.get("result")
         ids = None
+        if isinstance(res, dict) and res.get("truncated"):
+            print("warning: truncated search result; golden_surfaced may undercount", file=sys.stderr)
         if i["source"] == "mcp" and res is not None:
             hits = res.get("results") if isinstance(res, dict) else res
             if isinstance(hits, list):
-                ids = [(h.get("id") or (h.get("Record") or h.get("record") or {}).get("ID") or (h.get("Record") or {}).get("id")) for h in hits]
+                ids = [hit_id(h) for h in hits]
         searches.append((q, ids))
     elif n == "get":
         gets.append(first_arg(i.get("args")))
     elif n == "cite":
         a = i.get("args") or {}
         eff = a.get("effect") or (a.get("flags") or {}).get("effect") or ""
-        cites.append((first_arg(a), eff, bool(o.get("error"))))
+        res = o.get("result")
+        failed = not o or bool(o.get("error")) or (isinstance(res, dict) and bool(res.get("is_error")))
+        cites.append((first_arg(a), eff, failed))
 
 print("transport:", ",".join(sorted(t for t in transports if t in ("mcp", "cli"))) or "none")
 print("searches:", len(searches))

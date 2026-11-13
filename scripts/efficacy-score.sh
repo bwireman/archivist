@@ -36,7 +36,7 @@ if [ ! -f "$R/$arm-wall-end.txt" ]; then
   exit 1
 fi
 
-# Keep the printed score so efficacy-summary.sh can compare runs later.
+# Read by efficacy-summary.sh.
 exec > >(tee "$R/$arm-score.txt")
 
 echo "== $arm"
@@ -122,6 +122,8 @@ fi
 
 if [ -n "$db" ] && [ -f "$R/$db" ]; then
   "$root/scripts/efficacy-logs.sh" "$R" "$arm" "$R/$db"
+elif [ -n "$db" ] && [ -f "$R/seed.db" ]; then
+  "$root/scripts/efficacy-logs.sh" "$R" "$arm" "$R/seed.db"
 else
   echo "logs: skipped"
 fi

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Compare scored runs.
 # Usage: efficacy-summary.sh <run-dir>...
-# Reads <arm>-score.txt (written by efficacy-score.sh) for arms with-archive,
+# Reads <arm>-score.txt (written by efficacy-score.sh) for arms with,
 # plan, control. Prints one row per run and arm, then pass counts per arm.
 set -euo pipefail
 if [ "$#" -lt 1 ]; then
