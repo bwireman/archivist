@@ -17,18 +17,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// openRememberStores opens only the database that will receive the row.
-// A repo record does not open the home store. --archive opens that checkout
-// inside Remember. A missing database is not created.
-func openRememberStores(root string, scope record.Scope, archiveRoot string) (*store.Store, *store.Store, error) {
-	switch scope {
-	case record.ScopeGlobal, record.ScopeDev:
-		home, err := openExistingHome()
-		return nil, home, err
-	default:
-		repo, err := openExistingStore(root)
-		return repo, nil, err
-	}
+// openRememberStore opens ~/.archivist/archive.db once. It does not create a
+// missing database. --archive selects the checkout column inside Remember.
+func openRememberStore(root string) (*store.Store, error) {
+	return openExistingStore(root)
 }
 
 func newRememberCmd() *cobra.Command {
@@ -43,7 +35,7 @@ func newRememberCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openRememberStores(root, record.Scope(scope), archiveRoot)
+			db, err := openRememberStore(root)
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) && strings.TrimSpace(archiveRoot) != "" && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
 					target, rerr := config.ResolveCheckout(root, archiveRoot)
@@ -54,12 +46,7 @@ func newRememberCmd() *cobra.Command {
 				}
 				return err
 			}
-			if repo != nil {
-				defer repo.Close()
-			}
-			if home != nil {
-				defer home.Close()
-			}
+			defer db.Close()
 			target := root
 			if scope == "" || record.Scope(scope) == record.ScopeRepo {
 				if strings.TrimSpace(archiveRoot) != "" {
@@ -68,10 +55,7 @@ func newRememberCmd() *cobra.Command {
 						return err
 					}
 				}
-				if repo == nil {
-					return fmt.Errorf("checkout %s is not registered; run archivist init", target)
-				}
-				ok, err := repo.HasCheckout(target)
+				ok, err := db.HasCheckout(target)
 				if err != nil {
 					return err
 				}
@@ -79,7 +63,7 @@ func newRememberCmd() *cobra.Command {
 					return fmt.Errorf("checkout %s is not registered; run archivist init", target)
 				}
 			}
-			svc := archive.New(root, cfg, repo, home)
+			svc := archive.New(root, cfg, db)
 			rec := &record.Record{
 				Type:      record.Type(recType),
 				Scope:     record.Scope(scope),
@@ -131,17 +115,16 @@ func newUpdateCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openExistingStores(root)
+			db, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
-			defer closeStore(repo)
-			defer closeStore(home)
+			defer closeStore(db)
 			roots, err := cfg.ArchiveRoots(root)
 			if err != nil {
 				return err
 			}
-			svc := archive.New(root, cfg, repo, home)
+			svc := archive.New(root, cfg, db)
 			svc.ExtraRoots = roots
 			err = svc.Update(args[0], func(r *record.Record) error {
 				archive.PatchText(r, title, body, status, check.SplitPathList(appliesTo))
@@ -178,17 +161,16 @@ func newRetireCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openExistingStores(root)
+			db, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
-			defer closeStore(repo)
-			defer closeStore(home)
+			defer closeStore(db)
 			roots, err := cfg.ArchiveRoots(root)
 			if err != nil {
 				return err
 			}
-			svc := archive.New(root, cfg, repo, home)
+			svc := archive.New(root, cfg, db)
 			svc.ExtraRoots = roots
 			if err := svc.Retire(args[0], supersededBy); err != nil {
 				return err
@@ -219,14 +201,13 @@ func newCheckCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openQueryStores(root)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
+			defer db.Close()
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home, QueryModel: cfg.Ollama.EmbedModel, Checkout: root}
+			engine := &retrieve.Engine{Repo: db, QueryModel: cfg.Ollama.EmbedModel, Checkout: root}
 			res, err := check.Run(cmd.Context(), engine, embedder, check.Options{
 				Description: strings.Join(args, " "),
 				Paths:       paths,

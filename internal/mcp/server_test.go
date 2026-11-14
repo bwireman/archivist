@@ -260,7 +260,7 @@ func TestToolRememberSplitsAppliesToAndTags(t *testing.T) {
 		_ = repoDB.Close()
 		_ = homeDB.Close()
 	})
-	s := New(repo, config.Default(), repoDB, homeDB, nil)
+	s := New(repo, config.Default(), repoDB, nil)
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]any{
 		"type":       "rule",
@@ -330,7 +330,7 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 		_ = repoDB.Close()
 		_ = homeDB.Close()
 	})
-	s := New(repo, config.Default(), repoDB, homeDB, nil)
+	s := New(repo, config.Default(), repoDB, nil)
 	created, _ := callTool(t, s, "remember", map[string]any{
 		"type":  "feature",
 		"scope": "repo",
@@ -444,6 +444,7 @@ func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 }
 
 func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	repo := t.TempDir()
 	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
 	if err != nil {
@@ -486,7 +487,7 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 	}
 	cfg := config.Default()
 	cfg.LogCommands = true
-	s := New(repo, cfg, repoDB, homeDB, nil)
+	s := New(repo, cfg, repoDB, nil)
 	s.Engine.Extras = []retrieve.Extra{{Root: canon, DB: ro}}
 	s.Archive.Extras = []archive.Extra{{Root: canon, DB: ro}}
 	s.Archive.ExtraRoots = []string{canon}
@@ -593,7 +594,7 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer primary.Close()
-	s := New(repo, config.Default(), primary, nil, nil)
+	s := New(repo, config.Default(), primary, nil)
 
 	got := callTool(t, s, "map", map[string]any{"query": "Widget"}).(map[string]any)
 	names := symbolNames(t, got["symbols"])
@@ -673,7 +674,7 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := New(root, config.Default(), repoRO, homeRO, nil)
+	s := New(root, config.Default(), repoRO, nil)
 	hits := searchHits(t, callTool(t, s, "search", map[string]any{"query": "Frozen query"}))
 	if len(hits) != 1 {
 		t.Fatalf("search: %#v", hits)
@@ -721,7 +722,7 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer homeRO.Close()
-	s = New(root, config.Default(), repoRO, homeRO, nil)
+	s = New(root, config.Default(), repoRO, nil)
 	hits = searchHits(t, callTool(t, s, "search", map[string]any{"query": "Frozen query"}))
 	if len(hits) != 1 {
 		t.Fatalf("frozen search: %#v", hits)
@@ -756,7 +757,7 @@ func TestMCPNewCopiesQueryModel(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = repoDB.Close() })
-	s := New(t.TempDir(), cfg, repoDB, nil, nil)
+	s := New(t.TempDir(), cfg, repoDB, nil)
 	if s.Engine.QueryModel != "qwen3-embedding:8b" {
 		t.Fatalf("QueryModel %q", s.Engine.QueryModel)
 	}
@@ -778,7 +779,7 @@ func TestMCPCheckEmbedsQwenPrefix(t *testing.T) {
 		_ = homeDB.Close()
 	})
 	emb := &textEmbedder{}
-	s := New(t.TempDir(), cfg, repoDB, homeDB, emb)
+	s := New(t.TempDir(), cfg, repoDB, emb)
 	callTool(t, s, "check", map[string]any{"description": "hybrid rules"})
 	if emb.got != retrieve.QueryText("qwen3-embedding:8b", "hybrid rules") {
 		t.Fatalf("check embed %q", emb.got)
@@ -848,7 +849,7 @@ func TestToolIndexWritesCheckoutMap(t *testing.T) {
 	}
 	defer extraRO.Close()
 
-	s := New(root, config.Default(), repoRO, homeRO, nil)
+	s := New(root, config.Default(), repoRO, nil)
 	s.Archive.Extras = []archive.Extra{{Root: extra, DB: extraRO}}
 
 	got := callTool(t, s, "index", map[string]any{}).(map[string]any)
@@ -933,7 +934,7 @@ func TestToolEmbedDrainsQueue(t *testing.T) {
 		t.Fatalf("queue %d err=%v", depth, err)
 	}
 	emb := &textEmbedder{}
-	s := New(t.TempDir(), config.Default(), repoDB, homeDB, emb)
+	s := New(t.TempDir(), config.Default(), repoDB, emb)
 	got := callTool(t, s, "embed", map[string]any{"once": true, "concurrency": 1}).(map[string]any)
 	if got["embedded"] != float64(1) {
 		t.Fatalf("embed %#v", got)
@@ -963,7 +964,7 @@ func TestToolEmbedReportsOllamaDown(t *testing.T) {
 		_ = repoDB.Close()
 		_ = homeDB.Close()
 	})
-	s := New(t.TempDir(), cfg, repoDB, homeDB, nil)
+	s := New(t.TempDir(), cfg, repoDB, nil)
 	req := mcp.CallToolRequest{}
 	req.Params.Arguments = map[string]any{"once": true, "checkout": s.RepoRoot}
 	res, err := s.toolEmbed(context.Background(), req)
@@ -1009,7 +1010,7 @@ func TestMCPLinkRoundTrip(t *testing.T) {
 	peer := t.TempDir()
 	repoDB := openMCPCheckout(t, primary, "rec_local")
 	_ = openMCPCheckout(t, peer, "rec_remote")
-	s := New(primary, config.Default(), repoDB, nil, nil)
+	s := New(primary, config.Default(), repoDB, nil)
 
 	callTool(t, s, "link", map[string]any{"kind": "record", "from_id": "rec_local", "to": peer + "#rec_remote"})
 	listed, _ := callTool(t, s, "links", nil).(map[string]any)

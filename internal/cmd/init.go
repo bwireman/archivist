@@ -75,26 +75,11 @@ func applyInit(root string, cfg *config.Config, writeConfig bool) error {
 			return err
 		}
 	}
-	repo, home, err := openStores(root)
+	db, err := openStore(root)
 	if err != nil {
 		return err
 	}
-	canon, err := config.Canonical(root)
-	if err != nil {
-		_ = repo.Close()
-		_ = home.Close()
-		return err
-	}
-	if err := repo.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
-		_ = repo.Close()
-		_ = home.Close()
-		return err
-	}
-	err = repo.Close()
-	if cerr := home.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
+	if err := db.Close(); err != nil {
 		return err
 	}
 	return appendGitignore(filepath.Join(root, ".gitignore"), ".archivist/\n")

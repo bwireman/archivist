@@ -25,15 +25,12 @@ func newCiteCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, extras, err := openReadArchives(root, cfg)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
-			defer closeExtras(extras)
-			svc := archive.New(root, cfg, repo, home)
-			svc.Extras = extras
+			defer db.Close()
+			svc := archive.New(root, cfg, db)
 			rec, err := svc.Get(args[0])
 			if err != nil {
 				return err

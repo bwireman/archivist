@@ -16,13 +16,12 @@ func newImportCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openExistingStores(root)
+			db, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
-			defer closeStore(repo)
-			defer closeStore(home)
-			svc := archive.New(root, cfg, repo, home)
+			defer closeStore(db)
+			svc := archive.New(root, cfg, db)
 			res, err := svc.Import()
 			if err != nil {
 				return err

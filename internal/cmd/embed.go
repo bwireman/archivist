@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
@@ -29,19 +28,8 @@ func newEmbedCmd() *cobra.Command {
 			if err := client.Healthy(cmd.Context()); err != nil {
 				return fmt.Errorf("%w (run: ollama serve)", err)
 			}
-			stores := []*store.Store{repo}
-			home, err := openHomeIfPresent()
-			if err != nil {
-				return err
-			}
-			if home != nil {
-				defer home.Close()
-				if config.StorePath(root) != config.HomeStorePath() {
-					stores = append(stores, home)
-				}
-			}
 			w := &embed.Worker{
-				Stores:   stores,
+				Stores:   []*store.Store{repo},
 				Embedder: client,
 				Model:    cfg.Ollama.EmbedModel,
 			}

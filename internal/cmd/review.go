@@ -32,13 +32,12 @@ func newReviewCmd() *cobra.Command {
 				fmt.Fprint(cmd.OutOrStdout(), review.FormatDue(rep))
 				return nil
 			}
-			repo, home, err := openQueryStores(root)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
-			rep, err := review.Collect(root, cfg, repo, home, now)
+			defer db.Close()
+			rep, err := review.Collect(root, cfg, db, now)
 			if err != nil {
 				return err
 			}

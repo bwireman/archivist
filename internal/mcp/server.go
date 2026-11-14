@@ -31,26 +31,24 @@ import (
 type Server struct {
 	RepoRoot string
 	Cfg      *config.Config
-	RepoDB   *store.Store
-	HomeDB   *store.Store
+	DB       *store.Store
 	Archive  *archive.Service
 	Engine   *retrieve.Engine
 	Embedder embed.Embedder
 	regErr   error
 }
 
-func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embedder embed.Embedder) *Server {
+func New(repoRoot string, cfg *config.Config, db *store.Store, embedder embed.Embedder) *Server {
 	s := &Server{
 		RepoRoot: repoRoot,
 		Cfg:      cfg,
-		RepoDB:   repoDB,
-		HomeDB:   homeDB,
-		Archive:  archive.New(repoRoot, cfg, repoDB, homeDB),
-		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB, QueryModel: cfg.Ollama.EmbedModel, Checkout: repoRoot},
+		DB:       db,
+		Archive:  archive.New(repoRoot, cfg, db),
+		Engine:   &retrieve.Engine{Repo: db, QueryModel: cfg.Ollama.EmbedModel, Checkout: repoRoot},
 		Embedder: embedder,
 	}
-	if repoDB != nil && !repoDB.ReadOnly() && repoRoot != "" {
-		s.regErr = registerRepoCheckout(repoDB, repoRoot)
+	if db != nil && !db.ReadOnly() && repoRoot != "" {
+		s.regErr = registerRepoCheckout(db, repoRoot)
 	}
 	return s
 }
@@ -321,7 +319,7 @@ func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	}
 	var links []retrieve.GetLink
 	if origin == archive.OriginRepo {
-		links, err = retrieve.LinksForRecord(s.RepoDB, rec)
+		links, err = retrieve.LinksForRecord(s.DB, rec)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
@@ -357,10 +355,10 @@ func (s *Server) registeredCheckout(raw string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if s == nil || s.RepoDB == nil {
+	if s == nil || s.DB == nil {
 		return "", errors.New("archive is not open")
 	}
-	ok, err := s.RepoDB.HasCheckout(canon)
+	ok, err := s.DB.HasCheckout(canon)
 	if err != nil {
 		return "", err
 	}
@@ -383,7 +381,7 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB, QueryModel: model, Checkout: checkout}, s.Embedder, check.Options{
+	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.DB, QueryModel: model, Checkout: checkout}, s.Embedder, check.Options{
 		Description: req.GetString("description", ""),
 		Paths:       paths,
 		Diff:        req.GetString("diff", ""),
@@ -401,12 +399,12 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	}
 	limit := int(req.GetFloat("limit", float64(store.DefaultExploreLimit)))
 	query := req.GetString("query", "")
-	primary, err := s.RepoDB.ExploreCode(checkout, query, limit)
+	primary, err := s.DB.ExploreCode(checkout, query, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	res := store.MapResult{CodeSearch: primary}
-	res.Reindex, err = index.ReindexPrompt(s.RepoDB)
+	res.Reindex, err = index.ReindexPrompt(s.DB)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -415,60 +413,41 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 
 // writer returns a service that can upsert. Query connections stay read-only.
 // A server built on store.Open keeps that connection. A read-only server opens
-// store.Open for the write and closes it when done.
+// store.OpenExisting for the write and closes it when done.
 func (s *Server) writer() (*archive.Service, func(), error) {
 	noop := func() {}
 	if s == nil || s.Archive == nil {
 		return nil, noop, errors.New("archive is not open")
 	}
-	repo, home, done, err := s.writableStores()
+	db, done, err := s.writableStore()
 	if err != nil {
 		return nil, noop, err
 	}
-	if repo == s.RepoDB && home == s.HomeDB {
+	if db == s.DB {
 		return s.Archive, done, nil
 	}
-	svc := archive.New(s.RepoRoot, s.Cfg, repo, home)
+	svc := archive.New(s.RepoRoot, s.Cfg, db)
 	svc.ExtraRoots = s.Archive.ExtraRoots
 	return svc, done, nil
 }
 
-// writableStores returns checkout and home connections that can write.
-// Query connections stay read-only. A server built on store.Open keeps those
-// connections. A read-only server opens store.OpenExisting for the call and
-// does not create a missing database. A missing home store is left nil.
-// The caller closes a freshly opened pair.
-func (s *Server) writableStores() (repo, home *store.Store, done func(), err error) {
+// writableStore returns the one database connection that can write.
+// A read-only server opens store.OpenExisting for the call and does not
+// create a missing database. The caller closes a freshly opened store.
+func (s *Server) writableStore() (*store.Store, func(), error) {
 	noop := func() {}
-	if s == nil {
-		return nil, nil, noop, errors.New("archive is not open")
+	if s == nil || s.DB == nil {
+		return nil, noop, errors.New("archive is not open")
 	}
-	repoRO := s.RepoDB != nil && s.RepoDB.ReadOnly()
-	homeRO := s.HomeDB != nil && s.HomeDB.ReadOnly()
-	if !repoRO && !homeRO {
-		return s.RepoDB, s.HomeDB, noop, nil
+	if !s.DB.ReadOnly() {
+		return s.DB, noop, nil
 	}
-	repoPath := config.StorePath(s.RepoRoot)
-	repo, err = store.OpenExisting(repoPath)
+	path := config.StorePath(s.RepoRoot)
+	db, err := store.OpenExisting(path)
 	if err != nil {
-		return nil, nil, noop, store.NeedsInit(repoPath, err)
+		return nil, noop, store.NeedsInit(path, err)
 	}
-	homePath := config.HomeStorePath()
-	if homePath == "" {
-		return repo, nil, func() { _ = repo.Close() }, nil
-	}
-	home, err = store.OpenExisting(homePath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return repo, nil, func() { _ = repo.Close() }, nil
-		}
-		_ = repo.Close()
-		return nil, nil, noop, store.NeedsInit(homePath, err)
-	}
-	return repo, home, func() {
-		_ = repo.Close()
-		_ = home.Close()
-	}, nil
+	return db, func() { _ = db.Close() }, nil
 }
 
 func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -533,7 +512,7 @@ func (s *Server) toolUnlink(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 }
 
 func (s *Server) mutateLink(req mcp.CallToolRequest, remove bool) (*mcp.CallToolResult, error) {
-	repo, _, done, err := s.writableStores()
+	repo, done, err := s.writableStore()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -558,10 +537,10 @@ func (s *Server) mutateLink(req mcp.CallToolRequest, remove bool) (*mcp.CallTool
 }
 
 func (s *Server) toolLinks(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if s == nil || s.RepoDB == nil {
+	if s == nil || s.DB == nil {
 		return mcp.NewToolResultError("archive is not open"), nil
 	}
-	edges, err := s.RepoDB.ListLinks()
+	edges, err := s.DB.ListLinks()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -650,20 +629,13 @@ func (s *Server) toolEmbed(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	repo, home, done, err := s.writableStores()
+	repo, done, err := s.writableStore()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	defer done()
-	if repo == nil {
-		return mcp.NewToolResultError("archive is not open"), nil
-	}
-	stores := []*store.Store{repo}
-	if home != nil && config.StorePath(s.RepoRoot) != config.HomeStorePath() {
-		stores = append(stores, home)
-	}
 	n, err := (&embed.Worker{
-		Stores:   stores,
+		Stores:   []*store.Store{repo},
 		Embedder: client,
 		Model:    s.Cfg.Ollama.EmbedModel,
 	}).Run(ctx, embed.WorkerOptions{
@@ -723,10 +695,10 @@ func (s *Server) toolReview(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		}
 		return jsonResult(rep)
 	}
-	if s.RepoDB == nil {
+	if s.DB == nil {
 		return mcp.NewToolResultError("archive is not open"), nil
 	}
-	rep, err := review.Collect(s.RepoRoot, s.Cfg, s.RepoDB, s.HomeDB, now)
+	rep, err := review.Collect(s.RepoRoot, s.Cfg, s.DB, now)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -735,19 +707,9 @@ func (s *Server) toolReview(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 
 func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	health := embed.CheckHealth(context.Background(), s.Cfg)
-	count, _ := s.RepoDB.RecordCount()
-	queue, _ := s.RepoDB.QueueDepth()
-	if s.HomeDB != nil && config.StorePath(s.RepoRoot) != config.HomeStorePath() {
-		homeCount, _ := s.HomeDB.RecordCount()
-		homeQueue, _ := s.HomeDB.QueueDepth()
-		count += homeCount
-		queue += homeQueue
-	}
-	missing, giveups, err := store.AppendEmbedGaps(s.RepoDB, "", []store.EmbedGap{}, []store.EmbedGap{})
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
-	missing, giveups, err = store.AppendEmbedGaps(s.HomeDB, "", missing, giveups)
+	count, _ := s.DB.RecordCount()
+	queue, _ := s.DB.QueueDepth()
+	missing, giveups, err := store.AppendEmbedGaps(s.DB, "", []store.EmbedGap{}, []store.EmbedGap{})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -779,7 +741,7 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	if health.EmbedderError != "" {
 		status["embedder_error"] = health.EmbedderError
 	}
-	if prompt, err := index.ReindexPrompt(s.RepoDB); err != nil {
+	if prompt, err := index.ReindexPrompt(s.DB); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	} else if prompt != "" {
 		status["reindex"] = prompt

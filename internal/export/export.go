@@ -41,11 +41,11 @@ type Entry struct {
 	ContentHash string   `json:"content_hash"`
 }
 
-func Run(repo *store.Store, home *store.Store, opts Options) error {
+func Run(db *store.Store, opts Options) error {
 	if opts.OutDir == "" {
 		opts.OutDir = filepath.Join(opts.RepoRoot, config.DefaultArchiveDir)
 	}
-	recs, err := collectRecords(repo, home)
+	recs, err := collectRecords(db)
 	if err != nil {
 		return err
 	}
@@ -61,7 +61,7 @@ func Run(repo *store.Store, home *store.Store, opts Options) error {
 	if err := writeTypeDigests(recs, opts.OutDir); err != nil {
 		return err
 	}
-	if err := writeMap(repo, filepath.Join(opts.OutDir, "map.md")); err != nil {
+	if err := writeMap(db, filepath.Join(opts.OutDir, "map.md")); err != nil {
 		return err
 	}
 	return writeManifest(recs, filepath.Join(opts.OutDir, "archive.json"))
@@ -69,17 +69,14 @@ func Run(repo *store.Store, home *store.Store, opts Options) error {
 
 // WriteBundle writes the same tree as Run into a portable directory, ignoring
 // records.write_docs.
-func WriteBundle(repo, home *store.Store, bundlePath string) error {
-	return Run(repo, home, Options{OutDir: bundlePath})
+func WriteBundle(db *store.Store, bundlePath string) error {
+	return Run(db, Options{OutDir: bundlePath})
 }
 
-func collectRecords(repo, home *store.Store) ([]*record.Record, error) {
+func collectRecords(db *store.Store) ([]*record.Record, error) {
 	var all []*record.Record
-	for _, st := range []*store.Store{repo, home} {
-		if st == nil {
-			continue
-		}
-		recs, err := st.AllRecords()
+	if db != nil {
+		recs, err := db.AllRecords()
 		if err != nil {
 			return nil, err
 		}

@@ -22,17 +22,12 @@ func TestMCPOpenReadsExtraWithoutServing(t *testing.T) {
 		t.Fatal(err)
 	}
 	ensureQueryStores(t, root)
-	repo, homeDB, extras, err := openReadArchives(root, cfg)
+	db, err := openReadOnlyArchive(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer repo.Close()
-	defer homeDB.Close()
-	defer closeExtras(extras)
-	if len(extras) != 0 {
-		t.Fatalf("extras %d", len(extras))
-	}
-	n, err := repo.RecordCount()
+	defer db.Close()
+	n, err := db.RecordCount()
 	if err != nil || n != 1 {
 		t.Fatalf("record count %d err=%v", n, err)
 	}

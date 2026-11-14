@@ -101,11 +101,6 @@ func TestSearchReturnsEveryScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer repo.Close()
-	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer home.Close()
 
 	// Three slugs, so overlayWins does not collapse them.
 	records := []*record.Record{
@@ -122,17 +117,13 @@ func TestSearchReturnsEveryScope(t *testing.T) {
 			Title: "Gamma", Status: record.StatusAccepted, Body: "zqxscope", SourcePath: "user/gamma.md",
 		},
 	}
-	if err := repo.UpsertRecord(records[0]); err != nil {
-		t.Fatal(err)
-	}
-	if err := home.UpsertRecord(records[1]); err != nil {
-		t.Fatal(err)
-	}
-	if err := home.UpsertRecord(records[2]); err != nil {
-		t.Fatal(err)
+	for _, rec := range records {
+		if err := repo.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
 	}
 
-	results, err := (&retrieve.Engine{Repo: repo, Home: home}).Search(
+	results, err := (&retrieve.Engine{Repo: repo}).Search(
 		context.Background(), nil, retrieve.Options{Query: "zqxscope", TopK: 10})
 	if err != nil {
 		t.Fatal(err)
@@ -154,11 +145,6 @@ func TestSearchOverlayPrefersRepoScope(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer repo.Close()
-	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer home.Close()
 
 	repoRec := &record.Record{
 		ID: "rec_repo", Slug: "billing", Type: record.TypeDecision, Scope: record.ScopeRepo,
@@ -173,17 +159,17 @@ func TestSearchOverlayPrefersRepoScope(t *testing.T) {
 	if err := repo.UpsertRecord(repoRec); err != nil {
 		t.Fatal(err)
 	}
-	if err := home.UpsertRecord(globalRec); err != nil {
+	if err := repo.UpsertRecord(globalRec); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.SetRecordVector(repoRec.ID, "test", []float32{1, 0}); err != nil {
 		t.Fatal(err)
 	}
-	if err := home.SetRecordVector(globalRec.ID, "test", []float32{1, 0}); err != nil {
+	if err := repo.SetRecordVector(globalRec.ID, "test", []float32{1, 0}); err != nil {
 		t.Fatal(err)
 	}
 
-	engine := &retrieve.Engine{Repo: repo, Home: home}
+	engine := &retrieve.Engine{Repo: repo}
 	results, err := engine.Search(context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{
 		Query: "billing",
 		TopK:  5,
@@ -499,11 +485,6 @@ func TestEqualRRFSortsByCosine(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer repo.Close()
-	home, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer home.Close()
 	high := &record.Record{
 		ID: "rec_z", Slug: "high", Type: record.TypeDecision, Scope: record.ScopeRepo,
 		Title: "High zqxequal", Status: record.StatusAccepted, Body: "zqxequal",
@@ -517,16 +498,16 @@ func TestEqualRRFSortsByCosine(t *testing.T) {
 	if err := repo.UpsertRecord(high); err != nil {
 		t.Fatal(err)
 	}
-	if err := home.UpsertRecord(low); err != nil {
+	if err := repo.UpsertRecord(low); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.SetRecordVector(high.ID, "test", []float32{1, 0}); err != nil {
 		t.Fatal(err)
 	}
-	if err := home.SetRecordVector(low.ID, "test", []float32{0.6, 0.8}); err != nil {
+	if err := repo.SetRecordVector(low.ID, "test", []float32{0.6, 0.8}); err != nil {
 		t.Fatal(err)
 	}
-	results, err := (&retrieve.Engine{Repo: repo, Home: home}).Search(
+	results, err := (&retrieve.Engine{Repo: repo}).Search(
 		context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{Query: "zqxequal", TopK: 10})
 	if err != nil {
 		t.Fatal(err)

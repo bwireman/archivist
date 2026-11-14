@@ -124,10 +124,10 @@ func Clock(root string, cfg *config.Config, now time.Time) (DueReport, error) {
 	return DueReport{Due: due(last, now), LastReview: last}, nil
 }
 
-// Collect loads this checkout and the home store into a report.
-func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.Time) (*Report, error) {
-	if repo == nil {
-		return nil, fmt.Errorf("review: checkout database is not open")
+// Collect loads the open database into a report.
+func Collect(root string, cfg *config.Config, db *store.Store, now time.Time) (*Report, error) {
+	if db == nil {
+		return nil, fmt.Errorf("review: database is not open")
 	}
 	if cfg == nil {
 		cfg = config.Default()
@@ -153,11 +153,11 @@ func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.
 	if err != nil {
 		return nil, err
 	}
-	recs, err := loadRecords(repo, home)
+	recs, err := loadRecords(db)
 	if err != nil {
 		return nil, err
 	}
-	vecs, err := loadVectors(cfg.Ollama.EmbedModel, repo, home)
+	vecs, err := loadVectors(cfg.Ollama.EmbedModel, db)
 	if err != nil {
 		return nil, err
 	}

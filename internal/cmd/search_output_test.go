@@ -144,7 +144,7 @@ func TestSearchJSONCompactFullAndLog(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer repoDB.Close()
-	results, err := (&retrieve.Engine{Repo: repoDB, Home: homeDB}).Search(context.Background(), nil, retrieve.Options{Query: "Zqxcard"})
+	results, err := (&retrieve.Engine{Repo: repoDB}).Search(context.Background(), nil, retrieve.Options{Query: "Zqxcard"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -340,18 +340,11 @@ func mustCanonCmd(t *testing.T, path string) string {
 
 func ensureQueryStores(t *testing.T, root string) {
 	t.Helper()
-	repo, home, err := openStores(root)
+	db, err := openStore(root)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.RegisterCheckout(root, config.CheckoutHex(root)); err != nil {
-		t.Fatal(err)
-	}
-	err = repo.Close()
-	if cerr := home.Close(); err == nil {
-		err = cerr
-	}
-	if err != nil {
+	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

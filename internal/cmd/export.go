@@ -26,13 +26,12 @@ func newExportCmd() *cobra.Command {
 				fmt.Fprintln(cmd.OutOrStdout(), skip)
 				return nil
 			}
-			repo, home, err := openExistingStores(root)
+			db, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
-			defer closeStore(repo)
-			defer closeStore(home)
-			if err := export.Run(repo, home, export.Options{RepoRoot: root, OutDir: outDir}); err != nil {
+			defer closeStore(db)
+			if err := export.Run(db, export.Options{RepoRoot: root, OutDir: outDir}); err != nil {
 				return err
 			}
 			noteResult(cmd, map[string]string{"out": outDir})

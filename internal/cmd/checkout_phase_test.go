@@ -47,7 +47,7 @@ func TestTwoCheckoutsShareTheHomeDatabase(t *testing.T) {
 	defer db.Close()
 	ca, _ := config.Canonical(a)
 	cb, _ := config.Canonical(b)
-	svc := archive.New(ca, config.Default(), db, db)
+	svc := archive.New(ca, config.Default(), db)
 	if _, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Only A",
 		Body: "alpha-only-fact", Status: record.StatusAccepted, Checkout: ca,

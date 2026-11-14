@@ -42,7 +42,7 @@ Yes.
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	res, err := svc.Import()
 	if err != nil {
 		t.Fatal(err)
@@ -111,7 +111,7 @@ Note.
 `), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	res, err := svc.Import()
 	if err != nil {
 		t.Fatal(err)
@@ -119,14 +119,14 @@ Note.
 	if res.Imported != 2 {
 		t.Fatalf("imported %d", res.Imported)
 	}
-	rec, ok, err := homeDB.GetRecordByID("rec_home")
+	rec, ok, err := repoDB.GetRecordByID("rec_home")
 	if err != nil || !ok {
 		t.Fatalf("home global: ok=%v err=%v", ok, err)
 	}
 	if rec.SourcePath != "global/machine.md" {
 		t.Fatalf("path %q", rec.SourcePath)
 	}
-	dev, ok, err := homeDB.GetRecordByID("rec_dev")
+	dev, ok, err := repoDB.GetRecordByID("rec_dev")
 	if err != nil || !ok {
 		t.Fatalf("dev: ok=%v err=%v", ok, err)
 	}
@@ -160,7 +160,7 @@ func TestImportMatchesByIDKeepsSourcePath(t *testing.T) {
 		SourcePath: "docs/global-decisions/embed-queue.md",
 	}
 	rec.ContentHash = record.ContentHash(rec)
-	if err := homeDB.UpsertRecord(rec); err != nil {
+	if err := repoDB.UpsertRecord(rec); err != nil {
 		t.Fatal(err)
 	}
 	cfg := config.Default()
@@ -183,7 +183,7 @@ Drain it.
 	if err := os.WriteFile(exportPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, cfg, repoDB, homeDB)
+	svc := New(repo, cfg, repoDB)
 	res, err := svc.Import()
 	if err != nil {
 		t.Fatal(err)
@@ -191,11 +191,11 @@ Drain it.
 	if res.Updated != 1 {
 		t.Fatalf("updated %d imported %d skipped %d", res.Updated, res.Imported, res.Skipped)
 	}
-	n, _ := homeDB.RecordCount()
+	n, _ := repoDB.RecordCount()
 	if n != 1 {
 		t.Fatalf("record count %d", n)
 	}
-	got, ok, err := homeDB.GetRecordByID("rec_feat")
+	got, ok, err := repoDB.GetRecordByID("rec_feat")
 	if err != nil || !ok {
 		t.Fatal(err)
 	}
@@ -235,7 +235,7 @@ func TestImportDoesNotDeleteDBOnly(t *testing.T) {
 	if err := repoDB.UpsertRecord(rec); err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	if _, err := svc.Import(); err != nil {
 		t.Fatal(err)
 	}

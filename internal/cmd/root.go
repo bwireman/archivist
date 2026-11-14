@@ -9,7 +9,6 @@ import (
 	"os"
 	"strings"
 
-	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/index"
@@ -175,14 +174,6 @@ func registerCheckout(st *store.Store, root string) error {
 	return st.RegisterCheckout(canon, config.CheckoutHex(canon))
 }
 
-func openHomeStore() (*store.Store, error) {
-	path := config.HomeStorePath()
-	if path == "" {
-		return nil, errors.New("cannot resolve home archive path (set $HOME)")
-	}
-	return store.Open(path)
-}
-
 func openExistingPath(path string) (*store.Store, error) {
 	db, err := store.OpenExisting(path)
 	if err != nil {
@@ -207,56 +198,10 @@ func openExistingStore(root string) (*store.Store, error) {
 	return st, nil
 }
 
-func openExistingHome() (*store.Store, error) {
-	path := config.HomeStorePath()
-	if path == "" {
-		return nil, errors.New("cannot resolve home archive path (set $HOME)")
-	}
-	return openExistingPath(path)
-}
-
-// openHomeIfPresent opens the home database when it already exists.
-// A missing file returns a nil store so a command can still use the checkout.
-func openHomeIfPresent() (*store.Store, error) {
-	home, err := openExistingHome()
-	if err != nil && errors.Is(err, os.ErrNotExist) {
-		return nil, nil
-	}
-	return home, err
-}
-
-// openExistingStores opens the checkout and home databases for commands that
-// may write either one. It does not create a missing database.
-func openExistingStores(root string) (*store.Store, *store.Store, error) {
-	repo, err := openExistingStore(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	home, err := openHomeIfPresent()
-	if err != nil {
-		_ = repo.Close()
-		return nil, nil, err
-	}
-	return repo, home, nil
-}
-
 func closeStore(st *store.Store) {
 	if st != nil {
 		_ = st.Close()
 	}
-}
-
-func openStores(root string) (*store.Store, *store.Store, error) {
-	repo, err := openStore(root)
-	if err != nil {
-		return nil, nil, err
-	}
-	home, err := openHomeStore()
-	if err != nil {
-		_ = repo.Close()
-		return nil, nil, err
-	}
-	return repo, home, nil
 }
 
 func openQueryStore(path string) (*store.Store, error) {
@@ -270,61 +215,18 @@ func openQueryStore(path string) (*store.Store, error) {
 	return db, nil
 }
 
-func openQueryStores(root string) (*store.Store, *store.Store, error) {
+// openReadOnlyArchive opens ~/.archivist/archive.db once. It does not create
+// the file, schema, or orphan cleanup. search, map, status, cite, check,
+// trace, and mcp use this.
+func openReadOnlyArchive(root string) (*store.Store, error) {
 	if msg := store.WarnUnmerged(root); msg != "" {
 		fmt.Fprintln(os.Stderr, msg)
 	}
-	repo, err := openQueryStore(config.StorePath(root))
-	if err != nil {
-		return nil, nil, err
+	path := config.StorePath(root)
+	if path == "" {
+		return nil, errors.New("cannot resolve home archive path (set $HOME)")
 	}
-	homePath := config.HomeStorePath()
-	if homePath == "" {
-		_ = repo.Close()
-		return nil, nil, errors.New("cannot resolve home archive path (set $HOME)")
-	}
-	home, err := openQueryStore(homePath)
-	if err != nil {
-		_ = repo.Close()
-		return nil, nil, err
-	}
-	return repo, home, nil
-}
-
-// openReadArchives opens the home database on two connections. Listed archives
-// are not opened. search, map, status, cite, check, trace, and mcp use this.
-// It does not create databases, schema, or orphan cleanup.
-func openReadArchives(root string, cfg *config.Config) (*store.Store, *store.Store, []archive.Extra, error) {
-	repo, home, err := openQueryStores(root)
-	if err != nil {
-		return nil, nil, nil, err
-	}
-	_ = cfg
-	return repo, home, nil, nil
-}
-
-func closeExtras(extras []archive.Extra) {
-	for _, ex := range extras {
-		if ex.DB != nil {
-			_ = ex.DB.Close()
-		}
-	}
-}
-
-func extraRoots(extras []archive.Extra) []string {
-	roots := make([]string, 0, len(extras))
-	for _, ex := range extras {
-		roots = append(roots, ex.Root)
-	}
-	return roots
-}
-
-func retrieveExtras(extras []archive.Extra) []retrieve.Extra {
-	out := make([]retrieve.Extra, 0, len(extras))
-	for _, ex := range extras {
-		out = append(out, retrieve.Extra{Root: ex.Root, DB: ex.DB})
-	}
-	return out
+	return openQueryStore(path)
 }
 
 func appendGitignore(path, line string) (err error) {
@@ -373,16 +275,14 @@ func newSearchCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, extras, err := openReadArchives(root, cfg)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
-			defer closeExtras(extras)
+			defer db.Close()
 
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home, Extras: retrieveExtras(extras), QueryModel: cfg.Ollama.EmbedModel, Checkout: root}
+			engine := &retrieve.Engine{Repo: db, QueryModel: cfg.Ollama.EmbedModel, Checkout: root}
 			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " "), Status: record.Status(status)}
 			if recType != "" {
 				opts.Type = record.Type(recType)
@@ -426,30 +326,18 @@ func newStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, extras, err := openReadArchives(root, cfg)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
-			defer closeExtras(extras)
+			defer db.Close()
 
 			health := embed.CheckHealth(cmd.Context(), cfg)
-			recCount, _ := repo.RecordCount()
-			homeCount, _ := home.RecordCount()
-			fileCount, _ := repo.FileCount()
-			queue, _ := repo.QueueDepth()
-			homeQueue, _ := home.QueueDepth()
-			if config.StorePath(root) == config.HomeStorePath() {
-				homeCount = 0
-				homeQueue = 0
-			}
-			lastIdx, hasIdx, _ := repo.LastIndexedAt()
+			recCount, _ := db.RecordCount()
+			fileCount, _ := db.FileCount()
+			queue, _ := db.QueueDepth()
+			lastIdx, hasIdx, _ := db.LastIndexedAt()
 
-			type extraCount struct {
-				Root        string `json:"root"`
-				RecordCount int    `json:"record_count"`
-			}
 			type status struct {
 				Version        string           `json:"version"`
 				EmbedderOK     bool             `json:"embedder_ok"`
@@ -457,46 +345,29 @@ func newStatusCmd() *cobra.Command {
 				RecordCount    int              `json:"record_count"`
 				FileCount      int              `json:"file_count"`
 				QueueDepth     int              `json:"queue_depth"`
-				HomeQueue      int              `json:"home_queue_depth"`
 				LastIndexedAt  string           `json:"last_indexed_at,omitempty"`
 				Reindex        string           `json:"reindex,omitempty"`
-				Extras         []extraCount     `json:"extras,omitempty"`
 				MissingVectors []store.EmbedGap `json:"missing_vectors"`
 				EmbedGiveups   []store.EmbedGap `json:"embed_giveups"`
 			}
-			missing, giveups, err := store.AppendEmbedGaps(repo, "", []store.EmbedGap{}, []store.EmbedGap{})
+			missing, giveups, err := store.AppendEmbedGaps(db, "", []store.EmbedGap{}, []store.EmbedGap{})
 			if err != nil {
 				return err
-			}
-			missing, giveups, err = store.AppendEmbedGaps(home, "", missing, giveups)
-			if err != nil {
-				return err
-			}
-			for _, ex := range extras {
-				missing, giveups, err = store.AppendEmbedGaps(ex.DB, ex.Root, missing, giveups)
-				if err != nil {
-					return err
-				}
 			}
 			s := status{
 				Version:        version.Version,
 				EmbedderOK:     health.EmbedderOK,
 				EmbedderError:  health.EmbedderError,
-				RecordCount:    recCount + homeCount,
+				RecordCount:    recCount,
 				FileCount:      fileCount,
-				QueueDepth:     queue + homeQueue,
-				HomeQueue:      homeQueue,
+				QueueDepth:     queue,
 				MissingVectors: missing,
 				EmbedGiveups:   giveups,
-			}
-			for _, ex := range extras {
-				n, _ := ex.DB.RecordCount()
-				s.Extras = append(s.Extras, extraCount{Root: ex.Root, RecordCount: n})
 			}
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
-			s.Reindex, err = index.ReindexPrompt(repo)
+			s.Reindex, err = index.ReindexPrompt(db)
 			if err != nil {
 				return err
 			}
@@ -531,9 +402,6 @@ func newStatusCmd() *cobra.Command {
 			}
 			if s.Reindex != "" {
 				fmt.Fprintln(out, s.Reindex)
-			}
-			for _, ex := range s.Extras {
-				fmt.Fprintf(out, "Extra archive: %s (%d records)\n", ex.Root, ex.RecordCount)
 			}
 			return nil
 		},

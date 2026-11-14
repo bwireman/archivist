@@ -27,14 +27,12 @@ func TestUserMCPServesSearchWithoutPathFlag(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	repo, homeDB, extras, err := openReadArchives(loaded, cfg)
+	db, err := openReadOnlyArchive(loaded)
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer repo.Close()
-	defer homeDB.Close()
-	defer closeExtras(extras)
-	srv := mcpsrv.New(loaded, cfg, repo, homeDB, embed.OptionalFromConfig(t.Context(), cfg.Ollama))
+	defer db.Close()
+	srv := mcpsrv.New(loaded, cfg, db, embed.OptionalFromConfig(t.Context(), cfg.Ollama))
 	if srv.MCPServer().GetTool("search") == nil {
 		t.Fatal("mcp did not serve search")
 	}

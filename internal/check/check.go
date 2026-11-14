@@ -39,7 +39,7 @@ type Result struct {
 func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, opts Options) (*Result, error) {
 	paths := unique(append(pathsFromDiff(opts.Diff), opts.Paths...))
 
-	stores := []*store.Store{engine.Repo, engine.Home}
+	stores := []*store.Store{engine.Repo}
 	matches, err := matchByPaths(stores, engine.Checkout, []record.Type{record.TypeRule}, paths, ReasonAppliesTo)
 	if err != nil {
 		return nil, err

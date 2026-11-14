@@ -42,7 +42,7 @@ func TestRunNestsRecordsScopeThenType(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := Run(st, nil, Options{OutDir: out}); err != nil {
+	if err := Run(st, Options{OutDir: out}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -117,7 +117,7 @@ func TestRunWritesCodeMapFromSymbols(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := t.TempDir()
-	if err := Run(st, nil, Options{OutDir: out}); err != nil {
+	if err := Run(st, Options{OutDir: out}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(out, "map.md"))
@@ -141,7 +141,7 @@ func TestRunWritesMapsDigestBesideCodeMap(t *testing.T) {
 		SourcePath: "docs/global-decisions/http-surface.md",
 	})
 	out := t.TempDir()
-	if err := Run(st, nil, Options{OutDir: out}); err != nil {
+	if err := Run(st, Options{OutDir: out}); err != nil {
 		t.Fatal(err)
 	}
 	maps, err := os.ReadFile(filepath.Join(out, "maps.md"))
@@ -163,7 +163,7 @@ func TestRunWritesMapsDigestBesideCodeMap(t *testing.T) {
 func TestRunAlwaysWritesRulesDigest(t *testing.T) {
 	st := openStore(t)
 	out := t.TempDir()
-	if err := Run(st, nil, Options{OutDir: out}); err != nil {
+	if err := Run(st, Options{OutDir: out}); err != nil {
 		t.Fatal(err)
 	}
 	data, err := os.ReadFile(filepath.Join(out, "rules.md"))

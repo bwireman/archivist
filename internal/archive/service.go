@@ -23,18 +23,17 @@ type Extra struct {
 type Service struct {
 	RepoRoot   string
 	Records    config.RecordsConfig
-	RepoDB     *store.Store
-	HomeDB     *store.Store
+	DB         *store.Store
 	Extras     []Extra
 	ExtraRoots []string
 }
 
-func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store) *Service {
+func New(repoRoot string, cfg *config.Config, db *store.Store) *Service {
 	recs := config.Default().Records
 	if cfg != nil {
 		recs = cfg.Records
 	}
-	return &Service{RepoRoot: repoRoot, Records: recs, RepoDB: repoDB, HomeDB: homeDB}
+	return &Service{RepoRoot: repoRoot, Records: recs, DB: db}
 }
 
 func (s *Service) Remember(rec *record.Record, archiveRoot string) (string, error) {
@@ -63,13 +62,9 @@ func (s *Service) Remember(rec *record.Record, archiveRoot string) (string, erro
 		return "", err
 	}
 
-	// Context picks one store. Never upsert the same row into a second store.
-	st, closeFn, err := s.contextStore(rec.Scope, archiveRoot)
+	st, err := s.contextStore(rec.Scope, archiveRoot)
 	if err != nil {
 		return "", err
-	}
-	if closeFn != nil {
-		defer closeFn()
 	}
 	if st == nil {
 		return "", fmt.Errorf("no store for scope %s", rec.Scope)
@@ -82,29 +77,29 @@ func (s *Service) Remember(rec *record.Record, archiveRoot string) (string, erro
 	return rec.ID, nil
 }
 
-func (s *Service) contextStore(scope record.Scope, archiveRoot string) (*store.Store, func(), error) {
+// contextStore is the one open database. Scope and archiveRoot choose the
+// checkout column, which Remember sets before this runs. A listed extra is
+// merged on that same connection.
+func (s *Service) contextStore(scope record.Scope, archiveRoot string) (*store.Store, error) {
+	if s.DB == nil {
+		return nil, store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
+	}
 	if scope == record.ScopeGlobal || scope == record.ScopeDev {
 		if strings.TrimSpace(archiveRoot) != "" {
-			return nil, nil, errors.New("global and dev records are written to the home store")
+			return nil, errors.New("global and dev records do not take a checkout")
 		}
-		if s.HomeDB == nil {
-			return nil, nil, store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
+		return s.DB, nil
+	}
+	if strings.TrimSpace(archiveRoot) != "" {
+		root, err := s.matchExtra(archiveRoot)
+		if err != nil {
+			return nil, err
 		}
-		return s.HomeDB, nil, nil
+		if err := s.DB.MergeCheckout(root); err != nil {
+			return nil, err
+		}
 	}
-	if strings.TrimSpace(archiveRoot) == "" {
-		return s.RepoDB, nil, nil
-	}
-	root, err := s.matchExtra(archiveRoot)
-	if err != nil {
-		return nil, nil, err
-	}
-	path := config.StorePath(root)
-	db, err := store.OpenExisting(path)
-	if err != nil {
-		return nil, nil, store.NeedsInit(path, err)
-	}
-	return db, func() { _ = db.Close() }, nil
+	return s.DB, nil
 }
 
 func (s *Service) matchExtra(archiveRoot string) (string, error) {
@@ -127,25 +122,6 @@ func (s *Service) Update(id string, fn func(*record.Record) error) error {
 	}
 	if ok {
 		return s.writeRecord(st, rec, fn)
-	}
-	for _, root := range s.ExtraRoots {
-		path := config.StorePath(root)
-		db, err := store.OpenExisting(path)
-		if err != nil {
-			return store.NeedsInit(path, err)
-		}
-		got, found, err := db.GetRecordByID(id)
-		if err != nil {
-			_ = db.Close()
-			return err
-		}
-		if !found {
-			_ = db.Close()
-			continue
-		}
-		err = s.writeRecord(db, got, fn)
-		_ = db.Close()
-		return err
 	}
 	return fmt.Errorf("record not found: %s", id)
 }
@@ -182,19 +158,15 @@ func (s *Service) Get(idOrSlug string) (*record.Record, error) {
 	return rec, err
 }
 
-// Lookup finds a record in the primary checkout, the home store, listed archives,
-// then any checkout named by a link in this checkout. A link target is one hop:
-// that checkout's own links are not followed.
+// Lookup finds a record in the open database, then a listed extra, then a
+// legacy checkout file named by a link. A link target is one hop.
 func (s *Service) Lookup(idOrSlug string) (*record.Record, Origin, error) {
-	rec, st, ok, err := s.findPrimary(idOrSlug)
+	rec, _, ok, err := s.findPrimary(idOrSlug)
 	if err != nil {
 		return nil, "", err
 	}
 	if ok {
-		if st == s.RepoDB {
-			return rec, OriginRepo, nil
-		}
-		return rec, OriginOther, nil
+		return rec, s.origin(rec), nil
 	}
 	for _, ex := range s.Extras {
 		if ex.DB == nil {
@@ -218,11 +190,25 @@ func (s *Service) Lookup(idOrSlug string) (*record.Record, Origin, error) {
 	return nil, "", fmt.Errorf("record not found: %s", idOrSlug)
 }
 
+func (s *Service) origin(rec *record.Record) Origin {
+	if rec == nil || rec.Checkout == "" {
+		return OriginOther
+	}
+	root := s.RepoRoot
+	if canon, err := config.Canonical(s.RepoRoot); err == nil {
+		root = canon
+	}
+	if rec.Checkout == root || rec.Checkout == s.RepoRoot {
+		return OriginRepo
+	}
+	return OriginOther
+}
+
 func (s *Service) recordFromLinks(idOrSlug string) (*record.Record, error) {
-	if s.RepoDB == nil {
+	if s.DB == nil {
 		return nil, nil
 	}
-	edges, err := s.RepoDB.ListLinks()
+	edges, err := s.DB.ListLinks()
 	if err != nil {
 		return nil, err
 	}
@@ -235,7 +221,12 @@ func (s *Service) recordFromLinks(idOrSlug string) (*record.Record, error) {
 			continue
 		}
 		seen[edge.ToRoot] = struct{}{}
-		db, err := store.OpenReadOnly(config.StorePath(edge.ToRoot))
+		path := config.LegacyIndexPath(edge.ToRoot)
+		info, err := os.Stat(path)
+		if err != nil || info.IsDir() {
+			continue
+		}
+		db, err := store.OpenReadOnly(path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				continue
@@ -263,35 +254,28 @@ func (s *Service) recordFromLinks(idOrSlug string) (*record.Record, error) {
 }
 
 func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bool, error) {
-	for _, st := range []*store.Store{s.RepoDB, s.HomeDB} {
-		if st == nil {
-			continue
-		}
-		rec, ok, err := st.GetRecordByID(idOrSlug)
-		if err != nil {
-			return nil, nil, false, err
-		}
-		if ok {
-			return rec, st, true, nil
-		}
-		rec, ok, err = st.GetRecordBySlug(idOrSlug)
-		if err != nil {
-			return nil, nil, false, err
-		}
-		if ok {
-			return rec, st, true, nil
-		}
+	if s.DB == nil {
+		return nil, nil, false, nil
+	}
+	rec, ok, err := s.DB.GetRecordByID(idOrSlug)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if ok {
+		return rec, s.DB, true, nil
+	}
+	rec, ok, err = s.DB.GetRecordBySlug(idOrSlug)
+	if err != nil {
+		return nil, nil, false, err
+	}
+	if ok {
+		return rec, s.DB, true, nil
 	}
 	return nil, nil, false, nil
 }
 
-func (s *Service) storeFor(scope record.Scope) *store.Store {
-	switch scope {
-	case record.ScopeDev, record.ScopeGlobal:
-		return s.HomeDB
-	default:
-		return s.RepoDB
-	}
+func (s *Service) storeFor(record.Scope) *store.Store {
+	return s.DB
 }
 
 func (s *Service) defaultPath(rec *record.Record) string {

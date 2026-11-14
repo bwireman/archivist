@@ -20,25 +20,23 @@ func newMapCmd() *cobra.Command {
 		Short: "Explore the code map: symbols, imports, importers, and commits",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			root, cfg, err := loadEnv()
+			root, _, err := loadEnv()
 			if err != nil {
 				return err
 			}
-			repo, home, extras, err := openReadArchives(root, cfg)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return err
 			}
-			defer repo.Close()
-			defer home.Close()
-			defer closeExtras(extras)
+			defer db.Close()
 
 			query := strings.Join(args, " ")
-			primary, err := repo.ExploreCode(root, query, limit)
+			primary, err := db.ExploreCode(root, query, limit)
 			if err != nil {
 				return err
 			}
 			res := store.MapResult{CodeSearch: primary}
-			res.Reindex, err = index.ReindexPrompt(repo)
+			res.Reindex, err = index.ReindexPrompt(db)
 			if err != nil {
 				return err
 			}

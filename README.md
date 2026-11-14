@@ -1,6 +1,6 @@
 # Archivist
 
-A local archive of design decisions, rules, features, guides, and code structure. Records live in SQLite (`.archivist/index.db` in the checkout, `~/.archivist/archive.db` for global and personal notes). Agents use MCP. Ollama embeds records so search can mix keywords and vectors.
+A local archive of design decisions, rules, features, guides, and code structure. Records live in one SQLite database, `~/.archivist/archive.db`. A repo row stores that checkout's path. Global and personal notes leave checkout empty. Agents use MCP. Ollama embeds records so search can mix keywords and vectors.
 
 ## Requirements
 

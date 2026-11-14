@@ -92,67 +92,42 @@ func buildTrace(root string, cfg *config.Config, since string, after, until time
 			return nil, err
 		}
 		if join.Skipped == "" {
-			repo, home, err := openQueryStores(root)
+			db, err := openReadOnlyArchive(root)
 			if err != nil {
 				return nil, err
 			}
-			defer repo.Close()
-			defer home.Close()
-			cat = storeCatalog{repo: repo, home: home}
+			defer db.Close()
+			cat = storeCatalog{db: db}
 		}
 	}
 	return trace.Build(entries, opts, cat)
 }
 
 type storeCatalog struct {
-	repo *store.Store
-	home *store.Store
+	db *store.Store
 }
 
 func (c storeCatalog) Record(id string) (*record.Record, error) {
-	for _, st := range []*store.Store{c.repo, c.home} {
-		if st == nil {
-			continue
-		}
-		rec, ok, err := st.GetRecordByID(id)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return rec, nil
-		}
-		rec, ok, err = st.GetRecordBySlug(id)
-		if err != nil {
-			return nil, err
-		}
-		if ok {
-			return rec, nil
-		}
+	if c.db == nil {
+		return nil, nil
 	}
-	return nil, nil
+	rec, ok, err := c.db.GetRecordByID(id)
+	if err != nil {
+		return nil, err
+	}
+	if ok {
+		return rec, nil
+	}
+	rec, ok, err = c.db.GetRecordBySlug(id)
+	if err != nil || !ok {
+		return nil, err
+	}
+	return rec, nil
 }
 
 func (c storeCatalog) Rules() ([]*record.Record, error) {
-	var out []*record.Record
-	seen := map[string]struct{}{}
-	for _, st := range []*store.Store{c.repo, c.home} {
-		if st == nil {
-			continue
-		}
-		rules, err := st.RecordsByType(record.TypeRule)
-		if err != nil {
-			return nil, err
-		}
-		for _, r := range rules {
-			if r == nil {
-				continue
-			}
-			if _, ok := seen[r.ID]; ok {
-				continue
-			}
-			seen[r.ID] = struct{}{}
-			out = append(out, r)
-		}
+	if c.db == nil {
+		return nil, nil
 	}
-	return out, nil
+	return c.db.RecordsByType(record.TypeRule)
 }

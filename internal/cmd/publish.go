@@ -15,14 +15,13 @@ func newPublishCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			repo, home, err := openExistingStores(root)
+			db, err := openExistingStore(root)
 			if err != nil {
 				return err
 			}
-			defer closeStore(repo)
-			defer closeStore(home)
+			defer closeStore(db)
 			noteResult(cmd, map[string]string{"destination": args[0]})
-			return publish.Publish(root, cfg, repo, home, args[0])
+			return publish.Publish(root, cfg, db, args[0])
 		},
 	}
 }

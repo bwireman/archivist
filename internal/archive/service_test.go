@@ -1,7 +1,6 @@
 package archive
 
 import (
-	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
@@ -27,7 +26,7 @@ func TestRememberGlobalStoresInHomeDB(t *testing.T) {
 		_ = repoDB.Close()
 		_ = homeDB.Close()
 	})
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	id, err := svc.Remember(&record.Record{
 		Type:   record.TypeDecision,
 		Scope:  record.ScopeGlobal,
@@ -44,9 +43,16 @@ func TestRememberGlobalStoresInHomeDB(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(repo, "docs/global-decisions/home-global.md")); !os.IsNotExist(err) {
 		t.Fatal("default global should not write in-repo markdown")
 	}
-	n, err := homeDB.RecordCount()
+	n, err := repoDB.RecordCount()
 	if err != nil || n != 1 {
-		t.Fatalf("home record count %d err=%v", n, err)
+		t.Fatalf("record count %d err=%v", n, err)
+	}
+	stored, ok, err := repoDB.GetRecordByID(id)
+	if err != nil || !ok {
+		t.Fatalf("stored ok=%v err=%v", ok, err)
+	}
+	if stored.Checkout != "" {
+		t.Fatalf("checkout %q", stored.Checkout)
 	}
 	rec, err := svc.Get(id)
 	if err != nil {
@@ -71,7 +77,7 @@ func TestRememberSamePathReusesID(t *testing.T) {
 		_ = repoDB.Close()
 		_ = homeDB.Close()
 	})
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	id1, err := svc.Remember(&record.Record{
 		Type:   record.TypeDecision,
 		Scope:  record.ScopeRepo,
@@ -124,7 +130,7 @@ func TestRememberGlobalInRepoUsesLogicalPath(t *testing.T) {
 	})
 	cfg := config.Default()
 	cfg.Records.Global = config.DefaultGlobalDecisionsDir
-	svc := New(repo, cfg, repoDB, homeDB)
+	svc := New(repo, cfg, repoDB)
 	_, err = svc.Remember(&record.Record{
 		Type:   record.TypeDecision,
 		Scope:  record.ScopeGlobal,
@@ -147,37 +153,21 @@ func TestRememberGlobalInRepoUsesLogicalPath(t *testing.T) {
 	}
 }
 
-func TestRememberWritesTheContextDatabase(t *testing.T) {
+func TestRememberWritesTheCheckoutColumn(t *testing.T) {
 	repo := t.TempDir()
-	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = repoDB.Close()
-		_ = homeDB.Close()
-	})
+	t.Cleanup(func() { _ = repoDB.Close() })
 	extra := t.TempDir()
-	extraDB, err := store.Open(config.StorePath(extra))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := extraDB.Close(); err != nil {
-		t.Fatal(err)
-	}
-	insertOrphan(t, config.StorePath(extra))
 	canon, err := config.Canonical(extra)
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	svc.ExtraRoots = []string{canon}
 
-	homeBefore, _ := homeDB.RecordCount()
 	id, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Extra fact",
 		Body: "about the extra checkout", Status: record.StatusAccepted,
@@ -185,25 +175,11 @@ func TestRememberWritesTheContextDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := repoDB.GetRecordByID(id); err != nil || ok {
-		t.Fatalf("primary contains extra id ok=%v err=%v", ok, err)
-	}
-	if n, _ := homeDB.RecordCount(); n != homeBefore {
-		t.Fatalf("home count %d want %d", n, homeBefore)
-	}
-	if !hasOrphan(t, config.StorePath(extra)) {
-		t.Fatal("remember removed orphan embed_queue row")
-	}
-	ro, err := store.OpenReadOnly(config.StorePath(extra))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ro.Close()
-	if _, ok, err := ro.GetRecordByID(id); err != nil || !ok {
-		t.Fatalf("extra missing id ok=%v err=%v", ok, err)
+	got, ok, err := repoDB.GetRecordByID(id)
+	if err != nil || !ok || got.Checkout != canon {
+		t.Fatalf("extra row %+v ok=%v err=%v", got, ok, err)
 	}
 
-	extraBefore, _ := ro.RecordCount()
 	id2, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Primary fact",
 		Body: "about this checkout", Status: record.StatusAccepted,
@@ -211,16 +187,12 @@ func TestRememberWritesTheContextDatabase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := repoDB.GetRecordByID(id2); err != nil || !ok {
-		t.Fatalf("primary missing id ok=%v err=%v", ok, err)
-	}
-	if n, _ := ro.RecordCount(); n != extraBefore {
-		t.Fatalf("extra count %d want %d", n, extraBefore)
+	got, ok, err = repoDB.GetRecordByID(id2)
+	if err != nil || !ok || got.Checkout != repo {
+		t.Fatalf("primary row %+v ok=%v err=%v", got, ok, err)
 	}
 
-	repoBefore, _ := repoDB.RecordCount()
-	homeBefore, _ = homeDB.RecordCount()
-	extraBefore, _ = ro.RecordCount()
+	before, _ := repoDB.RecordCount()
 	for _, scope := range []record.Scope{record.ScopeGlobal, record.ScopeDev} {
 		if _, err := svc.Remember(&record.Record{
 			Type: record.TypeDecision, Scope: scope, Title: "Wrong target",
@@ -229,30 +201,15 @@ func TestRememberWritesTheContextDatabase(t *testing.T) {
 			t.Fatalf("scope %s with archive should fail", scope)
 		}
 	}
-	if n, _ := repoDB.RecordCount(); n != repoBefore {
-		t.Fatalf("repo count %d", n)
-	}
-	if n, _ := homeDB.RecordCount(); n != homeBefore {
-		t.Fatalf("home count %d", n)
-	}
-	if n, _ := ro.RecordCount(); n != extraBefore {
-		t.Fatalf("extra count %d", n)
-	}
-
 	other := t.TempDir()
-	repoEnd, _ := repoDB.RecordCount()
-	homeEnd, _ := homeDB.RecordCount()
 	if _, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Unlisted",
 		Body: "no", Status: record.StatusAccepted,
 	}, other); err == nil {
 		t.Fatal("unlisted archive should fail")
 	}
-	if n, _ := repoDB.RecordCount(); n != repoEnd {
-		t.Fatalf("unlisted repo count %d", n)
-	}
-	if n, _ := homeDB.RecordCount(); n != homeEnd {
-		t.Fatalf("unlisted home count %d", n)
+	if n, _ := repoDB.RecordCount(); n != before {
+		t.Fatalf("count %d want %d", n, before)
 	}
 }
 
@@ -263,30 +220,16 @@ func TestRememberRelativeArchiveMatchesConfig(t *testing.T) {
 	if err := os.MkdirAll(repo, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	extraDB, err := store.Open(config.StorePath(extra))
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := extraDB.Close(); err != nil {
-		t.Fatal(err)
-	}
-	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = repoDB.Close()
-		_ = homeDB.Close()
-	})
+	t.Cleanup(func() { _ = repoDB.Close() })
 	canon, err := config.Canonical(extra)
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	svc.ExtraRoots = []string{canon}
 	id, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Sibling",
@@ -295,89 +238,48 @@ func TestRememberRelativeArchiveMatchesConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := repoDB.GetRecordByID(id); err != nil || ok {
-		t.Fatalf("primary contains id ok=%v err=%v", ok, err)
-	}
-	ro, err := store.OpenReadOnly(config.StorePath(extra))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ro.Close()
-	if _, ok, err := ro.GetRecordByID(id); err != nil || !ok {
-		t.Fatalf("extra missing id ok=%v err=%v", ok, err)
+	got, ok, err := repoDB.GetRecordByID(id)
+	if err != nil || !ok || got.Checkout != canon {
+		t.Fatalf("row %+v ok=%v err=%v", got, ok, err)
 	}
 }
 
-func TestUpdateAndRetireStayInExtra(t *testing.T) {
+func TestUpdateAndRetireStayOnTheSameRow(t *testing.T) {
 	repo := t.TempDir()
-	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
+	repoDB, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	homeDB, err := store.Open(filepath.Join(t.TempDir(), "home.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		_ = repoDB.Close()
-		_ = homeDB.Close()
-	})
+	t.Cleanup(func() { _ = repoDB.Close() })
 	extra := t.TempDir()
-	path := config.StorePath(extra)
-	extraDB, err := store.Open(path)
+	canon, err := config.Canonical(extra)
 	if err != nil {
 		t.Fatal(err)
 	}
 	live := &record.Record{
 		ID: "rec_live", Slug: "live", Type: record.TypeDecision, Scope: record.ScopeRepo,
 		Title: "Live", Body: "original", Status: record.StatusAccepted,
-		SourcePath: "docs/decisions/live.md",
+		SourcePath: "docs/decisions/live.md", Checkout: canon,
 	}
-	if err := extraDB.UpsertRecord(live); err != nil {
+	if err := repoDB.UpsertRecord(live); err != nil {
 		t.Fatal(err)
 	}
-	if err := extraDB.Close(); err != nil {
-		t.Fatal(err)
-	}
-	insertOrphan(t, path)
-	canon, err := config.Canonical(extra)
-	if err != nil {
-		t.Fatal(err)
-	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
-	svc.ExtraRoots = []string{canon}
+	svc := New(repo, config.Default(), repoDB)
 	if err := svc.Update("rec_live", func(r *record.Record) error {
 		r.Body = "changed"
 		return nil
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := repoDB.GetRecordByID("rec_live"); err != nil || ok {
-		t.Fatalf("update copied id ok=%v err=%v", ok, err)
-	}
-	if !hasOrphan(t, path) {
-		t.Fatal("update removed orphan embed_queue row")
-	}
 	if err := svc.Retire("rec_live", "rec_next"); err != nil {
 		t.Fatal(err)
 	}
-	if _, ok, err := repoDB.GetRecordByID("rec_live"); err != nil || ok {
-		t.Fatalf("retire copied id ok=%v err=%v", ok, err)
-	}
-	if !hasOrphan(t, path) {
-		t.Fatal("retire removed orphan embed_queue row")
-	}
-	ro, err := store.OpenReadOnly(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ro.Close()
-	got, ok, err := ro.GetRecordByID("rec_live")
+	got, ok, err := repoDB.GetRecordByID("rec_live")
 	if err != nil || !ok {
-		t.Fatalf("extra record ok=%v err=%v", ok, err)
+		t.Fatalf("record ok=%v err=%v", ok, err)
 	}
-	if got.Status != record.StatusSuperseded || got.Body != "changed" {
-		t.Fatalf("extra record %+v", got)
+	if got.Status != record.StatusSuperseded || got.Body != "changed" || got.Checkout != canon {
+		t.Fatalf("record %+v", got)
 	}
 	if got.ID != live.ID || got.SourcePath != live.SourcePath {
 		t.Fatalf("update changed identity %+v", got)
@@ -385,6 +287,7 @@ func TestUpdateAndRetireStayInExtra(t *testing.T) {
 }
 
 func TestGetReadsExtraIDOnlyWhenFileIsReadOnly(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	repo := t.TempDir()
 	repoDB, err := store.Open(filepath.Join(t.TempDir(), "repo.db"))
 	if err != nil {
@@ -428,7 +331,7 @@ func TestGetReadsExtraIDOnlyWhenFileIsReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	svc := New(repo, config.Default(), repoDB, homeDB)
+	svc := New(repo, config.Default(), repoDB)
 	svc.Extras = []Extra{{Root: canon, DB: ro}}
 	got, err := svc.Get("rec_ro")
 	if err != nil {
@@ -442,21 +345,6 @@ func TestGetReadsExtraIDOnlyWhenFileIsReadOnly(t *testing.T) {
 	}
 }
 
-func insertOrphan(t *testing.T, path string) {
-	t.Helper()
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	if _, err := db.Exec(`PRAGMA foreign_keys = OFF`); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := db.Exec(`INSERT INTO embed_queue (record_id, text_hash, enqueued_at, attempts) VALUES ('rec_orphan', 'x', '2026-01-01T00:00:00Z', 0)`); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestPatchTextReplacesAppliesTo(t *testing.T) {
 	rec := &record.Record{AppliesTo: []string{"old/**"}}
 	PatchText(rec, "", "", "", nil)
@@ -467,18 +355,4 @@ func TestPatchTextReplacesAppliesTo(t *testing.T) {
 	if rec.Title != "Title" || len(rec.AppliesTo) != 2 || rec.AppliesTo[1] != "internal/cmd/link.go" {
 		t.Fatalf("patch %#v", rec)
 	}
-}
-
-func hasOrphan(t *testing.T, path string) bool {
-	t.Helper()
-	db, err := sql.Open("sqlite", path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer db.Close()
-	var n int
-	if err := db.QueryRow(`SELECT COUNT(*) FROM embed_queue WHERE record_id = 'rec_orphan'`).Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	return n == 1
 }

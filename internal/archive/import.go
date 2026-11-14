@@ -193,33 +193,23 @@ func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope,
 }
 
 func (s *Service) findByID(id string) (*record.Record, *store.Store, bool) {
-	for _, st := range []*store.Store{s.RepoDB, s.HomeDB} {
-		if st == nil {
-			continue
-		}
-		rec, ok, err := st.GetRecordByID(id)
-		if err != nil {
-			continue
-		}
-		if ok {
-			return rec, st, true
-		}
+	if s.DB == nil {
+		return nil, nil, false
 	}
-	return nil, nil, false
+	rec, ok, err := s.DB.GetRecordByID(id)
+	if err != nil || !ok {
+		return nil, nil, false
+	}
+	return rec, s.DB, true
 }
 
 func (s *Service) findByPath(checkout, path string) (*record.Record, *store.Store, bool) {
-	for _, st := range []*store.Store{s.RepoDB, s.HomeDB} {
-		if st == nil {
-			continue
-		}
-		rec, ok, err := st.GetRecordByPath(checkout, path)
-		if err != nil {
-			continue
-		}
-		if ok {
-			return rec, st, true
-		}
+	if s.DB == nil {
+		return nil, nil, false
 	}
-	return nil, nil, false
+	rec, ok, err := s.DB.GetRecordByPath(checkout, path)
+	if err != nil || !ok {
+		return nil, nil, false
+	}
+	return rec, s.DB, true
 }

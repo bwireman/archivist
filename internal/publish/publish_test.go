@@ -11,7 +11,7 @@ import (
 )
 
 func TestPublishUnknownDestination(t *testing.T) {
-	err := Publish(t.TempDir(), config.Default(), nil, nil, "missing")
+	err := Publish(t.TempDir(), config.Default(), nil, "missing")
 	if err == nil {
 		t.Fatal("expected unknown destination error")
 	}
@@ -37,7 +37,7 @@ func TestPublishRunsDestinationCommand(t *testing.T) {
 	cfg.Publish.Destinations = map[string]config.PublishDestination{
 		"copy": {Command: []string{"cp", "-r", "{{bundle}}", copied}},
 	}
-	if err := Publish(repo, cfg, st, nil, "copy"); err != nil {
+	if err := Publish(repo, cfg, st, "copy"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(copied, "INDEX.md")); err != nil {
@@ -53,7 +53,7 @@ func TestPublishEmptyCommand(t *testing.T) {
 	cfg.Publish.Destinations = map[string]config.PublishDestination{
 		"noop": {Command: nil},
 	}
-	if err := Publish(t.TempDir(), cfg, nil, nil, "noop"); err == nil {
+	if err := Publish(t.TempDir(), cfg, nil, "noop"); err == nil {
 		t.Fatal("expected empty command error")
 	}
 }

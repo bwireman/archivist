@@ -13,7 +13,7 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
-func Publish(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, name string) error {
+func Publish(repoRoot string, cfg *config.Config, db *store.Store, name string) error {
 	dest, ok := cfg.Publish.Destinations[name]
 	if !ok {
 		return fmt.Errorf("unknown publish destination %q", name)
@@ -25,7 +25,7 @@ func Publish(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, n
 	if err := os.RemoveAll(bundle); err != nil {
 		return err
 	}
-	if err := export.WriteBundle(repoDB, homeDB, bundle); err != nil {
+	if err := export.WriteBundle(db, bundle); err != nil {
 		return err
 	}
 	args := make([]string, len(dest.Command))

@@ -40,7 +40,7 @@ Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a
 
 | Command | Ollama | Purpose |
 | --- | --- | --- |
-| `archivist init` | no | Config, checkout and home SQLite databases, optional import drop folders. Query commands, `index`, `remember`, and `embed` do not create a database; a missing one says to run init. |
+| `archivist init` | no | Config and the one SQLite database `~/.archivist/archive.db`, plus optional import drop folders. Query commands, `index`, `remember`, and `embed` do not create a database; a missing one says to run init. |
 | `archivist import` | no | Upsert typed markdown into SQLite (no prune) |
 | `archivist index` | no | Index this checkout's code map + git history (feeds `map`). |
 | `archivist embed` | yes | Drain embed queue (`--once` processes every item once, then exits) |

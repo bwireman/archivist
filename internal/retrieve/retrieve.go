@@ -51,7 +51,6 @@ type Extra struct {
 
 type Engine struct {
 	Repo       *store.Store
-	Home       *store.Store
 	Extras     []Extra
 	QueryModel string
 	Checkout   string
@@ -69,9 +68,6 @@ func (e *Engine) searchStores() []searchStore {
 	var out []searchStore
 	if e.Repo != nil {
 		out = append(out, searchStore{db: e.Repo})
-	}
-	if e.Home != nil {
-		out = append(out, searchStore{db: e.Home})
 	}
 	for _, ex := range e.Extras {
 		if ex.DB == nil {
