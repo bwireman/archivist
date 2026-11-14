@@ -291,9 +291,9 @@ func openQueryStores(root string) (*store.Store, *store.Store, error) {
 	return repo, home, nil
 }
 
-// openReadArchives opens the primary store, the home store, and each configured
-// extra with OpenReadOnly. search, map, status, cite, check, trace, and mcp use
-// this. It does not create databases, schema, or orphan cleanup.
+// openReadArchives opens the home database on two connections. Listed archives
+// are not opened. search, map, status, cite, check, trace, and mcp use this.
+// It does not create databases, schema, or orphan cleanup.
 func openReadArchives(root string, cfg *config.Config) (*store.Store, *store.Store, []archive.Extra, error) {
 	repo, home, err := openQueryStores(root)
 	if err != nil {
@@ -440,6 +440,10 @@ func newStatusCmd() *cobra.Command {
 			fileCount, _ := repo.FileCount()
 			queue, _ := repo.QueueDepth()
 			homeQueue, _ := home.QueueDepth()
+			if config.StorePath(root) == config.HomeStorePath() {
+				homeCount = 0
+				homeQueue = 0
+			}
 			lastIdx, hasIdx, _ := repo.LastIndexedAt()
 
 			type extraCount struct {

@@ -208,7 +208,12 @@ func searchRepoLink(ctx context.Context, parent *Engine, embedder embed.Embedder
 		cache[edge.ToRoot] = link
 		return link
 	}
-	target, _ := config.Canonical(edge.ToRoot)
+	target, err := config.Canonical(edge.ToRoot)
+	if err != nil {
+		link.Missing = err.Error()
+		cache[edge.ToRoot] = link
+		return link
+	}
 	kept := hits[:0]
 	for _, hit := range hits {
 		if hit.Record == nil {

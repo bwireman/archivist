@@ -218,7 +218,7 @@ func (s *Server) commandLogMiddleware() mcpserver.ToolHandlerMiddleware {
 	log := cmdlog.FromConfig(s.RepoRoot, s.Cfg)
 	return func(next mcpserver.ToolHandlerFunc) mcpserver.ToolHandlerFunc {
 		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-			if err := config.RelocateCheckoutFiles(s.RepoRoot); err != nil {
+			if err := config.RelocateCheckoutFiles(s.RepoRoot); err != nil && !os.IsPermission(err) {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
 			start := time.Now()
@@ -741,7 +741,7 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	health := embed.CheckHealth(context.Background(), s.Cfg)
 	count, _ := s.RepoDB.RecordCount()
 	queue, _ := s.RepoDB.QueueDepth()
-	if s.HomeDB != nil {
+	if s.HomeDB != nil && config.StorePath(s.RepoRoot) != config.HomeStorePath() {
 		homeCount, _ := s.HomeDB.RecordCount()
 		homeQueue, _ := s.HomeDB.QueueDepth()
 		count += homeCount
