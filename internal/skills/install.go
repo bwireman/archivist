@@ -223,7 +223,9 @@ func renderedRuleFiles(target Target, rules map[string][]byte) map[string]string
 func RulesStale(repoRoot string) (stale bool, target string, err error) {
 	if home, herr := homeManifest(); herr == nil {
 		stale, err = userSkillsStale(home)
-		return stale, "user", err
+		if err != nil || stale {
+			return stale, "user", err
+		}
 	} else if !errors.Is(herr, os.ErrNotExist) {
 		return false, "", herr
 	}

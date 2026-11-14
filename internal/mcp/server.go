@@ -658,8 +658,12 @@ func (s *Server) toolEmbed(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if repo == nil {
 		return mcp.NewToolResultError("archive is not open"), nil
 	}
+	stores := []*store.Store{repo}
+	if home != nil && config.StorePath(s.RepoRoot) != config.HomeStorePath() {
+		stores = append(stores, home)
+	}
 	n, err := (&embed.Worker{
-		Stores:   []*store.Store{repo, home},
+		Stores:   stores,
 		Embedder: client,
 		Model:    s.Cfg.Ollama.EmbedModel,
 	}).Run(ctx, embed.WorkerOptions{

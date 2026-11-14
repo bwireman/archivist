@@ -45,7 +45,7 @@ func newRememberCmd() *cobra.Command {
 			}
 			repo, home, err := openRememberStores(root, record.Scope(scope), archiveRoot)
 			if err != nil {
-				if strings.TrimSpace(archiveRoot) != "" && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
+				if errors.Is(err, os.ErrNotExist) && strings.TrimSpace(archiveRoot) != "" && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
 					target, rerr := config.ResolveCheckout(root, archiveRoot)
 					if rerr != nil {
 						return rerr

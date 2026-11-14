@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
@@ -35,7 +36,9 @@ func newEmbedCmd() *cobra.Command {
 			}
 			if home != nil {
 				defer home.Close()
-				stores = append(stores, home)
+				if config.StorePath(root) != config.HomeStorePath() {
+					stores = append(stores, home)
+				}
 			}
 			w := &embed.Worker{
 				Stores:   stores,
