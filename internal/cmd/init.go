@@ -46,7 +46,7 @@ func applyInit(root string, cfg *config.Config) error {
 	if err := config.Save(root, cfg); err != nil {
 		return err
 	}
-	if err := os.MkdirAll(config.DataDir(root), 0o755); err != nil {
+	if err := config.RelocateCheckoutFiles(root); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Repo), 0o755); err != nil {
@@ -73,6 +73,17 @@ func applyInit(root string, cfg *config.Config) error {
 	}
 	repo, home, err := openStores(root)
 	if err != nil {
+		return err
+	}
+	canon, err := config.Canonical(root)
+	if err != nil {
+		_ = repo.Close()
+		_ = home.Close()
+		return err
+	}
+	if err := repo.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		_ = repo.Close()
+		_ = home.Close()
 		return err
 	}
 	err = repo.Close()

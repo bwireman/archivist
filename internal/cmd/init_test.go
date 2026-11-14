@@ -33,7 +33,14 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	if _, err := os.Stat(config.HomeStorePath()); err != nil {
 		t.Fatalf("home database: %v", err)
 	}
-	if _, err := os.Stat(filepath.Join(root, config.DefaultConfigName)); err != nil {
+	if _, err := os.Stat(filepath.Join(root, config.DefaultConfigName)); !os.IsNotExist(err) {
+		t.Fatal("init should not leave .archivist.json in the checkout")
+	}
+	canon, err := config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(config.CheckoutDir(canon), "config.json")); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, ".githooks")); !os.IsNotExist(err) {

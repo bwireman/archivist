@@ -359,6 +359,14 @@ ON CONFLICT(key) DO UPDATE SET value = excluded.value
 	return err
 }
 
+func (s *Store) RegisterCheckout(path, dir string) error {
+	if s == nil || s.db == nil || path == "" || dir == "" {
+		return nil
+	}
+	_, err := s.db.Exec(`INSERT INTO checkouts (path, dir) VALUES (?, ?) ON CONFLICT(path) DO NOTHING`, path, dir)
+	return err
+}
+
 func (s *Store) SetCheckoutMeta(checkout, key, value string) error {
 	_, err := s.db.Exec(`
 INSERT INTO checkout_meta (checkout, key, value) VALUES (?, ?, ?)
