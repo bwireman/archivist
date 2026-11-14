@@ -160,7 +160,19 @@ func openStore(root string) (*store.Store, error) {
 		_ = st.Close()
 		return nil, err
 	}
+	if err := registerCheckout(st, root); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
 	return st, nil
+}
+
+func registerCheckout(st *store.Store, root string) error {
+	canon, err := config.Canonical(root)
+	if err != nil {
+		return err
+	}
+	return st.RegisterCheckout(canon, config.CheckoutHex(canon))
 }
 
 func openHomeStore() (*store.Store, error) {
@@ -185,6 +197,10 @@ func openExistingStore(root string) (*store.Store, error) {
 		return nil, err
 	}
 	if err := st.MergeCheckout(root); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	if err := registerCheckout(st, root); err != nil {
 		_ = st.Close()
 		return nil, err
 	}

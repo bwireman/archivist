@@ -283,6 +283,20 @@ func finishLoad(cfg *Config) *Config {
 	return cfg
 }
 
+func HasConfig(root string) bool {
+	canon, err := Canonical(root)
+	if err != nil {
+		canon = root
+	}
+	if path := checkoutConfigPath(canon); path != "" {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	_, err = os.Stat(filepath.Join(canon, DefaultConfigName))
+	return err == nil
+}
+
 func Save(repoRoot string, cfg *Config) error {
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {

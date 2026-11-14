@@ -12,7 +12,7 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	root := t.TempDir()
-	if err := applyInit(root, config.Default()); err != nil {
+	if err := applyInit(root, config.Default(), true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, config.DefaultDecisionsDir)); err != nil {
@@ -48,13 +48,35 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	}
 }
 
+func TestApplyInitAgainKeepsCheckoutConfig(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	cfg := config.Default()
+	cfg.Ollama.EmbedNumCtx = 32768
+	cfg.LogCommands = true
+	if err := applyInit(root, cfg, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyInit(root, config.Default(), false); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Ollama.EmbedNumCtx != 32768 || !loaded.LogCommands {
+		t.Fatalf("re-init rewrote config: %#v log=%v", loaded.Ollama, loaded.LogCommands)
+	}
+}
+
 func TestApplyInitWriteDocsCreatesArchiveDir(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.Records.WriteDocs = true
-	if err := applyInit(root, cfg); err != nil {
+	if err := applyInit(root, cfg, true); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(filepath.Join(root, config.DefaultArchiveDir)); err != nil {

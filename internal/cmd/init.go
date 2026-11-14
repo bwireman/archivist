@@ -19,35 +19,39 @@ func newInitCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			existed := configExists(root)
+			existed := config.HasConfig(root)
 			cfg := config.Default()
-			if err := applyInit(root, cfg); err != nil {
+			if existed {
+				loaded, err := config.Load(root)
+				if err != nil {
+					return err
+				}
+				cfg = loaded
+			}
+			if err := applyInit(root, cfg, !existed); err != nil {
 				return err
 			}
 			verb := "Created"
 			if existed {
 				verb = "Updated"
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s .archivist.json and .archivist/\nEmbeddings use Ollama:\n  ollama pull %s\nSeed the archive from this repo with the init-archive skill (scan decisions, rules, and features, then embed).\n", verb, cfg.Ollama.EmbedModel)
+			fmt.Fprintf(cmd.OutOrStdout(), "%s checkout config in %s\nEmbeddings use Ollama:\n  ollama pull %s\nSeed the archive from this repo with the init-archive skill (scan decisions, rules, and features, then embed).\n", verb, config.CheckoutDir(root), cfg.Ollama.EmbedModel)
 			return nil
 		},
 	}
 }
 
-func configExists(root string) bool {
-	_, err := os.Stat(filepath.Join(root, config.DefaultConfigName))
-	return err == nil
-}
-
-func applyInit(root string, cfg *config.Config) error {
+func applyInit(root string, cfg *config.Config, writeConfig bool) error {
 	if err := os.MkdirAll(root, 0o755); err != nil {
 		return err
 	}
-	if err := config.Save(root, cfg); err != nil {
-		return err
-	}
-	if err := config.RelocateCheckoutFiles(root); err != nil {
-		return err
+	if writeConfig {
+		if err := config.Save(root, cfg); err != nil {
+			return err
+		}
+		if err := config.RelocateCheckoutFiles(root); err != nil {
+			return err
+		}
 	}
 	if err := os.MkdirAll(filepath.Join(root, cfg.Records.Repo), 0o755); err != nil {
 		return err
