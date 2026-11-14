@@ -259,7 +259,14 @@ func DisabledBy(path string) string {
 	}
 }
 
+// StorePath is the one archive database, ~/.archivist/archive.db.
+// repoRoot is unused; checkout identity is a column in that file.
 func StorePath(repoRoot string) string {
+	return HomeStorePath()
+}
+
+// LegacyIndexPath is a checkout's old database, merged by store.MergeCheckout.
+func LegacyIndexPath(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir, DefaultIndexDB)
 }
 
@@ -316,7 +323,7 @@ func (c *Config) ArchiveRoots(repoRoot string) ([]string, error) {
 		if !info.IsDir() {
 			return nil, fmt.Errorf("archives path %s is not a directory", root)
 		}
-		db := StorePath(root)
+		db := LegacyIndexPath(root)
 		dbInfo, err := os.Stat(db)
 		if err != nil || dbInfo.IsDir() {
 			return nil, fmt.Errorf("archives path %s has no .archivist/index.db", root)

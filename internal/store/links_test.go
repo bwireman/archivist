@@ -98,7 +98,7 @@ func TestLinkRoundTrip(t *testing.T) {
 
 func openLinkStore(t *testing.T, dir string) *store.Store {
 	t.Helper()
-	st, err := store.Open(config.StorePath(dir))
+	st, err := store.Open(config.LegacyIndexPath(dir))
 	if err != nil {
 		t.Fatal(err)
 	}

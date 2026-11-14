@@ -156,7 +156,12 @@ func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope,
 	}
 	existing, st, ok := s.findByID(parsed.ID)
 	if !ok {
-		existing, st, ok = s.findByPath(sourcePath)
+		checkout := ""
+		if parsed.Scope == record.ScopeRepo {
+			checkout = s.RepoRoot
+		}
+		parsed.Checkout = checkout
+		existing, st, ok = s.findByPath(checkout, sourcePath)
 	}
 	if ok {
 		if existing.ContentHash == parsed.ContentHash {
@@ -203,12 +208,12 @@ func (s *Service) findByID(id string) (*record.Record, *store.Store, bool) {
 	return nil, nil, false
 }
 
-func (s *Service) findByPath(path string) (*record.Record, *store.Store, bool) {
+func (s *Service) findByPath(checkout, path string) (*record.Record, *store.Store, bool) {
 	for _, st := range []*store.Store{s.RepoDB, s.HomeDB} {
 		if st == nil {
 			continue
 		}
-		rec, ok, err := st.GetRecordByPath(path)
+		rec, ok, err := st.GetRecordByPath(checkout, path)
 		if err != nil {
 			continue
 		}

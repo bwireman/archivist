@@ -54,6 +54,7 @@ type Engine struct {
 	Home       *store.Store
 	Extras     []Extra
 	QueryModel string
+	Checkout   string
 }
 
 type searchStore struct {
@@ -269,8 +270,12 @@ func archiveBand(root string) int {
 
 func overlayKey(root string, rec *record.Record) string {
 	base := string(rec.Type) + "/" + rec.Slug
-	if root != "" {
-		return root + "\x00" + base
+	checkout := root
+	if rec != nil && rec.Checkout != "" {
+		checkout = rec.Checkout
+	}
+	if checkout != "" {
+		return checkout + "\x00" + base
 	}
 	return base
 }

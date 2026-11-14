@@ -33,7 +33,7 @@ func newMapCmd() *cobra.Command {
 			defer closeExtras(extras)
 
 			query := strings.Join(args, " ")
-			primary, err := repo.ExploreCode(query, limit)
+			primary, err := repo.ExploreCode(root, query, limit)
 			if err != nil {
 				return err
 			}
@@ -43,7 +43,7 @@ func newMapCmd() *cobra.Command {
 				return err
 			}
 			for _, ex := range extras {
-				section, err := ex.DB.ExploreCode(query, limit)
+				section, err := ex.DB.ExploreCode(ex.Root, query, limit)
 				if err != nil {
 					return err
 				}

@@ -48,7 +48,7 @@ func TestIndexCodeMap(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SymbolsForFile("foo.go")
+	syms, err := st.SymbolsForFile("", "foo.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestIndexSymlinkedRoot(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SymbolsForFile("foo.go")
+	syms, err := st.SymbolsForFile("", "foo.go")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +84,7 @@ func TestIndexGleamCodeMap(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SymbolsForFile("src/mod.gleam")
+	syms, err := st.SymbolsForFile("", "src/mod.gleam")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,7 +100,7 @@ func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	existing, ok, err := st.GetFile("src/mod.gleam")
+	existing, ok, err := st.GetFile("", "src/mod.gleam")
 	if err != nil || !ok {
 		t.Fatalf("file: ok=%v err=%v", ok, err)
 	}
@@ -113,7 +113,7 @@ func TestIndexRemapsWhenCodemapVersionStale(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SymbolsForFile("src/mod.gleam")
+	syms, err := st.SymbolsForFile("", "src/mod.gleam")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	existing, ok, err := st.GetFile("src/mod.gleam")
+	existing, ok, err := st.GetFile("", "src/mod.gleam")
 	if err != nil || !ok {
 		t.Fatalf("file: ok=%v err=%v", ok, err)
 	}
@@ -139,7 +139,7 @@ func TestIndexSkipsUnchangedWhenCodemapCurrent(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SymbolsForFile("src/mod.gleam")
+	syms, err := st.SymbolsForFile("", "src/mod.gleam")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -56,6 +56,7 @@ func Open(path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	db.SetMaxOpenConns(1)
 	s := &Store{db: db}
 	if err := s.initialize(); err != nil {
 		_ = db.Close()
@@ -69,7 +70,12 @@ func Open(path string) (*Store, error) {
 }
 
 func (s *Store) Close() error {
-	return s.db.Close()
+	if s == nil || s.db == nil {
+		return nil
+	}
+	db := s.db
+	s.db = nil
+	return db.Close()
 }
 
 // OpenReadOnly opens an existing database for reads. It does not create the
@@ -107,6 +113,10 @@ func OpenExisting(path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensureCheckoutSchema(); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
 	if err := s.ensureFTS(); err != nil {
 		_ = s.Close()
 		return nil, err
@@ -130,6 +140,7 @@ func openExisting(path string, dsnFn func(string) (string, error)) (*Store, erro
 	if err != nil {
 		return nil, fmt.Errorf("open sqlite: %w", err)
 	}
+	db.SetMaxOpenConns(1)
 	if err := db.Ping(); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("open sqlite: %w", err)
@@ -204,6 +215,7 @@ CREATE TABLE IF NOT EXISTS meta (
 
 CREATE TABLE IF NOT EXISTS records (
     id TEXT PRIMARY KEY,
+    checkout TEXT NOT NULL DEFAULT '',
     slug TEXT NOT NULL,
     type TEXT NOT NULL,
     scope TEXT NOT NULL,
@@ -211,7 +223,7 @@ CREATE TABLE IF NOT EXISTS records (
     status TEXT NOT NULL,
     severity TEXT,
     body TEXT NOT NULL,
-    source_path TEXT NOT NULL UNIQUE,
+    source_path TEXT NOT NULL,
     tags TEXT,
     applies_to TEXT,
     supersedes TEXT,
@@ -219,7 +231,8 @@ CREATE TABLE IF NOT EXISTS records (
     provenance_commit TEXT,
     content_hash TEXT NOT NULL,
     created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    UNIQUE (checkout, source_path)
 );
 
 CREATE INDEX IF NOT EXISTS idx_records_slug ON records(slug);
@@ -244,14 +257,17 @@ CREATE TABLE IF NOT EXISTS embed_queue (
 );
 
 CREATE TABLE IF NOT EXISTS files (
-    path TEXT PRIMARY KEY,
+    checkout TEXT NOT NULL DEFAULT '',
+    path TEXT NOT NULL,
     content_hash TEXT NOT NULL,
     package_name TEXT,
-    indexed_at TEXT NOT NULL
+    indexed_at TEXT NOT NULL,
+    PRIMARY KEY (checkout, path)
 );
 
 CREATE TABLE IF NOT EXISTS symbols (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checkout TEXT NOT NULL DEFAULT '',
     file_path TEXT NOT NULL,
     name TEXT NOT NULL,
     kind TEXT NOT NULL,
@@ -265,6 +281,7 @@ CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
 
 CREATE TABLE IF NOT EXISTS symbol_edges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    checkout TEXT NOT NULL DEFAULT '',
     from_file TEXT NOT NULL,
     to_path TEXT NOT NULL,
     edge_type TEXT NOT NULL
@@ -273,26 +290,44 @@ CREATE TABLE IF NOT EXISTS symbol_edges (
 CREATE INDEX IF NOT EXISTS idx_symbol_edges_from ON symbol_edges(from_file);
 
 CREATE TABLE IF NOT EXISTS commits (
-    hash TEXT PRIMARY KEY,
+    checkout TEXT NOT NULL DEFAULT '',
+    hash TEXT NOT NULL,
     subject TEXT,
     body TEXT,
     author TEXT,
     authored_at TEXT,
-    indexed_at TEXT NOT NULL
+    indexed_at TEXT NOT NULL,
+    PRIMARY KEY (checkout, hash)
 );
 
 CREATE TABLE IF NOT EXISTS record_links (
     kind TEXT NOT NULL,
+    from_checkout TEXT NOT NULL DEFAULT '',
     from_id TEXT NOT NULL DEFAULT '',
     to_root TEXT NOT NULL,
     to_id TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (kind, from_id, to_root, to_id)
+    PRIMARY KEY (kind, from_checkout, from_id, to_root, to_id)
+);
+
+CREATE TABLE IF NOT EXISTS checkouts (
+    path TEXT PRIMARY KEY,
+    dir TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS checkout_meta (
+    checkout TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    PRIMARY KEY (checkout, key)
 );
 `
 	if _, err := s.db.Exec(schema); err != nil {
 		return err
 	}
 	if err := s.ensureEmbedGiveup(); err != nil {
+		return err
+	}
+	if err := s.ensureCheckoutSchema(); err != nil {
 		return err
 	}
 	return s.ensureFTS()
@@ -428,7 +463,7 @@ func scanRecord(row scanner) (*record.Record, error) {
 	var severity, supersededBy, prov sql.NullString
 	var createdAt, updatedAt string
 	err := row.Scan(
-		&r.ID, &r.Slug, &r.Type, &r.Scope, &r.Title, &r.Status, &severity,
+		&r.ID, &r.Checkout, &r.Slug, &r.Type, &r.Scope, &r.Title, &r.Status, &severity,
 		&r.Body, &r.SourcePath, &tags, &applies, &supersedes, &supersededBy, &prov,
 		&r.ContentHash, &createdAt, &updatedAt,
 	)
@@ -462,10 +497,10 @@ type scanner interface {
 	Scan(dest ...any) error
 }
 
-const recordCols = `id, slug, type, scope, title, status, severity, body, source_path, tags, applies_to, supersedes, superseded_by, provenance_commit, content_hash, created_at, updated_at`
+const recordCols = `id, checkout, slug, type, scope, title, status, severity, body, source_path, tags, applies_to, supersedes, superseded_by, provenance_commit, content_hash, created_at, updated_at`
 
 func (s *Store) UpsertRecord(r *record.Record) error {
-	if existing, ok, err := s.GetRecordByPath(r.SourcePath); err != nil {
+	if existing, ok, err := s.GetRecordByPath(r.Checkout, r.SourcePath); err != nil {
 		return err
 	} else if ok {
 		r.ID = existing.ID
@@ -500,9 +535,10 @@ func (s *Store) UpsertRecord(r *record.Record) error {
 	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.Exec(`
-INSERT INTO records (id, slug, type, scope, title, status, severity, body, source_path, tags, applies_to, supersedes, superseded_by, provenance_commit, content_hash, created_at, updated_at)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO records (id, checkout, slug, type, scope, title, status, severity, body, source_path, tags, applies_to, supersedes, superseded_by, provenance_commit, content_hash, created_at, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
+    checkout = excluded.checkout,
     slug = excluded.slug,
     type = excluded.type,
     scope = excluded.scope,
@@ -518,7 +554,7 @@ ON CONFLICT(id) DO UPDATE SET
     provenance_commit = excluded.provenance_commit,
     content_hash = excluded.content_hash,
     updated_at = excluded.updated_at
-`, r.ID, r.Slug, string(r.Type), string(r.Scope), r.Title, string(r.Status),
+`, r.ID, r.Checkout, r.Slug, string(r.Type), string(r.Scope), r.Title, string(r.Status),
 		nullString(string(r.Severity)), r.Body, r.SourcePath,
 		encodeJSONList(r.Tags), encodeJSONList(r.AppliesTo), encodeJSONList(r.Supersedes),
 		nullString(r.SupersededBy), nullString(r.ProvenanceCommit), r.ContentHash,
@@ -562,8 +598,8 @@ func nullString(s string) sql.NullString {
 	return sql.NullString{String: s, Valid: s != ""}
 }
 
-func (s *Store) oneRecord(query, arg string) (*record.Record, bool, error) {
-	r, err := scanRecord(s.db.QueryRow(query, arg))
+func (s *Store) oneRecord(query string, args ...any) (*record.Record, bool, error) {
+	r, err := scanRecord(s.db.QueryRow(query, args...))
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
@@ -613,8 +649,8 @@ func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
 	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE slug = ?`, slug)
 }
 
-func (s *Store) GetRecordByPath(path string) (*record.Record, bool, error) {
-	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE source_path = ?`, path)
+func (s *Store) GetRecordByPath(checkout, path string) (*record.Record, bool, error) {
+	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE checkout = ? AND source_path = ?`, checkout, path)
 }
 
 func collectRecords(rows *sql.Rows) ([]*record.Record, error) {
@@ -647,8 +683,8 @@ func (s *Store) RecordsByType(t record.Type) ([]*record.Record, error) {
 	return collectRecords(rows)
 }
 
-func (s *Store) DeleteRecordByPath(path string) error {
-	rec, ok, err := s.GetRecordByPath(path)
+func (s *Store) DeleteRecordByPath(checkout, path string) error {
+	rec, ok, err := s.GetRecordByPath(checkout, path)
 	if err != nil {
 		return err
 	}
@@ -1178,6 +1214,7 @@ WHERE records_fts MATCH ?`
 }
 
 type FileRecord struct {
+	Checkout    string
 	Path        string
 	ContentHash string
 	PackageName string
@@ -1203,11 +1240,11 @@ type SymbolEdge struct {
 	EdgeType string `json:"edge_type"`
 }
 
-func (s *Store) GetFile(path string) (*FileRecord, bool, error) {
+func (s *Store) GetFile(checkout, path string) (*FileRecord, bool, error) {
 	var rec FileRecord
 	var indexedAt string
-	err := s.db.QueryRow(`SELECT path, content_hash, COALESCE(package_name,''), indexed_at FROM files WHERE path = ?`, path).
-		Scan(&rec.Path, &rec.ContentHash, &rec.PackageName, &indexedAt)
+	err := s.db.QueryRow(`SELECT checkout, path, content_hash, COALESCE(package_name,''), indexed_at FROM files WHERE checkout = ? AND path = ?`, checkout, path).
+		Scan(&rec.Checkout, &rec.Path, &rec.ContentHash, &rec.PackageName, &indexedAt)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, false, nil
 	}
@@ -1225,16 +1262,16 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	_, err = tx.Exec(`DELETE FROM symbols WHERE file_path = ?`, rec.Path)
+	_, err = tx.Exec(`DELETE FROM symbols WHERE checkout = ? AND file_path = ?`, rec.Checkout, rec.Path)
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(`DELETE FROM symbol_edges WHERE from_file = ?`, rec.Path)
+	_, err = tx.Exec(`DELETE FROM symbol_edges WHERE checkout = ? AND from_file = ?`, rec.Checkout, rec.Path)
 	if err != nil {
 		return err
 	}
 	if len(symbols) > 0 {
-		stmt, err := tx.Prepare(`INSERT INTO symbols (file_path, name, kind, line, doc_line, exported) VALUES (?, ?, ?, ?, ?, ?)`)
+		stmt, err := tx.Prepare(`INSERT INTO symbols (checkout, file_path, name, kind, line, doc_line, exported) VALUES (?, ?, ?, ?, ?, ?, ?)`)
 		if err != nil {
 			return err
 		}
@@ -1247,7 +1284,7 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 			if strings.TrimSpace(text) == "" {
 				text = sym.DocLine
 			}
-			if _, err = stmt.Exec(rec.Path, sym.Name, sym.Kind, sym.Line, text, exported); err != nil {
+			if _, err = stmt.Exec(rec.Checkout, rec.Path, sym.Name, sym.Kind, sym.Line, text, exported); err != nil {
 				_ = stmt.Close()
 				return err
 			}
@@ -1257,12 +1294,12 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 		}
 	}
 	if len(edges) > 0 {
-		stmt, err := tx.Prepare(`INSERT INTO symbol_edges (from_file, to_path, edge_type) VALUES (?, ?, ?)`)
+		stmt, err := tx.Prepare(`INSERT INTO symbol_edges (checkout, from_file, to_path, edge_type) VALUES (?, ?, ?, ?)`)
 		if err != nil {
 			return err
 		}
 		for _, e := range edges {
-			if _, err = stmt.Exec(rec.Path, e.ToPath, e.EdgeType); err != nil {
+			if _, err = stmt.Exec(rec.Checkout, rec.Path, e.ToPath, e.EdgeType); err != nil {
 				_ = stmt.Close()
 				return err
 			}
@@ -1272,30 +1309,30 @@ func (s *Store) ReplaceFileMap(rec FileRecord, symbols []Symbol, edges []SymbolE
 		}
 	}
 	_, err = tx.Exec(`
-INSERT INTO files (path, content_hash, package_name, indexed_at) VALUES (?, ?, ?, ?)
-ON CONFLICT(path) DO UPDATE SET content_hash=excluded.content_hash, package_name=excluded.package_name, indexed_at=excluded.indexed_at
-`, rec.Path, rec.ContentHash, rec.PackageName, rec.IndexedAt.UTC().Format(time.RFC3339))
+INSERT INTO files (checkout, path, content_hash, package_name, indexed_at) VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(checkout, path) DO UPDATE SET content_hash=excluded.content_hash, package_name=excluded.package_name, indexed_at=excluded.indexed_at
+`, rec.Checkout, rec.Path, rec.ContentHash, rec.PackageName, rec.IndexedAt.UTC().Format(time.RFC3339))
 	if err != nil {
 		return err
 	}
 	return tx.Commit()
 }
 
-func (s *Store) DeleteFile(path string) error {
-	_, err := s.db.Exec(`DELETE FROM symbols WHERE file_path = ?`, path)
+func (s *Store) DeleteFile(checkout, path string) error {
+	_, err := s.db.Exec(`DELETE FROM symbols WHERE checkout = ? AND file_path = ?`, checkout, path)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM symbol_edges WHERE from_file = ?`, path)
+	_, err = s.db.Exec(`DELETE FROM symbol_edges WHERE checkout = ? AND from_file = ?`, checkout, path)
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM files WHERE path = ?`, path)
+	_, err = s.db.Exec(`DELETE FROM files WHERE checkout = ? AND path = ?`, checkout, path)
 	return err
 }
 
-func (s *Store) AllFilePaths() ([]string, error) {
-	rows, err := s.db.Query(`SELECT path FROM files`)
+func (s *Store) AllFilePaths(checkout string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT path FROM files WHERE checkout = ?`, checkout)
 	if err != nil {
 		return nil, err
 	}
@@ -1317,20 +1354,20 @@ func (s *Store) FileCount() (int, error) {
 	return n, err
 }
 
-func (s *Store) SearchSymbols(query string, limit int) ([]Symbol, error) {
+func (s *Store) SearchSymbols(checkout, query string, limit int) ([]Symbol, error) {
 	terms := searchTerms(query)
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	hits, err := s.querySymbols(terms, len(terms), limit)
+	hits, err := s.querySymbols(checkout, terms, len(terms), limit)
 	if err != nil || len(hits) > 0 || !partialTermsOK(query, terms) {
 		return hits, err
 	}
 	// One extra word would otherwise hide the symbol. Same bar as keyword search.
-	return s.querySymbols(terms, minShouldMatch(len(terms)), limit)
+	return s.querySymbols(checkout, terms, minShouldMatch(len(terms)), limit)
 }
 
-func (s *Store) querySymbols(terms []string, need, limit int) ([]Symbol, error) {
+func (s *Store) querySymbols(checkout string, terms []string, need, limit int) ([]Symbol, error) {
 	const match = `(s.name LIKE ? ESCAPE '\' OR COALESCE(s.doc_line,'') LIKE ? ESCAPE '\' OR s.file_path LIKE ? ESCAPE '\' OR COALESCE(f.package_name,'') LIKE ? ESCAPE '\')`
 	nameScore, nameArgs := likeSum(terms, `(s.name LIKE ? ESCAPE '\')`)
 	docScore, docArgs := likeSum(terms, `(COALESCE(s.doc_line,'') LIKE ? ESCAPE '\')`)
@@ -1338,11 +1375,12 @@ func (s *Store) querySymbols(terms []string, need, limit int) ([]Symbol, error) 
 	q := `
 SELECT s.id, s.file_path, s.name, s.kind, s.line, COALESCE(s.doc_line,''), s.exported
 FROM symbols s
-LEFT JOIN files f ON f.path = s.file_path
-WHERE ` + where + `
+LEFT JOIN files f ON f.checkout = s.checkout AND f.path = s.file_path
+WHERE s.checkout = ? AND ` + where + `
 ORDER BY (` + nameScore + `) DESC, s.exported DESC, (` + docScore + `) DESC, s.file_path, s.line
 LIMIT ?`
-	args := append(whereArgs, nameArgs...)
+	args := append([]any{checkout}, whereArgs...)
+	args = append(args, nameArgs...)
 	args = append(args, docArgs...)
 	args = append(args, limit)
 	rows, err := s.db.Query(q, args...)
@@ -1394,10 +1432,10 @@ func likeContains(query string) string {
 	return "%" + r.Replace(strings.TrimSpace(query)) + "%"
 }
 
-func (s *Store) SymbolsForFile(path string) ([]Symbol, error) {
+func (s *Store) SymbolsForFile(checkout, path string) ([]Symbol, error) {
 	rows, err := s.db.Query(`
-SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM symbols WHERE file_path = ?
-`, path)
+SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM symbols WHERE checkout = ? AND file_path = ?
+`, checkout, path)
 	if err != nil {
 		return nil, err
 	}
@@ -1443,14 +1481,15 @@ func collectSymbols(rows *sql.Rows) ([]Symbol, error) {
 }
 
 // ImportsFrom returns the import edges declared by each of the given files.
-func (s *Store) ImportsFrom(files []string, limit int) ([]SymbolEdge, error) {
+func (s *Store) ImportsFrom(checkout string, files []string, limit int) ([]SymbolEdge, error) {
 	if len(files) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	args := append(anyArgs(files), limit)
+	args := append([]any{checkout}, anyArgs(files)...)
+	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
-WHERE from_file IN (`+placeholders(len(files))+`)
+WHERE checkout = ? AND from_file IN (`+placeholders(len(files))+`)
 ORDER BY from_file, to_path
 LIMIT ?
 `, args...)
@@ -1463,7 +1502,7 @@ LIMIT ?
 // importersOfFiles returns edges that import one of files or its package
 // directory. A symbol-name query does not appear in import paths, so the
 // path search alone would report nobody.
-func (s *Store) importersOfFiles(files []string, limit int) ([]SymbolEdge, error) {
+func (s *Store) importersOfFiles(checkout string, files []string, limit int) ([]SymbolEdge, error) {
 	keys := importMatchKeys(files)
 	if len(keys) == 0 || limit <= 0 {
 		return nil, nil
@@ -1474,10 +1513,11 @@ func (s *Store) importersOfFiles(files []string, limit int) ([]SymbolEdge, error
 		parts[i] = `(to_path = ? OR to_path LIKE ? ESCAPE '\')`
 		args = append(args, key, strings.TrimSuffix(likeContains("/"+key), "%"))
 	}
+	args = append([]any{checkout}, args...)
 	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
-WHERE `+strings.Join(parts, " OR ")+`
+WHERE checkout = ? AND (`+strings.Join(parts, " OR ")+`)
 ORDER BY from_file, to_path
 LIMIT ?
 `, args...)
@@ -1538,16 +1578,17 @@ func mergeEdges(limit int, groups ...[]SymbolEdge) []SymbolEdge {
 
 // ImportersOf returns the import edges whose target mentions query, answering
 // "which files import this package or module".
-func (s *Store) ImportersOf(query string, limit int) ([]SymbolEdge, error) {
+func (s *Store) ImportersOf(checkout, query string, limit int) ([]SymbolEdge, error) {
 	terms := searchTerms(query)
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
 	where, args := likeAll(terms, `to_path LIKE ? ESCAPE '\'`, 1)
+	args = append([]any{checkout}, args...)
 	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT DISTINCT from_file, to_path, edge_type FROM symbol_edges
-WHERE `+where+`
+WHERE checkout = ? AND `+where+`
 ORDER BY from_file, to_path
 LIMIT ?
 `, args...)
@@ -1606,7 +1647,7 @@ const DefaultExploreLimit = 30
 // Import paths still require every term. The words do not have to be
 // adjacent. A symbol also matches its file's package name. Name matches rank
 // first, then exported, then doc score, path, and line.
-func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
+func (s *Store) ExploreCode(checkout, query string, limit int) (CodeSearch, error) {
 	var out CodeSearch
 	if strings.TrimSpace(query) == "" {
 		return out, nil
@@ -1614,7 +1655,7 @@ func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 	if limit <= 0 {
 		limit = DefaultExploreLimit
 	}
-	syms, err := s.SearchSymbols(query, limit)
+	syms, err := s.SearchSymbols(checkout, query, limit)
 	if err != nil {
 		return out, err
 	}
@@ -1629,23 +1670,24 @@ func (s *Store) ExploreCode(query string, limit int) (CodeSearch, error) {
 		seen[sym.FilePath] = struct{}{}
 		files = append(files, sym.FilePath)
 	}
-	if out.Imports, err = s.ImportsFrom(files, limit); err != nil {
+	if out.Imports, err = s.ImportsFrom(checkout, files, limit); err != nil {
 		return out, err
 	}
-	byFile, err := s.importersOfFiles(files, limit)
+	byFile, err := s.importersOfFiles(checkout, files, limit)
 	if err != nil {
 		return out, err
 	}
-	byQuery, err := s.ImportersOf(query, limit)
+	byQuery, err := s.ImportersOf(checkout, query, limit)
 	if err != nil {
 		return out, err
 	}
 	out.Importers = mergeEdges(limit, byFile, byQuery)
-	out.Commits, err = s.SearchCommits(query, limit)
+	out.Commits, err = s.SearchCommits(checkout, query, limit)
 	return out, err
 }
 
 type CommitRecord struct {
+	Checkout   string    `json:"-"`
 	Hash       string    `json:"hash"`
 	Subject    string    `json:"subject"`
 	Body       string    `json:"body,omitempty"`
@@ -1654,8 +1696,8 @@ type CommitRecord struct {
 	IndexedAt  time.Time `json:"-"`
 }
 
-func (s *Store) CommitHashes() (map[string]struct{}, error) {
-	rows, err := s.db.Query(`SELECT hash FROM commits`)
+func (s *Store) CommitHashes(checkout string) (map[string]struct{}, error) {
+	rows, err := s.db.Query(`SELECT hash FROM commits WHERE checkout = ?`, checkout)
 	if err != nil {
 		return nil, err
 	}
@@ -1675,16 +1717,16 @@ func (s *Store) CommitHashes() (map[string]struct{}, error) {
 // newest first. When no commit contains every term and the query is several
 // words, a commit with two-thirds of them is enough. One hyphenated token
 // stays exact.
-func (s *Store) SearchCommits(query string, limit int) ([]CommitRecord, error) {
+func (s *Store) SearchCommits(checkout, query string, limit int) ([]CommitRecord, error) {
 	terms := searchTerms(query)
 	if len(terms) == 0 || limit <= 0 {
 		return nil, nil
 	}
-	hits, err := s.queryCommits(terms, len(terms), limit)
+	hits, err := s.queryCommits(checkout, terms, len(terms), limit)
 	if err != nil || len(hits) > 0 || !partialTermsOK(query, terms) {
 		return hits, err
 	}
-	return s.queryCommits(terms, minShouldMatch(len(terms)), limit)
+	return s.queryCommits(checkout, terms, minShouldMatch(len(terms)), limit)
 }
 
 // partialTermsOK is the two-thirds retry. A single hyphenated or dotted token
@@ -1703,7 +1745,7 @@ func partialTermsOK(query string, terms []string) bool {
 	return words > 1
 }
 
-func (s *Store) queryCommits(terms []string, need, limit int) ([]CommitRecord, error) {
+func (s *Store) queryCommits(checkout string, terms []string, need, limit int) ([]CommitRecord, error) {
 	const match = `(COALESCE(subject,'') LIKE ? ESCAPE '\' OR COALESCE(body,'') LIKE ? ESCAPE '\')`
 	var where string
 	var args []any
@@ -1714,11 +1756,12 @@ func (s *Store) queryCommits(terms []string, need, limit int) ([]CommitRecord, e
 		where = "(" + summed + ") >= ?"
 		args = append(sumArgs, need)
 	}
+	args = append([]any{checkout}, args...)
 	args = append(args, limit)
 	rows, err := s.db.Query(`
 SELECT hash, COALESCE(subject,''), COALESCE(body,''), COALESCE(author,''), COALESCE(authored_at,'')
 FROM commits
-WHERE `+where+`
+WHERE checkout = ? AND `+where+`
 ORDER BY authored_at DESC
 LIMIT ?
 `, args...)
@@ -1741,15 +1784,15 @@ LIMIT ?
 
 func (s *Store) UpsertCommit(rec CommitRecord) error {
 	_, err := s.db.Exec(`
-INSERT INTO commits (hash, subject, body, author, authored_at, indexed_at)
-VALUES (?, ?, ?, ?, ?, ?)
-ON CONFLICT(hash) DO UPDATE SET
+INSERT INTO commits (checkout, hash, subject, body, author, authored_at, indexed_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
+ON CONFLICT(checkout, hash) DO UPDATE SET
     subject = excluded.subject,
     body = excluded.body,
     author = excluded.author,
     authored_at = excluded.authored_at,
     indexed_at = excluded.indexed_at
-`, rec.Hash, rec.Subject, rec.Body, rec.Author,
+`, rec.Checkout, rec.Hash, rec.Subject, rec.Body, rec.Author,
 		rec.AuthoredAt.UTC().Format(time.RFC3339),
 		rec.IndexedAt.UTC().Format(time.RFC3339))
 	return err
@@ -1757,11 +1800,12 @@ ON CONFLICT(hash) DO UPDATE SET
 
 // DeleteCommitsExcept removes every commit whose hash is not in keep.
 // An empty keep deletes the whole table.
-func (s *Store) DeleteCommitsExcept(keep []string) error {
+func (s *Store) DeleteCommitsExcept(checkout string, keep []string) error {
 	if len(keep) == 0 {
-		_, err := s.db.Exec(`DELETE FROM commits`)
+		_, err := s.db.Exec(`DELETE FROM commits WHERE checkout = ?`, checkout)
 		return err
 	}
-	_, err := s.db.Exec(`DELETE FROM commits WHERE hash NOT IN (`+placeholders(len(keep))+`)`, anyArgs(keep)...)
+	args := append([]any{checkout}, anyArgs(keep)...)
+	_, err := s.db.Exec(`DELETE FROM commits WHERE checkout = ? AND hash NOT IN (`+placeholders(len(keep))+`)`, args...)
 	return err
 }

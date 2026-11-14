@@ -45,7 +45,7 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embed
 		RepoDB:   repoDB,
 		HomeDB:   homeDB,
 		Archive:  archive.New(repoRoot, cfg, repoDB, homeDB),
-		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB, QueryModel: cfg.Ollama.EmbedModel},
+		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB, QueryModel: cfg.Ollama.EmbedModel, Checkout: repoRoot},
 		Embedder: embedder,
 	}
 }
@@ -331,7 +331,7 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	limit := int(req.GetFloat("limit", float64(store.DefaultExploreLimit)))
 	query := req.GetString("query", "")
-	primary, err := s.RepoDB.ExploreCode(query, limit)
+	primary, err := s.RepoDB.ExploreCode(s.RepoRoot, query, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -345,7 +345,7 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 			if ex.DB == nil {
 				continue
 			}
-			section, err := ex.DB.ExploreCode(query, limit)
+			section, err := ex.DB.ExploreCode(ex.Root, query, limit)
 			if err != nil {
 				return mcp.NewToolResultError(err.Error()), nil
 			}
@@ -543,8 +543,12 @@ func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		return mcp.NewToolResultError(store.NeedsInit(repoPath, err).Error()), nil
 	}
 	defer repo.Close()
+	if err := repo.MergeCheckout(s.RepoRoot); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	progress, err := (&index.Indexer{
 		RepoRoot: s.RepoRoot,
+		Checkout: s.RepoRoot,
 		Cfg:      s.Cfg,
 		Store:    repo,
 	}).Index(ctx, req.GetString("scope", ""))

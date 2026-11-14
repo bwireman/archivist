@@ -48,14 +48,14 @@ func TestIndexPrunesCommitsOutsideWindow(t *testing.T) {
 	if _, err := idx.Index(context.Background(), ""); err != nil {
 		t.Fatal(err)
 	}
-	oldHits, err := st.SearchCommits("unique-token-alpha", 10)
+	oldHits, err := st.SearchCommits("", "unique-token-alpha", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(oldHits) != 0 {
 		t.Fatalf("old commit kept: %+v", oldHits)
 	}
-	newHits, err := st.SearchCommits("unique-token-beta", 10)
+	newHits, err := st.SearchCommits("", "unique-token-beta", 10)
 	if err != nil {
 		t.Fatal(err)
 	}

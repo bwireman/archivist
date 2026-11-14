@@ -44,7 +44,7 @@ func TestExploreCodeJoinsSymbolsEdgesAndCommits(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	res, err := st.ExploreCode("retrieve", 10)
+	res, err := st.ExploreCode("", "retrieve", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +59,7 @@ func TestExploreCodeJoinsSymbolsEdgesAndCommits(t *testing.T) {
 	}
 
 	// "store" matches no symbol name here, but both files import it.
-	res, err = st.ExploreCode("internal/store", 10)
+	res, err = st.ExploreCode("", "internal/store", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -87,7 +87,7 @@ func TestExploreCodeImportersFollowMatchedFiles(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	res, err := st.ExploreCode("Search", 10)
+	res, err := st.ExploreCode("", "Search", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,14 +126,14 @@ func TestSearchSymbolsRanksExportedAndKeepsTwoThirds(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SearchSymbols("search", 10)
+	syms, err := st.SearchSymbols("", "search", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(syms) < 2 || syms[0].Name != "Search" {
 		t.Fatalf("exported first: %+v", syms)
 	}
-	syms, err = st.SearchSymbols("search query queue", 10)
+	syms, err = st.SearchSymbols("", "search query queue", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,7 +151,7 @@ func TestSearchCommitsKeepsHyphenatedTokenIntact(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, q := range []string{"unique-token-alpha", "the unique-token-alpha"} {
-		hits, err := st.SearchCommits(q, 10)
+		hits, err := st.SearchCommits("", q, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -174,7 +174,7 @@ func TestSearchCommitsKeepsTwoThirds(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	hits, err := st.SearchCommits("embed worker queue", 10)
+	hits, err := st.SearchCommits("", "embed worker queue", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -197,7 +197,7 @@ func TestSearchSymbolsMatchesLaterDocLines(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SearchSymbols("zqxbeacon", 10)
+	syms, err := st.SearchSymbols("", "zqxbeacon", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,7 +220,7 @@ func TestSearchTreatsWildcardsAsLiterals(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, q := range []string{"%", "_", `\`} {
-		syms, err := st.SearchSymbols(q, 10)
+		syms, err := st.SearchSymbols("", q, 10)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -236,7 +236,7 @@ func TestSearchTreatsWildcardsAsLiterals(t *testing.T) {
 	); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SearchSymbols("_", 10)
+	syms, err := st.SearchSymbols("", "_", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,21 +284,21 @@ func TestSearchSymbolsMatchesTermsAcrossPathAndPackage(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	syms, err := st.SearchSymbols("embed worker", 10)
+	syms, err := st.SearchSymbols("", "embed worker", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(syms) != 3 || syms[0].Name != "Worker" || syms[1].Name != "Run" || syms[2].Name != "drain" {
 		t.Fatalf("term match order: %+v", syms)
 	}
-	pkg, err := st.SearchSymbols("store", 10)
+	pkg, err := st.SearchSymbols("", "store", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(pkg) != 1 || pkg[0].Name != "Open" {
 		t.Fatalf("package match: %+v", pkg)
 	}
-	commits, err := st.SearchCommits("embed worker", 10)
+	commits, err := st.SearchCommits("", "embed worker", 10)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,20 +317,20 @@ func TestDeleteCommitsExceptDropsHashesOutsideTheWindow(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if err := st.DeleteCommitsExcept([]string{"bbb"}); err != nil {
+	if err := st.DeleteCommitsExcept("", []string{"bbb"}); err != nil {
 		t.Fatal(err)
 	}
-	left, err := st.CommitHashes()
+	left, err := st.CommitHashes("")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, ok := left["bbb"]; !ok || len(left) != 1 {
 		t.Fatalf("hashes %+v", left)
 	}
-	if err := st.DeleteCommitsExcept(nil); err != nil {
+	if err := st.DeleteCommitsExcept("", nil); err != nil {
 		t.Fatal(err)
 	}
-	left, err = st.CommitHashes()
+	left, err = st.CommitHashes("")
 	if err != nil {
 		t.Fatal(err)
 	}

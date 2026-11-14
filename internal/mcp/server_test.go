@@ -957,7 +957,7 @@ func writeGoFile(t *testing.T, root, rel, content string) {
 
 func symbolNamed(t *testing.T, st *store.Store, path, name string) bool {
 	t.Helper()
-	syms, err := st.SymbolsForFile(path)
+	syms, err := st.SymbolsForFile("", path)
 	if err != nil {
 		t.Fatal(err)
 	}

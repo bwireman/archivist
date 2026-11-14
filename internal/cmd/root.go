@@ -152,7 +152,15 @@ func loadEnv() (string, *config.Config, error) {
 }
 
 func openStore(root string) (*store.Store, error) {
-	return store.Open(config.StorePath(root))
+	st, err := store.Open(config.StorePath(root))
+	if err != nil {
+		return nil, err
+	}
+	if err := st.MergeCheckout(root); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	return st, nil
 }
 
 func openHomeStore() (*store.Store, error) {
@@ -172,7 +180,15 @@ func openExistingPath(path string) (*store.Store, error) {
 }
 
 func openExistingStore(root string) (*store.Store, error) {
-	return openExistingPath(config.StorePath(root))
+	st, err := openExistingPath(config.StorePath(root))
+	if err != nil {
+		return nil, err
+	}
+	if err := st.MergeCheckout(root); err != nil {
+		_ = st.Close()
+		return nil, err
+	}
+	return st, nil
 }
 
 func openExistingHome() (*store.Store, error) {
@@ -239,6 +255,9 @@ func openQueryStore(path string) (*store.Store, error) {
 }
 
 func openQueryStores(root string) (*store.Store, *store.Store, error) {
+	if msg := store.WarnUnmerged(root); msg != "" {
+		fmt.Fprintln(os.Stderr, msg)
+	}
 	repo, err := openQueryStore(config.StorePath(root))
 	if err != nil {
 		return nil, nil, err
@@ -363,7 +382,7 @@ func newSearchCmd() *cobra.Command {
 			defer closeExtras(extras)
 
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home, Extras: retrieveExtras(extras), QueryModel: cfg.Ollama.EmbedModel}
+			engine := &retrieve.Engine{Repo: repo, Home: home, Extras: retrieveExtras(extras), QueryModel: cfg.Ollama.EmbedModel, Checkout: root}
 			opts := retrieve.Options{TopK: topK, Query: strings.Join(args, " "), Status: record.Status(status)}
 			if recType != "" {
 				opts.Type = record.Type(recType)

@@ -240,27 +240,19 @@ func TestRememberWritesTheContextDatabase(t *testing.T) {
 	}
 
 	other := t.TempDir()
-	otherDB, err := store.Open(config.StorePath(other))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := otherDB.Close(); err != nil {
-		t.Fatal(err)
-	}
-	otherBefore := 0
+	repoEnd, _ := repoDB.RecordCount()
+	homeEnd, _ := homeDB.RecordCount()
 	if _, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Unlisted",
 		Body: "no", Status: record.StatusAccepted,
 	}, other); err == nil {
 		t.Fatal("unlisted archive should fail")
 	}
-	check, err := store.OpenReadOnly(config.StorePath(other))
-	if err != nil {
-		t.Fatal(err)
+	if n, _ := repoDB.RecordCount(); n != repoEnd {
+		t.Fatalf("unlisted repo count %d", n)
 	}
-	defer check.Close()
-	if n, _ := check.RecordCount(); n != otherBefore {
-		t.Fatalf("unlisted count %d", n)
+	if n, _ := homeDB.RecordCount(); n != homeEnd {
+		t.Fatalf("unlisted home count %d", n)
 	}
 }
 

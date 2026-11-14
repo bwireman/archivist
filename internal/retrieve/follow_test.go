@@ -32,7 +32,7 @@ func TestFollowLinks(t *testing.T) {
 	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkPin, ToRoot: gone, ToID: "rec_gone"}); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Remove(config.StorePath(gone)); err != nil {
+	if err := os.Remove(config.LegacyIndexPath(gone)); err != nil {
 		t.Fatal(err)
 	}
 	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkRecord, FromID: "rec_local", ToRoot: peer, ToID: "rec_remote"}); err != nil {
@@ -95,7 +95,7 @@ func TestFollowLinks(t *testing.T) {
 
 func openFollowDB(t *testing.T, dir string) *store.Store {
 	t.Helper()
-	db, err := store.Open(config.StorePath(dir))
+	db, err := store.Open(config.LegacyIndexPath(dir))
 	if err != nil {
 		t.Fatal(err)
 	}

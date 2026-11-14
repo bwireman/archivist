@@ -23,6 +23,7 @@ type Indexer struct {
 	RepoRoot string
 	Cfg      *config.Config
 	Store    *store.Store
+	Checkout string
 
 	progress Progress
 	ignore   *gitindex.Ignore
@@ -106,11 +107,11 @@ func (idx *Indexer) indexPath(rel, abs string) error {
 		return err
 	}
 	if codemap.IsBinary(data) {
-		return idx.Store.DeleteFile(rel)
+		return idx.Store.DeleteFile(idx.Checkout, rel)
 	}
 	hash := fileHash(data)
 
-	existing, ok, err := idx.Store.GetFile(rel)
+	existing, ok, err := idx.Store.GetFile(idx.Checkout, rel)
 	if err != nil {
 		return err
 	}
@@ -123,6 +124,7 @@ func (idx *Indexer) indexPath(rel, abs string) error {
 		return err
 	}
 	if err := idx.Store.ReplaceFileMap(store.FileRecord{
+		Checkout:    idx.Checkout,
 		Path:        rel,
 		ContentHash: hash,
 		PackageName: result.PackageName,
@@ -151,7 +153,7 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	known, err := idx.Store.CommitHashes()
+	known, err := idx.Store.CommitHashes(idx.Checkout)
 	if err != nil {
 		return err
 	}
@@ -165,6 +167,7 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 			continue
 		}
 		if err := idx.Store.UpsertCommit(store.CommitRecord{
+			Checkout:   idx.Checkout,
 			Hash:       c.Hash,
 			Subject:    c.Subject,
 			Body:       c.Body,
@@ -177,7 +180,7 @@ func (idx *Indexer) indexGit(ctx context.Context) error {
 		idx.progress.CommitsNew++
 		known[c.Hash] = struct{}{}
 	}
-	return idx.Store.DeleteCommitsExcept(keep)
+	return idx.Store.DeleteCommitsExcept(idx.Checkout, keep)
 }
 
 func (idx *Indexer) walkFiles(root string, fn func(rel, abs string) error) error {
@@ -282,7 +285,7 @@ var binaryExts = map[string]bool{
 }
 
 func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error {
-	paths, err := idx.Store.AllFilePaths()
+	paths, err := idx.Store.AllFilePaths(idx.Checkout)
 	if err != nil {
 		return err
 	}
@@ -291,7 +294,7 @@ func (idx *Indexer) pruneFiles(seen map[string]struct{}, scopePath string) error
 			continue
 		}
 		if _, ok := seen[p]; !ok {
-			if err := idx.Store.DeleteFile(p); err != nil {
+			if err := idx.Store.DeleteFile(idx.Checkout, p); err != nil {
 				return err
 			}
 			idx.progress.FilesRemoved++

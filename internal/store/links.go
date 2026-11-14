@@ -18,10 +18,11 @@ const (
 
 // Link is one row in record_links. Empty ends are stored as "".
 type Link struct {
-	Kind   string `json:"kind"`
-	FromID string `json:"from_id"`
-	ToRoot string `json:"to_root"`
-	ToID   string `json:"to_id"`
+	Kind         string `json:"kind"`
+	FromCheckout string `json:"from_checkout,omitempty"`
+	FromID       string `json:"from_id"`
+	ToRoot       string `json:"to_root"`
+	ToID         string `json:"to_id"`
 }
 
 // ListLinks returns every edge, sorted by kind then paths. A database whose
@@ -34,7 +35,7 @@ func (s *Store) ListLinks() ([]Link, error) {
 	if !ok {
 		return []Link{}, nil
 	}
-	rows, err := s.db.Query(`SELECT kind, from_id, to_root, to_id FROM record_links ORDER BY kind, from_id, to_root, to_id`)
+	rows, err := s.db.Query(`SELECT kind, from_checkout, from_id, to_root, to_id FROM record_links ORDER BY kind, from_checkout, from_id, to_root, to_id`)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +43,7 @@ func (s *Store) ListLinks() ([]Link, error) {
 	out := []Link{}
 	for rows.Next() {
 		var link Link
-		if err := rows.Scan(&link.Kind, &link.FromID, &link.ToRoot, &link.ToID); err != nil {
+		if err := rows.Scan(&link.Kind, &link.FromCheckout, &link.FromID, &link.ToRoot, &link.ToID); err != nil {
 			return nil, err
 		}
 		out = append(out, link)
@@ -63,11 +64,14 @@ func (s *Store) InsertLink(primary string, link Link) error {
 	if err := s.localRecordExists(norm); err != nil {
 		return err
 	}
-	if err := targetRecordExists(norm); err != nil {
+	if err := s.targetRecordExists(norm); err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`INSERT OR IGNORE INTO record_links (kind, from_id, to_root, to_id) VALUES (?, ?, ?, ?)`,
-		norm.Kind, norm.FromID, norm.ToRoot, norm.ToID)
+	if norm.FromCheckout == "" {
+		norm.FromCheckout = primary
+	}
+	_, err = s.db.Exec(`INSERT OR IGNORE INTO record_links (kind, from_checkout, from_id, to_root, to_id) VALUES (?, ?, ?, ?, ?)`,
+		norm.Kind, norm.FromCheckout, norm.FromID, norm.ToRoot, norm.ToID)
 	return err
 }
 
@@ -81,8 +85,11 @@ func (s *Store) DeleteLink(primary string, link Link) error {
 	if err := requireCheckout(norm.ToRoot); err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM record_links WHERE kind = ? AND from_id = ? AND to_root = ? AND to_id = ?`,
-		norm.Kind, norm.FromID, norm.ToRoot, norm.ToID)
+	if norm.FromCheckout == "" {
+		norm.FromCheckout = primary
+	}
+	_, err = s.db.Exec(`DELETE FROM record_links WHERE kind = ? AND from_checkout = ? AND from_id = ? AND to_root = ? AND to_id = ?`,
+		norm.Kind, norm.FromCheckout, norm.FromID, norm.ToRoot, norm.ToID)
 	return err
 }
 
@@ -186,14 +193,6 @@ func requireCheckout(root string) error {
 	if !info.IsDir() {
 		return fmt.Errorf("record links: %s is not a directory", root)
 	}
-	db := config.StorePath(root)
-	st, err := os.Stat(db)
-	if err != nil {
-		return fmt.Errorf("record links: %s: %w", db, err)
-	}
-	if st.IsDir() {
-		return fmt.Errorf("record links: %s has no .archivist/index.db", root)
-	}
 	return nil
 }
 
@@ -211,11 +210,19 @@ func (s *Store) localRecordExists(link Link) error {
 	return nil
 }
 
-func targetRecordExists(link Link) error {
+func (s *Store) targetRecordExists(link Link) error {
 	if link.Kind == LinkRepo {
 		return nil
 	}
-	db, err := OpenReadOnly(config.StorePath(link.ToRoot))
+	if rec, ok, err := s.GetRecordByID(link.ToID); err != nil {
+		return err
+	} else if ok {
+		if !record.ValidType(rec.Type) {
+			return fmt.Errorf("record links: record %s has type %s", link.ToID, rec.Type)
+		}
+		return nil
+	}
+	db, err := OpenReadOnly(config.LegacyIndexPath(link.ToRoot))
 	if err != nil {
 		return fmt.Errorf("record links: %w", err)
 	}

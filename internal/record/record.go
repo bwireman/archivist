@@ -78,6 +78,7 @@ const (
 // Record is the unit of knowledge in the archive.
 type Record struct {
 	ID               string
+	Checkout         string `json:"checkout,omitempty"`
 	Slug             string
 	Type             Type
 	Scope            Scope

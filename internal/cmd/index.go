@@ -27,6 +27,7 @@ func newIndexCmd() *cobra.Command {
 
 			idx := &index.Indexer{
 				RepoRoot: root,
+				Checkout: root,
 				Cfg:      cfg,
 				Store:    repo,
 			}

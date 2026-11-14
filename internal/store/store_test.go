@@ -70,11 +70,11 @@ func TestFileMapRoundTrip(t *testing.T) {
 	}, []store.Symbol{{FilePath: "foo.go", Name: "Bar", Kind: "func", Line: 1, Exported: true}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	syms, err := st.SymbolsForFile("foo.go")
+	syms, err := st.SymbolsForFile("", "foo.go")
 	if err != nil || len(syms) != 1 {
 		t.Fatalf("symbols: %v err=%v", syms, err)
 	}
-	if err := st.DeleteFile("foo.go"); err != nil {
+	if err := st.DeleteFile("", "foo.go"); err != nil {
 		t.Fatal(err)
 	}
 	n, _ := st.FileCount()
@@ -102,7 +102,7 @@ func TestDeleteRecordByPathDropsQueue(t *testing.T) {
 	if err := st.UpsertRecord(rec); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.DeleteRecordByPath(rec.SourcePath); err != nil {
+	if err := st.DeleteRecordByPath(rec.Checkout, rec.SourcePath); err != nil {
 		t.Fatal(err)
 	}
 	depth, _ := st.QueueDepth()
@@ -355,7 +355,7 @@ func TestBoundQueriesIgnoreSQLMetacharacters(t *testing.T) {
 		if _, err := st.SearchFTS(p, 10, store.RecordFilter{}); err != nil {
 			t.Fatalf("SearchFTS(%q): %v", p, err)
 		}
-		if _, err := st.SearchSymbols(p, 10); err != nil {
+		if _, err := st.SearchSymbols("", p, 10); err != nil {
 			t.Fatalf("SearchSymbols(%q): %v", p, err)
 		}
 	}

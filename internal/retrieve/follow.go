@@ -76,6 +76,9 @@ func Follow(ctx context.Context, e *Engine, embedder embed.Embedder, opts Option
 	budget := &sourceBudget{}
 	out := []SearchLink{}
 	for _, edge := range edges {
+		if e.Checkout != "" && edge.FromCheckout != "" && edge.FromCheckout != e.Checkout {
+			continue
+		}
 		switch edge.Kind {
 		case store.LinkPin:
 			link, err := withSearchSource(searchRecordLink(edge, opts.Query, opened), budget)
@@ -284,7 +287,7 @@ func openLinked(root string, opened map[string]*store.Store) (*store.Store, erro
 	if db, ok := opened[root]; ok {
 		return db, nil
 	}
-	db, err := store.OpenReadOnly(config.StorePath(root))
+	db, err := store.OpenReadOnly(config.LegacyIndexPath(root))
 	if err != nil {
 		return nil, err
 	}

@@ -273,19 +273,23 @@ func TestGlobalDirDefaultsToArchivistHome(t *testing.T) {
 
 func TestStorePaths(t *testing.T) {
 	dir := t.TempDir()
+	home := t.TempDir()
+	t.Setenv("HOME", home)
 	got := config.StorePath(dir)
-	want := filepath.Join(dir, ".archivist", "index.db")
+	want := filepath.Join(home, ".archivist", "archive.db")
 	if got != want {
 		t.Fatalf("store: %q want %q", got, want)
+	}
+	if legacy := config.LegacyIndexPath(dir); legacy != filepath.Join(dir, ".archivist", "index.db") {
+		t.Fatalf("legacy: %q", legacy)
 	}
 	if got := config.CommandsLogPath(dir); got != filepath.Join(dir, ".archivist", "commands.log") {
 		t.Fatalf("commands log: %q", got)
 	}
-	home := config.ArchivistHome()
 	if home == "" {
 		t.Skip("no home")
 	}
-	if got := config.HomeStorePath(); got != filepath.Join(home, "archive.db") {
+	if got := config.HomeStorePath(); got != want {
 		t.Fatalf("home store: %q", got)
 	}
 }
@@ -364,7 +368,7 @@ func TestArchiveRoots(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(extra, ".archivist"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(config.StorePath(extra))
+	db, err := store.Open(config.LegacyIndexPath(extra))
 	if err != nil {
 		t.Fatal(err)
 	}
