@@ -42,20 +42,7 @@ From another directory: `archivist --path /path/to/your/repo status`.
 
 ## MCP
 
-`archivist mcp` speaks stdio. In the repo, `.cursor/mcp.json`:
-
-```json
-{
-  "mcpServers": {
-    "archivist": {
-      "command": "archivist",
-      "args": ["mcp"]
-    }
-  }
-}
-```
-
-Run it from the repo root, or pass an absolute `--path`. `archivist` has to be on the PATH the GUI app sees.
+`archivist mcp` speaks stdio. `archivist skills install --user` is what adds that server to `~/.cursor/mcp.json`. A repository does not get its own MCP file. `archivist` has to be on the PATH the GUI app sees.
 
 ## More
 

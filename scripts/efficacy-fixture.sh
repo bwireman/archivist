@@ -4,6 +4,8 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck source=efficacy-paths.sh
+source "$root/scripts/efficacy-paths.sh"
 src="$root/testdata/efficacy-fixture"
 # Outside this repo so an agent in the checkout cannot walk up into the
 # hidden tests or this repo's archive.
@@ -148,34 +150,58 @@ for path in root.rglob("*"):
 PY
 }
 
-# Feature and plan arms inherit this through the snapshot's .archivist.json.
+# Feature and plan arms inherit log_commands through the shim's checkout config.
 set_embed() {
-  python3 - "$src/run.json" "$dest/.archivist.json" <<'PY'
-import json, sys
+  # init already moved config under the shim HOME. Load reads that file,
+  # not a later .archivist.json. commands.log is how a run proves MCP.
+  python3 - "$src/run.json" "$(efficacy_checkout_config)" "$(efficacy_home)/.archivist/config.json" <<'PY'
+import json, os, sys
 run = json.load(open(sys.argv[1]))
-cfg = json.load(open(sys.argv[2]))
-# commands.log is how a run proves the seed called MCP.
+cfg_path, home_path = sys.argv[2], sys.argv[3]
+cfg = json.load(open(cfg_path))
 cfg["log_commands"] = True
 ollama = cfg.setdefault("ollama", {})
-for key in ("embed_model", "embed_num_ctx"):
-    if key in run:
-        ollama[key] = run[key]
-with open(sys.argv[2], "w") as f:
+if "embed_num_ctx" in run:
+    ollama["embed_num_ctx"] = run["embed_num_ctx"]
+with open(cfg_path, "w") as f:
     json.dump(cfg, f, indent=2)
+    f.write("\n")
+home = {}
+if os.path.exists(home_path):
+    home = json.load(open(home_path))
+if run.get("embed_model"):
+    home["embed_model"] = run["embed_model"]
+os.makedirs(os.path.dirname(home_path), exist_ok=True)
+with open(home_path, "w") as f:
+    json.dump(home, f, indent=2)
     f.write("\n")
 PY
 }
 
 restore_snapshot() {
   replay
-  mkdir -p "$dest/.archivist" "$dest/bin"
-  cp -a "$snap/index.db" "$dest/.archivist/index.db"
-  cp -a "$snap/.archivist.json" "$dest/.archivist.json"
+  mkdir -p "$dest/.archivist" "$dest/bin" "$(dirname "$(efficacy_archive_db)")"
+  rm -f "$(efficacy_archive_db)" "$(efficacy_archive_db)-wal" "$(efficacy_archive_db)-shm"
+  rm -f "$(efficacy_commands_log)"
+  if [ -f "$snap/archive.db" ]; then
+    cp -a "$snap/archive.db" "$(efficacy_archive_db)"
+  elif [ -f "$snap/index.db" ]; then
+    cp -a "$snap/index.db" "$dest/.archivist/index.db"
+  else
+    echo "efficacy-fixture.sh: snapshot has no archive.db or index.db" >&2
+    exit 1
+  fi
+  if [ -f "$snap/.archivist.json" ]; then
+    cp -a "$snap/.archivist.json" "$dest/.archivist.json"
+  fi
   cp -a "$snap/.archivist-install.json" "$dest/.archivist-install.json"
   rm -rf "$dest/.cursor"
   cp -a "$snap/.cursor" "$dest/.cursor"
   cp -a "$snap/bin/archivist" "$dest/bin/archivist"
   chmod +x "$dest/bin/archivist"
+  if [ -f "$dest/.archivist/index.db" ]; then
+    "$dest/bin/archivist" --path "$dest" init >/dev/null
+  fi
 }
 
 case "$mode" in

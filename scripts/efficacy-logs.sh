@@ -9,7 +9,10 @@
 # not logged, so golden_surfaced counts MCP searches only (n/a when none).
 set -euo pipefail
 
-work="${EFFICACY_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/archivist-efficacy}"
+root=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck source=efficacy-paths.sh
+source "$root/scripts/efficacy-paths.sh"
+work=$(efficacy_work)
 if [ "$#" -ne 3 ]; then
   echo "usage: efficacy-logs.sh <run-dir> <arm> <db-file>" >&2
   exit 2
@@ -17,7 +20,7 @@ fi
 R=$(realpath "$1")
 arm=$2
 db=$(realpath "$3")
-log="$work/project/.archivist/commands.log"
+log=$(efficacy_commands_log)
 
 if [ ! -f "$log" ]; then
   echo "logs: none"

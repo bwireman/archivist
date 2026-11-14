@@ -37,5 +37,9 @@ basename "$R" >"$R/utc.txt"
 archivist version >"$R/version.txt"
 git -C "$root" rev-parse HEAD >"$R/archivist-commit.txt"
 git -C "$root" status --porcelain >"$R/repo-dirty.txt"
-(cd "$root" && stat -c '%n %Y' .archivist/index.db "$HOME/.archivist/archive.db") >"$R/mtimes-before.txt"
+if [ -f "$HOME/.archivist/archive.db" ]; then
+  stat -c '%n %Y' "$HOME/.archivist/archive.db" >"$R/mtimes-before.txt"
+else
+  : >"$R/mtimes-before.txt"
+fi
 echo "preflight ok: $R"

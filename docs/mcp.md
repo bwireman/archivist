@@ -6,7 +6,7 @@ The server opens `~/.archivist/archive.db`. Search reads every checkout. `check`
 
 ## Cursor
 
-Project file `.cursor/mcp.json` (or a user-level MCP config):
+`archivist skills install --user` writes the one server into `~/.cursor/mcp.json`:
 
 ```json
 {
@@ -19,20 +19,7 @@ Project file `.cursor/mcp.json` (or a user-level MCP config):
 }
 ```
 
-If the client does not start the process in the repo root:
-
-```json
-{
-  "mcpServers": {
-    "archivist": {
-      "command": "archivist",
-      "args": ["--path", "/absolute/path/to/your/repo", "mcp"]
-    }
-  }
-}
-```
-
-`archivist` must be on the `PATH` the GUI app sees (not only your interactive shell). `--path` is a persistent flag, so `archivist mcp --path /abs/repo` works too.
+A repository does not need `.cursor/mcp.json`. Cursor starts that user server with the workspace as the working directory. `archivist` must be on the `PATH` the GUI app sees. Tools that need a repo take `checkout`.
 
 ## Claude Desktop and other clients
 

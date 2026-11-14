@@ -6,7 +6,9 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
-work="${EFFICACY_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/archivist-efficacy}"
+# shellcheck source=efficacy-paths.sh
+source "$root/scripts/efficacy-paths.sh"
+work=$(efficacy_work)
 W="$work/project"
 
 if [ "$#" -lt 2 ]; then
@@ -86,11 +88,12 @@ ok = not hits or all(
 print("docs_cleanup:", "yes" if ok else "no")
 PY
 
-if [ -f "$R/seed.db" ] && [ -n "$db" ] && [ -f "$W/.archivist/index.db" ]; then
-  out=$(cd "$root" && EFFICACY_CHECKPOINT="$W/.archivist/index.db" \
+archive_db=$(efficacy_archive_db)
+if [ -f "$R/seed.db" ] && [ -n "$db" ] && [ -f "$archive_db" ]; then
+  out=$(cd "$root" && EFFICACY_CHECKPOINT="$archive_db" \
     go test ./internal/efficacy/ -run '^TestCheckpointWALOnDB$' -count=1 -v 2>&1)
   if grep -q -- '--- PASS: TestCheckpointWALOnDB' <<<"$out"; then
-    cp "$W/.archivist/index.db" "$R/$db"
+    cp "$archive_db" "$R/$db"
     echo "${db%.db}_db: copied"
     q="select id||' '||type||' '||status||' '||coalesce(superseded_by,'')||' '||length(body)||' '||title from records order by id"
     if command diff <(sqlite3 "$R/seed.db" "$q") <(sqlite3 "$R/$db" "$q") >"$R/$arm-archive.diff"; then
@@ -105,8 +108,9 @@ else
   echo "archive: skipped"
 fi
 
-if [ -f "$W/.archivist/commands.log" ]; then
-  python3 - "$W/.archivist/commands.log" <<'PY'
+commands_log=$(efficacy_commands_log)
+if [ -f "$commands_log" ]; then
+  python3 - "$commands_log" <<'PY'
 import json, sys
 src = set()
 for line in open(sys.argv[1]):
