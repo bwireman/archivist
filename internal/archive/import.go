@@ -154,14 +154,20 @@ func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope,
 	if err != nil {
 		return fmt.Errorf("%s: %w", sourcePath, err)
 	}
-	existing, st, ok := s.findByID(parsed.ID)
+	existing, ok, err := s.findByID(parsed.ID)
+	if err != nil {
+		return err
+	}
 	if !ok {
 		checkout := ""
 		if parsed.Scope == record.ScopeRepo {
 			checkout = s.RepoRoot
 		}
 		parsed.Checkout = checkout
-		existing, st, ok = s.findByPath(checkout, sourcePath)
+		existing, ok, err = s.findByPath(checkout, sourcePath)
+		if err != nil {
+			return err
+		}
 	}
 	if ok {
 		if existing.ContentHash == parsed.ContentHash {
@@ -171,45 +177,38 @@ func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope,
 		parsed.ID = existing.ID
 		parsed.CreatedAt = existing.CreatedAt
 		parsed.SourcePath = existing.SourcePath
-		if err := st.UpsertRecord(parsed); err != nil {
+		if err := s.DB.UpsertRecord(parsed); err != nil {
 			return err
 		}
 		res.Updated++
 		return nil
 	}
-	st = s.storeFor(parsed.Scope)
-	if st == nil {
-		if parsed.Scope == record.ScopeGlobal || parsed.Scope == record.ScopeDev {
-			return store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
-		}
-		return fmt.Errorf("no store for scope %s", parsed.Scope)
-	}
 	parsed.SourcePath = sourcePath
-	if err := st.UpsertRecord(parsed); err != nil {
+	if err := s.DB.UpsertRecord(parsed); err != nil {
 		return err
 	}
 	res.Imported++
 	return nil
 }
 
-func (s *Service) findByID(id string) (*record.Record, *store.Store, bool) {
+func (s *Service) findByID(id string) (*record.Record, bool, error) {
 	if s.DB == nil {
-		return nil, nil, false
+		return nil, false, store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
 	}
 	rec, ok, err := s.DB.GetRecordByID(id)
 	if err != nil || !ok {
-		return nil, nil, false
+		return nil, false, err
 	}
-	return rec, s.DB, true
+	return rec, true, nil
 }
 
-func (s *Service) findByPath(checkout, path string) (*record.Record, *store.Store, bool) {
+func (s *Service) findByPath(checkout, path string) (*record.Record, bool, error) {
 	if s.DB == nil {
-		return nil, nil, false
+		return nil, false, store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
 	}
 	rec, ok, err := s.DB.GetRecordByPath(checkout, path)
 	if err != nil || !ok {
-		return nil, nil, false
+		return nil, false, err
 	}
-	return rec, s.DB, true
+	return rec, true, nil
 }

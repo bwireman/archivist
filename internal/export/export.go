@@ -61,7 +61,7 @@ func Run(db *store.Store, opts Options) error {
 	if err := writeTypeDigests(recs, opts.OutDir); err != nil {
 		return err
 	}
-	if err := writeMap(db, filepath.Join(opts.OutDir, "map.md")); err != nil {
+	if err := writeMap(db, exportCheckout(opts.RepoRoot), filepath.Join(opts.OutDir, "map.md")); err != nil {
 		return err
 	}
 	return writeManifest(recs, filepath.Join(opts.OutDir, "archive.json"))
@@ -206,13 +206,23 @@ func digestFile(t record.Type) string {
 	return strings.ToLower(typeHeading(t)) + ".md"
 }
 
-func writeMap(repo *store.Store, path string) error {
+func exportCheckout(root string) string {
+	if root == "" {
+		return ""
+	}
+	if canon, err := config.Canonical(root); err == nil {
+		return canon
+	}
+	return root
+}
+
+func writeMap(repo *store.Store, checkout, path string) error {
 	var b strings.Builder
 	b.WriteString("# Code Map\n\n")
 	if repo == nil {
 		return os.WriteFile(path, []byte(b.String()), 0o644)
 	}
-	syms, err := repo.AllSymbols()
+	syms, err := repo.AllSymbols(checkout)
 	if err != nil {
 		return err
 	}

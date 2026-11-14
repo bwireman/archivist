@@ -426,9 +426,7 @@ func (s *Server) writer() (*archive.Service, func(), error) {
 	if db == s.DB {
 		return s.Archive, done, nil
 	}
-	svc := archive.New(s.RepoRoot, s.Cfg, db)
-	svc.ExtraRoots = s.Archive.ExtraRoots
-	return svc, done, nil
+	return archive.New(s.RepoRoot, s.Cfg, db), done, nil
 }
 
 // writableStore returns the one database connection that can write.
@@ -517,9 +515,6 @@ func (s *Server) mutateLink(req mcp.CallToolRequest, remove bool) (*mcp.CallTool
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	defer done()
-	if repo == nil {
-		return mcp.NewToolResultError("archive is not open"), nil
-	}
 	edge, err := store.NewLink(s.RepoRoot, req.GetString("kind", ""), req.GetString("from_id", ""), req.GetString("to", ""))
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -706,6 +701,9 @@ func (s *Server) toolReview(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 }
 
 func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s == nil || s.DB == nil {
+		return mcp.NewToolResultError("archive is not open"), nil
+	}
 	health := embed.CheckHealth(context.Background(), s.Cfg)
 	count, _ := s.DB.RecordCount()
 	queue, _ := s.DB.QueueDepth()

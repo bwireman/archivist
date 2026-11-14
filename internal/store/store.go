@@ -1457,10 +1457,11 @@ SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM sym
 	return collectSymbols(rows)
 }
 
-func (s *Store) AllSymbols() ([]Symbol, error) {
+func (s *Store) AllSymbols(checkout string) ([]Symbol, error) {
 	rows, err := s.db.Query(`
-SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM symbols ORDER BY file_path, line
-`)
+SELECT id, file_path, name, kind, line, COALESCE(doc_line,''), exported FROM symbols
+WHERE checkout = ? ORDER BY file_path, line
+`, checkout)
 	if err != nil {
 		return nil, err
 	}

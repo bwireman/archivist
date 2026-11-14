@@ -218,7 +218,7 @@ func Build(in Input) (*Report, error) {
 		if _, ok := in.Vectors[rec.ID]; !ok {
 			rep.Unembedded++
 		}
-		if staleApplies(rec, in.Files, dirs) {
+		if staleApplies(rec, in.Checkout, in.Files, dirs) {
 			rep.StaleAppliesTo = append(rep.StaleAppliesTo, cardFrom(rec))
 		}
 		if rec.Type != record.TypeFeature || len(rec.AppliesTo) == 0 || !rec.MatchesPaths(in.Files) {
@@ -386,11 +386,14 @@ func loadVectors(model string, stores ...*store.Store) (map[string][]float32, er
 // Repo records are about this checkout. Global and dev records are stale
 // only when a leading directory of applies_to exists here, so a product
 // path is not stale in an unrelated tree.
-func staleApplies(rec *record.Record, files []string, dirs map[string]struct{}) bool {
+func staleApplies(rec *record.Record, checkout string, files []string, dirs map[string]struct{}) bool {
 	if rec == nil || len(rec.AppliesTo) == 0 || rec.MatchesPaths(files) {
 		return false
 	}
 	if rec.Scope == record.ScopeRepo {
+		if rec.Checkout != "" && rec.Checkout != checkout {
+			return false
+		}
 		return true
 	}
 	for _, p := range rec.AppliesTo {

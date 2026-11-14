@@ -255,7 +255,7 @@ func (s *Service) recordFromLinks(idOrSlug string) (*record.Record, error) {
 
 func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bool, error) {
 	if s.DB == nil {
-		return nil, nil, false, nil
+		return nil, nil, false, store.NeedsInit(config.HomeStorePath(), os.ErrNotExist)
 	}
 	rec, ok, err := s.DB.GetRecordByID(idOrSlug)
 	if err != nil {
@@ -272,10 +272,6 @@ func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bo
 		return rec, s.DB, true, nil
 	}
 	return nil, nil, false, nil
-}
-
-func (s *Service) storeFor(record.Scope) *store.Store {
-	return s.DB
 }
 
 func (s *Service) defaultPath(rec *record.Record) string {

@@ -13,15 +13,8 @@ import (
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
-	"github.com/bwireman/archivist/internal/store"
 	"github.com/spf13/cobra"
 )
-
-// openRememberStore opens ~/.archivist/archive.db once. It does not create a
-// missing database. --archive selects the checkout column inside Remember.
-func openRememberStore(root string) (*store.Store, error) {
-	return openExistingStore(root)
-}
 
 func newRememberCmd() *cobra.Command {
 	var recType, scope, title, body, severity, archiveRoot string
@@ -35,7 +28,7 @@ func newRememberCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			db, err := openRememberStore(root)
+			db, err := openExistingStore(root)
 			if err != nil {
 				if errors.Is(err, os.ErrNotExist) && strings.TrimSpace(archiveRoot) != "" && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
 					target, rerr := config.ResolveCheckout(root, archiveRoot)
@@ -120,12 +113,7 @@ func newUpdateCmd() *cobra.Command {
 				return err
 			}
 			defer closeStore(db)
-			roots, err := cfg.ArchiveRoots(root)
-			if err != nil {
-				return err
-			}
 			svc := archive.New(root, cfg, db)
-			svc.ExtraRoots = roots
 			err = svc.Update(args[0], func(r *record.Record) error {
 				archive.PatchText(r, title, body, status, check.SplitPathList(appliesTo))
 				return nil
@@ -166,12 +154,7 @@ func newRetireCmd() *cobra.Command {
 				return err
 			}
 			defer closeStore(db)
-			roots, err := cfg.ArchiveRoots(root)
-			if err != nil {
-				return err
-			}
 			svc := archive.New(root, cfg, db)
-			svc.ExtraRoots = roots
 			if err := svc.Retire(args[0], supersededBy); err != nil {
 				return err
 			}
