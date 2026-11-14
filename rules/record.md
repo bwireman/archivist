@@ -27,4 +27,6 @@ If search shows a gap, pick one scope:
 - repo: true only in the checkout the record is about. Write the row to that checkout's database. The process checkout is the context when archive is empty. archive names a listed extra root when the record is about that checkout.
 - global: true for the product in every checkout
 
+A repo write passes `checkout`, the absolute path of the registered checkout the fact is about. Global and dev omit it.
+
 Markdown under `records.repo` / `records.global` (default `~/.archivist`) / `records.dev` is optional import input, not the live archive.

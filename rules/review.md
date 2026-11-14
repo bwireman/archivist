@@ -2,7 +2,7 @@
 
 After the user's request is done, call MCP `review` with `due` true (`archivist review --due` when MCP is unavailable). When `due` is false, or `logging_off` is set, stop. When `due` is true, call `review`. Do not update, retire, or re-rank until the user agrees.
 
-A full review is due every 7 days. A due check does not count as a review. With `log_commands` off there is no clock.
+A full review is due every 7 days. A due check does not count as a review. With `log_commands` off there is no clock. Pass `checkout` so rules from another repo are left out.
 
 - `missed_rules`: current rules that match one commit's files, or the uncommitted files, and never appeared in that change's log. The log for a commit runs from the previous commit, or the start of the 7 days, through that commit. The log for uncommitted work runs from HEAD through now. A change with more than 30 paths is left out. When `wide_diff` is true, say those broad changes were left out. The misses that remain are from the narrower changes. Report each one as a retrieval gap.
 - `similar`: current records whose embeddings are close. Read each pair. A disagreement is a potential update or retire. Overlap that repeats the same facts is a potential condensation: keep one current record and shorten or retire the other. A feature and its decision stay two records.

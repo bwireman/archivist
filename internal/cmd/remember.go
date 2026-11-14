@@ -55,6 +55,15 @@ func newRememberCmd() *cobra.Command {
 			if home != nil {
 				defer home.Close()
 			}
+			if repo != nil && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
+				ok, err := repo.HasCheckout(root)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return fmt.Errorf("checkout %s is not registered; run archivist init", root)
+				}
+			}
 			roots, err := cfg.ArchiveRoots(root)
 			if err != nil {
 				return err

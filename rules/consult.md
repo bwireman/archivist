@@ -6,4 +6,4 @@ Before implementing, researching, or changing architecture, look things up in th
 2. Generated export tree when MCP is unavailable and `records.write_docs` is true: `docs/archive/INDEX.md`, then type digests (`rules.md`, `features.md`, …) and `docs/archive/records/<scope>/<type>/`. To load markdown from disk into SQLite, run `archivist import` (optional on clone; never deletes DB-only records).
 3. Code last
 
-When changing a subsystem, read the `feature` record for that capability (how it works) as well as related `decision` and `rule` records. `archivist search` uses hybrid FTS + vectors and degrades to keyword-only when Ollama is down.
+When changing a subsystem, read the `feature` record for that capability (how it works) as well as related `decision` and `rule` records. `archivist search` uses hybrid FTS + vectors and degrades to keyword-only when Ollama is down. Search reads every checkout. Use the `checkout` on a repo hit. Pass that absolute path as `checkout` on `check`.

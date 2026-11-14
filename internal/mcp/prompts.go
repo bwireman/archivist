@@ -50,7 +50,7 @@ func (p addPrompt) handle(_ context.Context, req mcp.GetPromptRequest) (*mcp.Get
 }
 
 func (p addPrompt) text(topic, scope string) string {
-	procedure := fmt.Sprintf("Before remember, search with no scope argument. Search covers %s, %s, and %s. If a current record covers the topic, update it and keep its scope. If search shows a gap, pick one scope. %s: about the person or this machine, including a short-gap answer. %s: true only in the checkout the record is about. Write the row to that checkout's database. The process checkout is the context when archive is empty. archive names a listed extra root when the record is about that checkout. %s: true for the product in every checkout.",
+	procedure := fmt.Sprintf("Before remember, search with no scope argument. Search covers %s, %s, and %s. If a current record covers the topic, update it and keep its scope. If search shows a gap, pick one scope. %s: about the person or this machine, including a short-gap answer. %s: true only in the checkout the record is about. Pass that checkout's absolute path. %s: true for the product in every checkout. Omit checkout for global and dev.",
 		record.ScopeRepo, record.ScopeGlobal, record.ScopeDev,
 		record.ScopeDev, record.ScopeRepo, record.ScopeGlobal)
 	scopeLine := procedure
@@ -65,7 +65,7 @@ func (p addPrompt) text(topic, scope string) string {
 	b.WriteString("\n3. ")
 	b.WriteString(scopeLine)
 	b.WriteString("\n")
-	fmt.Fprintf(&b, "4. Call remember with type=%s, that scope, a title, and the body. remember writes SQLite only.\n", p.kind)
+	fmt.Fprintf(&b, "4. Call remember with type=%s, that scope, a title, and the body. For scope repo, pass checkout as the absolute path of the registered checkout the fact is about. Omit checkout for global and dev. remember writes SQLite only.\n", p.kind)
 	if len(p.extra) > 0 {
 		fmt.Fprintf(&b, " Also pass %s.\n", strings.Join(p.extra, ", "))
 	}

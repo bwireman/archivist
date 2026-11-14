@@ -697,7 +697,7 @@ func TestLinkSourceSkipsIgnored(t *testing.T) {
 	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkPin, ToRoot: peer, ToID: "rec_remote"}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := retrieve.Follow(context.Background(), &retrieve.Engine{Repo: repo}, nil, retrieve.Options{Query: "remote"}, nil)
+	got, err := retrieve.Follow(context.Background(), &retrieve.Engine{Repo: repo, Checkout: primary}, nil, retrieve.Options{Query: "remote"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -729,7 +729,7 @@ func TestLinkSourceCap(t *testing.T) {
 	if err := repo.InsertLink(primary, store.Link{Kind: store.LinkPin, ToRoot: peer, ToID: "rec_remote"}); err != nil {
 		t.Fatal(err)
 	}
-	got, err := retrieve.Follow(context.Background(), &retrieve.Engine{Repo: repo}, nil, retrieve.Options{Query: "remote"}, nil)
+	got, err := retrieve.Follow(context.Background(), &retrieve.Engine{Repo: repo, Checkout: primary}, nil, retrieve.Options{Query: "remote"}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

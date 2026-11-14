@@ -2,7 +2,7 @@
 
 When you change source code, call MCP `index` before the next lookup that depends on the code map, and again before the turn ends. The map and git metadata should match the tree you are editing. Do not wait for a commit.
 
-`index` does not need Ollama and does not ingest or delete records. If it fails, continue the task and say the map was not updated. Use `archivist index` only when MCP is unavailable.
+`index` does not need Ollama and does not ingest or delete records. If it fails, continue the task and say the map was not updated. Use `archivist index` only when MCP is unavailable. Pass `checkout` as the absolute path of the repo whose files changed.
 
 Skip this when the turn did not change source files, or only touched `docs/archive/` or `.archivist/`.
 

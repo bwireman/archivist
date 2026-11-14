@@ -77,6 +77,9 @@ func Follow(ctx context.Context, e *Engine, embedder embed.Embedder, opts Option
 	budget := &sourceBudget{}
 	out := []SearchLink{}
 	for _, edge := range edges {
+		if e.Checkout == "" && edge.Kind == store.LinkPin {
+			continue
+		}
 		if e.Checkout != "" && edge.FromCheckout != "" && edge.FromCheckout != e.Checkout {
 			continue
 		}

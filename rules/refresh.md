@@ -3,7 +3,7 @@
 After a turn that changed records (via MCP/CLI), Go sources, or markdown you want in SQLite, call the MCP tools. Use the CLI only when MCP is unavailable.
 
 1. `import` (or `archivist import`). Upserts typed markdown from `records.repo`, `records.global`, dev records, and export copies. It never prunes DB-only rows. Skip when no markdown record dirs exist.
-2. `index` (or `archivist index`). Code map and git only. No Ollama. Does not ingest or delete records.
+2. `index` (or `archivist index`). Code map and git only. No Ollama. Does not ingest or delete records. Pass `checkout` for the repo you changed.
 3. `embed` with `once` true (or `archivist embed --once`). Skip if Ollama is down.
 4. `archivist export`. There is no MCP export tool. No-op unless `records.write_docs` is true (`--bundle` and publish still write).
 

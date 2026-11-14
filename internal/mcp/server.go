@@ -39,6 +39,11 @@ type Server struct {
 }
 
 func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embedder embed.Embedder) *Server {
+	if repoDB != nil && repoRoot != "" {
+		if canon, err := config.Canonical(repoRoot); err == nil {
+			_ = repoDB.RegisterCheckout(canon, config.CheckoutHex(canon))
+		}
+	}
 	return &Server{
 		RepoRoot: repoRoot,
 		Cfg:      cfg,
@@ -77,12 +82,14 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("description"),
 		mcp.WithString("paths"),
 		mcp.WithString("diff"),
+		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout being checked")),
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
 		annotate("Explore code map", true, false, true),
 		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Call index (or run `archivist index`) in a checkout before reading its map. When reindex is set, the stored extractor is older than this binary."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
+		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout to map")),
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
 		annotate("Remember record", false, true, true),
@@ -94,7 +101,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("severity"),
 		mcp.WithString("applies_to"),
 		mcp.WithString("tags"),
-		mcp.WithString("archive", mcp.Description("listed checkout this repo record is about; omit when that context is the process checkout")),
+		mcp.WithString("checkout", mcp.Description("registered checkout for a repo record; omit for global and dev")),
 	), s.toolRemember)
 	srv.AddTool(mcp.NewTool("update",
 		annotate("Update record", false, true, true),
@@ -147,17 +154,20 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv.AddTool(mcp.NewTool("import",
 		annotate("Import markdown", false, true, true),
 		mcp.WithDescription("Import typed markdown from record directories and export copies into SQLite. Does not delete DB-only records."),
+		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout to import")),
 	), s.toolImport)
 	srv.AddTool(mcp.NewTool("index",
 		annotate("Index code map", false, true, true),
 		mcp.WithDescription("Index this checkout's code map and recent git history. No Ollama. Does not ingest or delete records and does not walk configured archives. Optional scope limits the walk to a subdirectory. Returns files_indexed, files_removed, commits_new, and records."),
 		mcp.WithString("scope", mcp.Description("limit indexing to a subdirectory; empty indexes the checkout")),
+		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout to index")),
 	), s.toolIndex)
 	srv.AddTool(mcp.NewTool("embed",
 		annotate("Embed records", false, true, true),
 		mcp.WithDescription("Drain the embed queue via Ollama and store vectors. Fails when Ollama is unreachable (run: ollama serve). once defaults to false and loops until the queue is empty; set once=true to process the queue a single time. concurrency is the parallel worker count (default 2). Returns embedded. Does not walk configured archives."),
 		mcp.WithBoolean("once", mcp.Description("process every queued item once, then return")),
 		mcp.WithNumber("concurrency", mcp.Description("parallel embed workers (default 2)")),
+		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout whose queue to embed")),
 	), s.toolEmbed)
 	registerAddPrompts(srv)
 	return srv
@@ -311,6 +321,31 @@ func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	}{card, links})
 }
 
+func (s *Server) registeredCheckout(raw string) (string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" && s != nil {
+		raw = s.RepoRoot
+	}
+	if raw == "" {
+		return "", errors.New("checkout is required")
+	}
+	canon, err := config.Canonical(raw)
+	if err != nil {
+		return "", err
+	}
+	if s == nil || s.RepoDB == nil {
+		return "", errors.New("archive is not open")
+	}
+	ok, err := s.RepoDB.HasCheckout(canon)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf("checkout %s is not registered; run archivist init", canon)
+	}
+	return canon, nil
+}
+
 func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	var paths []string
 	if p := req.GetString("paths", ""); p != "" {
@@ -320,7 +355,11 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if s.Engine != nil {
 		model = s.Engine.QueryModel
 	}
-	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB, QueryModel: model}, s.Embedder, check.Options{
+	checkout, err := s.registeredCheckout(req.GetString("checkout", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	res, err := check.Run(ctx, &retrieve.Engine{Repo: s.RepoDB, Home: s.HomeDB, QueryModel: model, Checkout: checkout}, s.Embedder, check.Options{
 		Description: req.GetString("description", ""),
 		Paths:       paths,
 		Diff:        req.GetString("diff", ""),
@@ -332,9 +371,13 @@ func (s *Server) toolCheck(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 }
 
 func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	checkout, err := s.registeredCheckout(req.GetString("checkout", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	limit := int(req.GetFloat("limit", float64(store.DefaultExploreLimit)))
 	query := req.GetString("query", "")
-	primary, err := s.RepoDB.ExploreCode(s.RepoRoot, query, limit)
+	primary, err := s.RepoDB.ExploreCode(checkout, query, limit)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -438,7 +481,14 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 	if tags := req.GetString("tags", ""); tags != "" {
 		rec.Tags = check.SplitPathList(tags)
 	}
-	id, err := svc.Remember(rec, req.GetString("archive", ""))
+	if rec.Scope == record.ScopeRepo || rec.Scope == "" {
+		checkout, err := s.registeredCheckout(req.GetString("checkout", ""))
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+		rec.Checkout = checkout
+	}
+	id, err := svc.Remember(rec, "")
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -519,7 +569,10 @@ func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 	return mcp.NewToolResultText("ok"), nil
 }
 
-func (s *Server) toolImport(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) toolImport(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if _, err := s.registeredCheckout(req.GetString("checkout", "")); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	svc, done, err := s.writer()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -540,18 +593,22 @@ func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	if s == nil || s.Cfg == nil {
 		return mcp.NewToolResultError("archive is not open"), nil
 	}
-	repoPath := config.StorePath(s.RepoRoot)
+	checkout, err := s.registeredCheckout(req.GetString("checkout", ""))
+	if err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
+	repoPath := config.StorePath(checkout)
 	repo, err := store.OpenExisting(repoPath)
 	if err != nil {
 		return mcp.NewToolResultError(store.NeedsInit(repoPath, err).Error()), nil
 	}
 	defer repo.Close()
-	if err := repo.MergeCheckout(s.RepoRoot); err != nil {
+	if err := repo.MergeCheckout(checkout); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	progress, err := (&index.Indexer{
-		RepoRoot: s.RepoRoot,
-		Checkout: s.RepoRoot,
+		RepoRoot: checkout,
+		Checkout: checkout,
 		Cfg:      s.Cfg,
 		Store:    repo,
 	}).Index(ctx, req.GetString("scope", ""))
@@ -571,6 +628,9 @@ func (s *Server) toolIndex(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 }
 
 func (s *Server) toolEmbed(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if _, err := s.registeredCheckout(req.GetString("checkout", "")); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	}
 	client, err := s.embedder(ctx)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil

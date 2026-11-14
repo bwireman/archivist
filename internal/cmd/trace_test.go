@@ -78,7 +78,11 @@ func TestTraceDefaultsToLastSevenDays(t *testing.T) {
 			}
 		}
 	}
-	if err := os.WriteFile(config.CommandsLogPath(root), log.Bytes(), 0o644); err != nil {
+	logPath := config.CommandsLogPath(root)
+	if err := os.MkdirAll(filepath.Dir(logPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(logPath, log.Bytes(), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -369,7 +373,7 @@ func traceSearch(at, query string) []cmdlog.Entry {
 
 func writeTraceLog(t *testing.T, root string, groups ...[]cmdlog.Entry) {
 	t.Helper()
-	if err := os.MkdirAll(config.DataDir(root), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(config.CommandsLogPath(root)), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	var buf bytes.Buffer

@@ -2,7 +2,7 @@
 
 `archivist mcp` is the primary query surface. It speaks MCP over stdio (JSON-RPC on stdin/stdout).
 
-The server opens the repo and home SQLite files read-only, so the process cwd must be the repo, or you must pass `--path`. Search, get, check, map, status, and cite do not create a database, schema, or orphan cleanup. A missing database says to run `archivist init`. `remember`, `update`, `retire`, `import`, `index`, and `embed` open a separate writable connection for that call (`store.Open`, including orphan cleanup). They stay on this checkout and do not write configured extra archives. Search still works if Ollama is down (keyword-only). Record writes and `index` do not need Ollama. `embed` does. With `log_commands` on, a read-only checkout skips the command-log append and the query still succeeds.
+The server opens `~/.archivist/archive.db`. Search reads every checkout. `check`, `map`, `index`, `embed`, and `import` take `checkout`, the absolute path of a registered checkout. `remember` takes `checkout` for a repo row and omits it for global and dev.
 
 ## Cursor
 
@@ -53,7 +53,7 @@ Any client that can spawn a process can use `archivist mcp` the same way.
 
 ## Several checkouts
 
-Claude Code keeps one MCP process on the checkout it started in. List the other checkouts in that checkout's `.archivist.json` under `archives`. See [Extra archives](configuration.md#extra-archives) for the path rules and which commands read or write them.
+Claude Code uses one MCP server. It reads `~/.archivist/archive.db`. Pass `checkout` for the repo you are editing.
 
 ## Tools
 

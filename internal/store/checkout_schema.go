@@ -367,6 +367,15 @@ func (s *Store) RegisterCheckout(path, dir string) error {
 	return err
 }
 
+func (s *Store) HasCheckout(path string) (bool, error) {
+	if s == nil || s.db == nil || path == "" {
+		return false, nil
+	}
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM checkouts WHERE path = ?`, path).Scan(&n)
+	return n > 0, err
+}
+
 func (s *Store) SetCheckoutMeta(checkout, key, value string) error {
 	_, err := s.db.Exec(`
 INSERT INTO checkout_meta (checkout, key, value) VALUES (?, ?, ?)

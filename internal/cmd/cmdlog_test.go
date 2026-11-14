@@ -18,6 +18,13 @@ func openCheckout(t *testing.T, root string) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	canon, err := config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}

@@ -40,7 +40,7 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 	paths := unique(append(pathsFromDiff(opts.Diff), opts.Paths...))
 
 	stores := []*store.Store{engine.Repo, engine.Home}
-	matches, err := matchByPaths(stores, []record.Type{record.TypeRule}, paths, ReasonAppliesTo)
+	matches, err := matchByPaths(stores, engine.Checkout, []record.Type{record.TypeRule}, paths, ReasonAppliesTo)
 	if err != nil {
 		return nil, err
 	}
@@ -59,11 +59,14 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 			return nil, err
 		}
 		for _, r := range results {
+			if r.Record == nil || (engine.Checkout != "" && r.Record.Checkout != "" && r.Record.Checkout != engine.Checkout) {
+				continue
+			}
 			addMatch(&matches, seen, r.Record, ReasonSemantic)
 		}
 	}
 
-	related, err := matchByPaths(stores, []record.Type{record.TypeFeature, record.TypeDecision}, paths, ReasonRelated)
+	related, err := matchByPaths(stores, engine.Checkout, []record.Type{record.TypeFeature, record.TypeDecision}, paths, ReasonRelated)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +80,7 @@ func Run(ctx context.Context, engine *retrieve.Engine, embedder embed.Embedder, 
 	return res, nil
 }
 
-func matchByPaths(stores []*store.Store, types []record.Type, paths []string, reason string) ([]Match, error) {
+func matchByPaths(stores []*store.Store, checkout string, types []record.Type, paths []string, reason string) ([]Match, error) {
 	if len(paths) == 0 {
 		return nil, nil
 	}
@@ -94,6 +97,9 @@ func matchByPaths(stores []*store.Store, types []record.Type, paths []string, re
 			}
 			for _, r := range recs {
 				if r.Retired() {
+					continue
+				}
+				if checkout != "" && r.Checkout != "" && r.Checkout != checkout {
 					continue
 				}
 				if r.MatchesPaths(paths) {

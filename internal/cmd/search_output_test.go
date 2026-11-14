@@ -88,7 +88,7 @@ func TestSearchJSONCompactFullAndLog(t *testing.T) {
 	cfg.LogCommands = true
 	cfg.Ollama.BaseURL = "http://127.0.0.1:1"
 	cfg.Ollama.EmbedTimeout = "1s"
-	if err := applyInit(root, cfg); err != nil {
+	if err := applyInit(root, cfg, true); err != nil {
 		t.Fatal(err)
 	}
 	repoDB, err := store.Open(config.StorePath(root))
@@ -345,6 +345,9 @@ func ensureQueryStores(t *testing.T, root string) {
 	t.Helper()
 	repo, home, err := openStores(root)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RegisterCheckout(root, config.CheckoutHex(root)); err != nil {
 		t.Fatal(err)
 	}
 	err = repo.Close()

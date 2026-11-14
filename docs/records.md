@@ -31,7 +31,7 @@ tags: [billing]
   - `guide` — a how-to procedure
   - `map` — structural notes (`docs/archive/map.md` is the generated code map)
   - `pitfall` — a confirmed gotcha
-- **scope**: `repo` lives in the checkout's `.archivist/index.db` (this checkout, or a listed extra when the record is about that checkout); `global` and `dev` live in `~/.archivist/archive.db`. Logical `source_path` prefixes follow `records.repo` (default `docs/decisions`), `records.global` (default `~/.archivist`), and `records.dev` (default `~/.archivist/records`). Those directories are import drop folders, not required files.
+- **scope**: `repo` rows live in `~/.archivist/archive.db` with `checkout` set to that repo's canonical path. `global` and `dev` use an empty checkout in the same file. Logical `source_path` prefixes follow `records.repo` (default `docs/decisions`), `records.global` (default `~/.archivist`), and `records.dev` (default `~/.archivist/records`). Those directories are import drop folders, not required files.
 - **severity** (rules): `must`, `must-not`, `should`, `should-not`
 
 Use `--type feature` (or MCP `search` with `type=feature`) when looking up how a subsystem behaves. Encode a design choice as a `decision`, a constraint as a `rule`.

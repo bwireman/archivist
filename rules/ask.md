@@ -21,3 +21,5 @@ If search shows a gap, pick one scope:
 - dev: about the person or this machine, including a short-gap answer
 - repo: true only in the checkout the record is about. Write the row to that checkout's database. The process checkout is the context when archive is empty. archive names a listed extra root when the record is about that checkout.
 - global: true for the product in every checkout
+
+A dev or global answer omits `checkout`. A repo answer passes the registered checkout path.

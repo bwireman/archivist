@@ -8,4 +8,4 @@ Use MCP `link` (`archivist link` when MCP is down). `kind` is `record`, `pin`, o
 - `pin`: no local record, and every search in this checkout should include that one remote record.
 - `repo`: a local record means a search that hits it should also search that checkout.
 
-Call MCP `links` first and do not insert a duplicate. MCP `unlink` removes a link that was wrong. Read `links` on search and get before you treat the other checkout as unknown.
+Call MCP `links` first and do not insert a duplicate. MCP `unlink` removes a link that was wrong. Read `links` on search and get before you treat the other checkout as unknown. Links live in the one database. `from_checkout` is the checkout you are editing.
