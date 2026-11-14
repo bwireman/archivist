@@ -76,6 +76,7 @@ func newLinkListCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			edges = store.FilterLinks(edges, root)
 			payload := map[string]any{"links": edges}
 			noteResult(cmd, payload)
 			if asJSON {

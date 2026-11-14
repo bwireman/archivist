@@ -35,6 +35,7 @@ type Options struct {
 	Paths      []string
 	GitSkipped string
 	GitNote    string
+	Checkout   string
 }
 
 // QueryRef is one digest row that came from a tool call.
@@ -325,6 +326,9 @@ func Build(entries []cmdlog.Entry, opts Options, cat Catalog) (*Report, error) {
 				}
 				for _, r := range rules {
 					if !currentRule(r) {
+						continue
+					}
+					if opts.Checkout != "" && r.Checkout != "" && r.Checkout != opts.Checkout {
 						continue
 					}
 					if _, ok := consulted[r.ID]; ok {

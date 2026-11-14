@@ -104,6 +104,7 @@ type Input struct {
 	Dirs       []string // top-level directories in the checkout
 	Records    []*record.Record
 	Vectors    map[string][]float32
+	Checkout   string
 }
 
 func reviewGitNote() string {
@@ -172,6 +173,7 @@ func Collect(root string, cfg *config.Config, repo, home *store.Store, now time.
 		Dirs:       dirs,
 		Records:    recs,
 		Vectors:    vecs,
+		Checkout:   root,
 	})
 }
 
@@ -195,7 +197,7 @@ func Build(in Input) (*Report, error) {
 		byID[rec.ID] = rec
 	}
 	if !in.LoggingOff && in.GitSkipped == "" {
-		missed, wide, err := missedAcross(in.Entries, in.Slices, current)
+		missed, wide, err := missedAcross(in.Entries, in.Slices, current, in.Checkout)
 		if err != nil {
 			return nil, err
 		}
@@ -469,7 +471,7 @@ func unionPaths(commits []trace.CommitChange, dirty []string) []string {
 	return slices.Compact(all)
 }
 
-func missedAcross(entries []cmdlog.Entry, slicesIn []Slice, recs []*record.Record) ([]trace.RecordHit, bool, error) {
+func missedAcross(entries []cmdlog.Entry, slicesIn []Slice, recs []*record.Record, checkout string) ([]trace.RecordHit, bool, error) {
 	seen := map[string]trace.RecordHit{}
 	wide := false
 	for _, sl := range slicesIn {
@@ -483,7 +485,7 @@ func missedAcross(entries []cmdlog.Entry, slicesIn []Slice, recs []*record.Recor
 		if !sl.Until.IsZero() && sl.Until.Before(sl.After) {
 			continue
 		}
-		hits, err := missedRules(entries, sl.After, sl.Until, sl.Paths, recs)
+		hits, err := missedRules(entries, sl.After, sl.Until, sl.Paths, recs, checkout)
 		if err != nil {
 			return nil, false, err
 		}
@@ -498,12 +500,13 @@ func missedAcross(entries []cmdlog.Entry, slicesIn []Slice, recs []*record.Recor
 	return out, wide, nil
 }
 
-func missedRules(entries []cmdlog.Entry, after, until time.Time, paths []string, recs []*record.Record) ([]trace.RecordHit, error) {
+func missedRules(entries []cmdlog.Entry, after, until time.Time, paths []string, recs []*record.Record, checkout string) ([]trace.RecordHit, error) {
 	rep, err := trace.Build(entries, trace.Options{
-		Since: after.UTC().Format(time.RFC3339),
-		After: after,
-		Until: until,
-		Paths: paths,
+		Since:    after.UTC().Format(time.RFC3339),
+		After:    after,
+		Until:    until,
+		Paths:    paths,
+		Checkout: checkout,
 	}, recordCatalog{recs: recs})
 	if err != nil {
 		return nil, err

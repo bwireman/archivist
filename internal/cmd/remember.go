@@ -9,6 +9,7 @@ import (
 
 	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/check"
+	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
@@ -55,13 +56,30 @@ func newRememberCmd() *cobra.Command {
 			if home != nil {
 				defer home.Close()
 			}
-			if repo != nil && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
-				ok, err := repo.HasCheckout(root)
+			if scope == "" || record.Scope(scope) == record.ScopeRepo {
+				target := root
+				if strings.TrimSpace(archiveRoot) != "" {
+					target, err = config.ResolveCheckout(root, archiveRoot)
+					if err != nil {
+						return err
+					}
+				}
+				db := repo
+				var opened *store.Store
+				if db == nil {
+					opened, err = store.OpenReadOnly(config.StorePath(root))
+					if err != nil {
+						return fmt.Errorf("checkout %s is not registered; run archivist init", target)
+					}
+					defer opened.Close()
+					db = opened
+				}
+				ok, err := db.HasCheckout(target)
 				if err != nil {
 					return err
 				}
 				if !ok {
-					return fmt.Errorf("checkout %s is not registered; run archivist init", root)
+					return fmt.Errorf("checkout %s is not registered; run archivist init", target)
 				}
 			}
 			roots, err := cfg.ArchiveRoots(root)
@@ -213,7 +231,7 @@ func newCheckCmd() *cobra.Command {
 			defer repo.Close()
 			defer home.Close()
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
-			engine := &retrieve.Engine{Repo: repo, Home: home, QueryModel: cfg.Ollama.EmbedModel}
+			engine := &retrieve.Engine{Repo: repo, Home: home, QueryModel: cfg.Ollama.EmbedModel, Checkout: root}
 			res, err := check.Run(cmd.Context(), engine, embedder, check.Options{
 				Description: strings.Join(args, " "),
 				Paths:       paths,

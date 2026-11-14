@@ -51,6 +51,32 @@ func (s *Store) ListLinks() ([]Link, error) {
 	return out, rows.Err()
 }
 
+// FilterLinks keeps edges that start in checkout. Paths are compared after canonicalization.
+func FilterLinks(links []Link, checkout string) []Link {
+	if checkout == "" {
+		return links
+	}
+	canon, err := config.Canonical(checkout)
+	if err != nil {
+		canon = checkout
+	}
+	out := make([]Link, 0, len(links))
+	for _, link := range links {
+		from := link.FromCheckout
+		if from == "" {
+			continue
+		}
+		if from == checkout || from == canon {
+			out = append(out, link)
+			continue
+		}
+		if c, err := config.Canonical(from); err == nil && c == canon {
+			out = append(out, link)
+		}
+	}
+	return out
+}
+
 // InsertLink validates the edge and inserts it. A duplicate primary key is
 // success and does not change the stored row.
 func (s *Store) InsertLink(primary string, link Link) error {

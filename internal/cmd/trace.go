@@ -77,7 +77,7 @@ func buildTrace(root string, cfg *config.Config, since string, after, until time
 	if err != nil {
 		return nil, err
 	}
-	opts := trace.Options{Since: since, After: after, Until: until}
+	opts := trace.Options{Since: since, After: after, Until: until, Checkout: root}
 	var cat trace.Catalog
 	if since != "" {
 		join, err := trace.GitChanged(root, since)

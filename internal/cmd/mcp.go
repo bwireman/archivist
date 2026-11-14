@@ -24,6 +24,9 @@ func newMCPCmd() *cobra.Command {
 			defer closeExtras(extras)
 			embedder := embed.OptionalFromConfig(cmd.Context(), cfg.Ollama)
 			srv := mcpsrv.New(root, cfg, repo, home, embedder)
+			if err := srv.RegistrationError(); err != nil {
+				return err
+			}
 			srv.Engine.Extras = retrieveExtras(extras)
 			srv.Archive.Extras = extras
 			srv.Archive.ExtraRoots = extraRoots(extras)

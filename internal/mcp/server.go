@@ -36,15 +36,11 @@ type Server struct {
 	Archive  *archive.Service
 	Engine   *retrieve.Engine
 	Embedder embed.Embedder
+	regErr   error
 }
 
 func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embedder embed.Embedder) *Server {
-	if repoDB != nil && repoRoot != "" {
-		if canon, err := config.Canonical(repoRoot); err == nil {
-			_ = repoDB.RegisterCheckout(canon, config.CheckoutHex(canon))
-		}
-	}
-	return &Server{
+	s := &Server{
 		RepoRoot: repoRoot,
 		Cfg:      cfg,
 		RepoDB:   repoDB,
@@ -53,6 +49,27 @@ func New(repoRoot string, cfg *config.Config, repoDB, homeDB *store.Store, embed
 		Engine:   &retrieve.Engine{Repo: repoDB, Home: homeDB, QueryModel: cfg.Ollama.EmbedModel, Checkout: repoRoot},
 		Embedder: embedder,
 	}
+	if repoDB != nil && !repoDB.ReadOnly() && repoRoot != "" {
+		s.regErr = registerRepoCheckout(repoDB, repoRoot)
+	}
+	return s
+}
+
+// RegistrationError is the checkout insert error from New. A read-only store
+// is left to init; that insert cannot succeed.
+func (s *Server) RegistrationError() error {
+	if s == nil {
+		return nil
+	}
+	return s.regErr
+}
+
+func registerRepoCheckout(db *store.Store, root string) error {
+	canon, err := config.Canonical(root)
+	if err != nil {
+		return err
+	}
+	return db.RegisterCheckout(canon, config.CheckoutHex(canon))
 }
 
 func (s *Server) MCPServer() *mcpserver.MCPServer {
@@ -326,6 +343,9 @@ func (s *Server) registeredCheckout(raw string) (string, error) {
 	if raw == "" && s != nil {
 		raw = s.RepoRoot
 	}
+	if s != nil && s.regErr != nil {
+		return "", s.regErr
+	}
 	if raw == "" {
 		return "", errors.New("checkout is required")
 	}
@@ -553,7 +573,7 @@ func (s *Server) toolLinks(_ context.Context, _ mcp.CallToolRequest) (*mcp.CallT
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(map[string]any{"links": edges})
+	return jsonResult(map[string]any{"links": store.FilterLinks(edges, s.RepoRoot)})
 }
 
 func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -570,7 +590,8 @@ func (s *Server) toolRetire(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 }
 
 func (s *Server) toolImport(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	if _, err := s.registeredCheckout(req.GetString("checkout", "")); err != nil {
+	checkout, err := s.registeredCheckout(req.GetString("checkout", ""))
+	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	svc, done, err := s.writer()
@@ -578,7 +599,9 @@ func (s *Server) toolImport(_ context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	defer done()
-	res, err := svc.Import()
+	scoped := *svc
+	scoped.RepoRoot = checkout
+	res, err := scoped.Import()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
