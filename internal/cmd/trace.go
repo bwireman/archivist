@@ -134,6 +134,7 @@ func (c storeCatalog) Record(id string) (*record.Record, error) {
 
 func (c storeCatalog) Rules() ([]*record.Record, error) {
 	var out []*record.Record
+	seen := map[string]struct{}{}
 	for _, st := range []*store.Store{c.repo, c.home} {
 		if st == nil {
 			continue
@@ -142,7 +143,16 @@ func (c storeCatalog) Rules() ([]*record.Record, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, rules...)
+		for _, r := range rules {
+			if r == nil {
+				continue
+			}
+			if _, ok := seen[r.ID]; ok {
+				continue
+			}
+			seen[r.ID] = struct{}{}
+			out = append(out, r)
+		}
 	}
 	return out, nil
 }

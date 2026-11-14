@@ -42,13 +42,6 @@ func newMapCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			for _, ex := range extras {
-				section, err := ex.DB.ExploreCode(ex.Root, query, limit)
-				if err != nil {
-					return err
-				}
-				res.Archives = append(res.Archives, store.RootedCodeSearch{Root: ex.Root, CodeSearch: section})
-			}
 			noteResult(cmd, res)
 			if asJSON {
 				return writeIndentedJSON(cmd.OutOrStdout(), res)

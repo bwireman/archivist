@@ -280,6 +280,7 @@ func finishLoad(cfg *Config) *Config {
 		cfg.Ollama.EmbedTimeout = DefaultEmbedTimeoutStr
 	}
 	cfg.Records = cfg.Records.withDefaults()
+	cfg.Archives = nil
 	return cfg
 }
 

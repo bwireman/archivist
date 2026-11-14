@@ -1,10 +1,11 @@
 ---
 name: plan-changes
 description: >
-  Interview the user, write .archivist/plans/<slug>.md, run an adversarial review, and
+  Interview the user, write ~/.archivist/checkouts/<hex>/plans/<slug>.md, run an adversarial review, and
   stop before phase 1. A later accept only sets Status: accepted. A later
-  continue implements the first pending phase and stops. Use when planning
-  work, or when the user accepts, revises, or continues a file in .archivist/plans/.
+  continue opens <checkout>/.archivist/plans/<slug>.md when that file exists,
+  and otherwise opens ~/.archivist/checkouts/<hex>/plans/<slug>.md. Use when planning
+  work, or when the user accepts, revises, or continues a plan file.
   The planning turn does not write archive records. Do not call link or unlink
   on that turn.
 ---
@@ -30,7 +31,7 @@ Do not ask the user. Do not call a question tool. This section overrides the alw
 
 ## 3. Write the plan and stop before phase 1
 
-Write `.archivist/plans/<slug>.md` with `Status: proposed` and pending phases under `## Phases`. Each phase has an outcome, files, ordered steps, a verification check, and a sketch where a step is easy to get wrong. The sketch binds that step unless a later message overrides it.
+Write `~/.archivist/checkouts/<hex>/plans/<slug>.md`, where `<hex>` is the SHA-256 of the canonical checkout path, with `Status: proposed` and pending phases under `## Phases`. Each phase has an outcome, files, ordered steps, a verification check, and a sketch where a step is easy to get wrong. The sketch binds that step unless a later message overrides it.
 
 Run an adversarial review with a general read-only subagent, or answer the attack checklist with `Reviewer: self` when the host has none. Bugbot does not satisfy this review. Append the findings under `## Adversarial review`. Leave `Status: proposed` and phase `Status: pending`. Do not call `remember`, `update`, or `retire`. Stop.
 
@@ -41,7 +42,7 @@ Accept is legal only when `## Adversarial review` names `self` or a general read
 - `accept` or `accepted` while `proposed`, and the review qualifies: set `Status: accepted`. Run no steps. Stop.
 - `revise`: edit the phase bodies, set `Status: proposed` and every phase `Status: pending`, ask which file when several in `.archivist/plans/` are open, review again, and stop.
 - `reject` or `rejected`: set `Status: rejected`. Stop.
-- `continue` or `next`: implement the first pending phase only when `Status` is `accepted` or `in progress` and the review qualified. Then stop.
+- `continue` or `next`: open `<checkout>/.archivist/plans/<slug>.md` when that file exists. Otherwise open `~/.archivist/checkouts/<hex>/plans/<slug>.md`. Implement that file only, and only the first pending phase, when `Status` is `accepted` or `in progress` and the review qualified. Then stop.
 - `continue`, `next`, or `go` while `proposed`: leave the file proposed.
 
 Attack checklist: which gate can be skipped and still look done; which current record contradicts a step; which file would be written unnamed or named and skipped; which later message resumes the wrong phase or runs more than one; whether the review names its reviewer and bugbot is absent.

@@ -17,6 +17,7 @@ type SearchCard struct {
 	AppliesTo    []string      `json:"applies_to"`
 	SupersededBy string        `json:"superseded_by"`
 	Snippet      string        `json:"snippet"`
+	Checkout     string        `json:"checkout,omitempty"`
 	Archive      string        `json:"archive,omitempty"`
 }
 
@@ -48,7 +49,7 @@ func ProjectSearch(results []Result) []SearchCard {
 			ID: r.Record.ID, Slug: r.Record.Slug, Type: r.Record.Type, Scope: r.Record.Scope,
 			Title: r.Record.Title, Status: r.Record.Status, Score: r.Score, Source: r.Source,
 			Cosine: r.Cosine, AppliesTo: applies, SupersededBy: r.Record.SupersededBy,
-			Snippet: r.Snippet, Archive: r.Archive,
+			Snippet: r.Snippet, Checkout: r.Record.Checkout, Archive: r.Archive,
 		})
 	}
 	return cards

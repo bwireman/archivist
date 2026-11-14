@@ -31,15 +31,12 @@ make build      # ./archivist
 ollama serve
 ollama pull qwen3-embedding:0.6b
 
+archivist skills install --user
 cd /path/to/your/repo
 archivist init
-archivist import          # optional; typed markdown into SQLite
-archivist index           # code map and git history
-archivist embed --once    # skip when Ollama is down
-archivist skills install --target cursor
 ```
 
-`archivist init` writes `.archivist.json`, creates `docs/decisions/` as an optional import folder, and ignores `.archivist/`. An empty `ollama.base_url` uses `$OLLAMA_HOST` (host:port or a full URL), then `http://localhost:11434`. Seed notes already in the repo with the `init-archive` skill. `archivist status` shows the record count and whether Ollama is up.
+`archivist skills install --user` is the setup path: skills under `~/.agents/skills` and one `archivist` entry in `~/.cursor/mcp.json`. `archivist init` in a repo registers that checkout. `archivist import` is optional. `archivist skills install --target cursor` still installs into one checkout and is not the setup path.
 
 From another directory: `archivist --path /path/to/your/repo status`.
 
@@ -64,5 +61,5 @@ Run it from the repo root, or pass an absolute `--path`. `archivist` has to be o
 
 - [MCP tools, prompts, and other clients](docs/mcp.md)
 - [Records, commands, and export](docs/records.md)
-- [Configuration, extra archives, and publish](docs/configuration.md)
+- [Configuration and publish](docs/configuration.md)
 - [Agent rules, skills, and this checkout](docs/agents.md)

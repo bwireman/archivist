@@ -26,9 +26,6 @@ func openRememberStores(root string, scope record.Scope, archiveRoot string) (*s
 		home, err := openExistingHome()
 		return nil, home, err
 	default:
-		if strings.TrimSpace(archiveRoot) != "" {
-			return nil, nil, nil
-		}
 		repo, err := openExistingStore(root)
 		return repo, nil, err
 	}
@@ -48,6 +45,13 @@ func newRememberCmd() *cobra.Command {
 			}
 			repo, home, err := openRememberStores(root, record.Scope(scope), archiveRoot)
 			if err != nil {
+				if strings.TrimSpace(archiveRoot) != "" && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
+					target, rerr := config.ResolveCheckout(root, archiveRoot)
+					if rerr != nil {
+						return rerr
+					}
+					return fmt.Errorf("checkout %s is not registered; run archivist init", target)
+				}
 				return err
 			}
 			if repo != nil {
@@ -56,25 +60,18 @@ func newRememberCmd() *cobra.Command {
 			if home != nil {
 				defer home.Close()
 			}
+			target := root
 			if scope == "" || record.Scope(scope) == record.ScopeRepo {
-				target := root
 				if strings.TrimSpace(archiveRoot) != "" {
 					target, err = config.ResolveCheckout(root, archiveRoot)
 					if err != nil {
 						return err
 					}
 				}
-				db := repo
-				var opened *store.Store
-				if db == nil {
-					opened, err = store.OpenReadOnly(config.StorePath(root))
-					if err != nil {
-						return fmt.Errorf("checkout %s is not registered; run archivist init", target)
-					}
-					defer opened.Close()
-					db = opened
+				if repo == nil {
+					return fmt.Errorf("checkout %s is not registered; run archivist init", target)
 				}
-				ok, err := db.HasCheckout(target)
+				ok, err := repo.HasCheckout(target)
 				if err != nil {
 					return err
 				}
@@ -82,12 +79,7 @@ func newRememberCmd() *cobra.Command {
 					return fmt.Errorf("checkout %s is not registered; run archivist init", target)
 				}
 			}
-			roots, err := cfg.ArchiveRoots(root)
-			if err != nil {
-				return err
-			}
 			svc := archive.New(root, cfg, repo, home)
-			svc.ExtraRoots = roots
 			rec := &record.Record{
 				Type:      record.Type(recType),
 				Scope:     record.Scope(scope),
@@ -98,7 +90,10 @@ func newRememberCmd() *cobra.Command {
 				AppliesTo: appliesTo,
 				Tags:      tags,
 			}
-			id, err := svc.Remember(rec, archiveRoot)
+			if strings.TrimSpace(archiveRoot) != "" && (scope == "" || record.Scope(scope) == record.ScopeRepo) {
+				rec.Checkout = target
+			}
+			id, err := svc.Remember(rec, "")
 			if err != nil {
 				return err
 			}

@@ -16,6 +16,15 @@ func newSkillsCmd() *cobra.Command {
 		Use:   "install",
 		Short: "Generate host-specific skill files",
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			user, _ := cmd.Flags().GetBool("user")
+			cli, _ := cmd.Flags().GetString("cli")
+			if user {
+				if err := skills.InstallUser(cli); err != nil {
+					return err
+				}
+				fmt.Println("Installed user skills and the archivist MCP server")
+				return nil
+			}
 			target, _ := cmd.Flags().GetString("target")
 			t, err := skills.ParseTarget(target)
 			if err != nil {
@@ -25,7 +34,6 @@ func newSkillsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			cli, _ := cmd.Flags().GetString("cli")
 			if err := skills.InstallCLI(root, t, cli); err != nil {
 				return err
 			}
@@ -35,6 +43,7 @@ func newSkillsCmd() *cobra.Command {
 	}
 	install.Flags().String("target", "cursor", "cursor|claude|agents-md|copilot|codex")
 	install.Flags().String("cli", "", "command written into rules and skills in place of `archivist` (for example ./bin/archivist)")
+	install.Flags().Bool("user", false, "install skills for every workspace under the home directory and add the user MCP server")
 	cmd.AddCommand(install)
 	return cmd
 }

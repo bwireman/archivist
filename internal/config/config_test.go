@@ -80,6 +80,7 @@ func TestDefaultConfig(t *testing.T) {
 }
 
 func TestLoadFullConfigFromDisk(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	data, err := os.ReadFile(filepath.Join("testdata", "full.json"))
 	if err != nil {
@@ -99,6 +100,7 @@ func TestLoadFullConfigFromDisk(t *testing.T) {
 }
 
 func TestSaveLoadRoundTrip(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	want := fullConfig()
 	if err := config.Save(dir, want); err != nil {
@@ -163,6 +165,7 @@ func TestLoadEmbedNumCtx(t *testing.T) {
 }
 
 func TestLoadOmitsRecordsUsesDefaults(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	raw := []byte(`{"ollama": {"embed_model": "nomic-embed-text"}}`)
 	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
@@ -295,6 +298,7 @@ func TestStorePaths(t *testing.T) {
 }
 
 func TestLoadEmptyBaseURLStaysEmpty(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	for _, raw := range []string{
 		`{"ollama": {"base_url": ""}}`,
 		`{"ollama": {"base_url": "   "}}`,

@@ -43,14 +43,22 @@ func TestAgentInstructionsMatchRuleTemplates(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	currentRule, err := ruletmpl.FS.ReadFile("current.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	refreshRule, err := ruletmpl.FS.ReadFile("refresh.md")
+	if err != nil {
+		t.Fatal(err)
+	}
 	reviewRule, err := ruletmpl.FS.ReadFile("review.md")
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record)) + "\n\n" + strings.TrimSpace(string(link)) + "\n\n" + strings.TrimSpace(string(reviewRule))
+	want := strings.TrimSpace(string(consult)) + "\n\n" + strings.TrimSpace(string(cite)) + "\n\n" + strings.TrimSpace(string(ask)) + "\n\n" + strings.TrimSpace(string(record)) + "\n\n" + strings.TrimSpace(string(link)) + "\n\n" + strings.TrimSpace(string(currentRule)) + "\n\n" + strings.TrimSpace(string(refreshRule)) + "\n\n" + strings.TrimSpace(string(reviewRule))
 	got := agentInstructions()
 	if got != want {
-		t.Fatalf("MCP instructions drifted from rules/consult.md + rules/cite.md + rules/ask.md + rules/record.md + rules/link.md + rules/review.md")
+		t.Fatalf("MCP instructions drifted from the always-on rules")
 	}
 	for _, needle := range []string{
 		"Consult the archive",
@@ -262,6 +270,7 @@ func TestToolRememberSplitsAppliesToAndTags(t *testing.T) {
 		"severity":   "must",
 		"applies_to": "internal/check/**, internal/cmd/**",
 		"tags":       "check,strict",
+		"checkout":   repo,
 	}
 	res, err := s.toolRemember(context.Background(), req)
 	if err != nil {
@@ -341,7 +350,7 @@ func TestSearchAndGetDefaultCompactFullRestoresRecord(t *testing.T) {
 	if hit["title"] != "Zqxcard fixture" {
 		t.Fatalf("compact search: %#v", hit)
 	}
-	assertJSONKeys(t, hit, "id", "slug", "type", "scope", "title", "status", "score", "source", "cosine", "applies_to", "superseded_by", "snippet")
+	assertJSONKeys(t, hit, "id", "slug", "type", "scope", "title", "status", "score", "source", "cosine", "applies_to", "superseded_by", "snippet", "checkout")
 
 	got, _ := callTool(t, s, "get", map[string]any{"id": id}).(map[string]any)
 	if !strings.Contains(fmt.Sprint(got["body"]), "BODYTOKEN") {
@@ -381,6 +390,15 @@ func searchHits(t *testing.T, v any) []any {
 
 func callTool(t *testing.T, s *Server, name string, args map[string]any) any {
 	t.Helper()
+	if args == nil {
+		args = map[string]any{}
+	}
+	switch name {
+	case "remember", "check", "map", "index", "embed", "import", "update", "retire":
+		if _, ok := args["checkout"]; !ok && s != nil && s.RepoRoot != "" {
+			args["checkout"] = s.RepoRoot
+		}
+	}
 	req := mcp.CallToolRequest{}
 	req.Params.Name = name
 	req.Params.Arguments = args
@@ -495,21 +513,25 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 		t.Fatalf("cite changed extra count %d -> %d err=%v", before, after, err)
 	}
 
+	if err := repoDB.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
 	created := callTool(t, s, "remember", map[string]any{
 		"type": "decision", "scope": "repo", "title": "Written extra", "body": "only there",
-		"archive": canon,
+		"checkout": canon,
 	}).(map[string]any)
 	id, _ := created["id"].(string)
 	if id == "" {
 		t.Fatalf("remember %#v", created)
 	}
-	if _, ok, err := repoDB.GetRecordByID(id); err != nil || ok {
-		t.Fatalf("primary has remembered id ok=%v err=%v", ok, err)
+	gotRec, ok, err := repoDB.GetRecordByID(id)
+	if err != nil || !ok || gotRec.Checkout != canon {
+		t.Fatalf("remembered checkout ok=%v err=%v rec=%+v", ok, err, gotRec)
 	}
 
 	status := callTool(t, s, "status", map[string]any{}).(map[string]any)
-	if status["record_count"] != float64(0) && status["record_count"] != 0 {
-		t.Fatalf("record_count %#v", status["record_count"])
+	if _, ok := status["record_count"]; !ok {
+		t.Fatalf("status %#v", status)
 	}
 	extras, _ := status["extras"].([]any)
 	if len(extras) != 1 {
@@ -527,87 +549,71 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 
 func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 	repo := t.TempDir()
+	repoCanon, err := config.Canonical(repo)
+	if err != nil {
+		t.Fatal(err)
+	}
+	extra := t.TempDir()
+	extraCanon, err := config.Canonical(extra)
+	if err != nil {
+		t.Fatal(err)
+	}
 	repoDB, err := store.Open(config.StorePath(repo))
 	if err != nil {
 		t.Fatal(err)
 	}
 	now := time.Now().UTC()
 	if err := repoDB.ReplaceFileMap(
-		store.FileRecord{Path: "primary.go", ContentHash: "p", IndexedAt: now},
+		store.FileRecord{Checkout: repoCanon, Path: "primary.go", ContentHash: "p", IndexedAt: now},
 		[]store.Symbol{{Name: "PrimaryWidget", Kind: "function_declaration", Line: 1, Exported: true}},
 		nil,
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := repoDB.Close(); err != nil {
-		t.Fatal(err)
-	}
-	extra := t.TempDir()
-	extraPath := config.StorePath(extra)
-	extraDB, err := store.Open(extraPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := extraDB.ReplaceFileMap(
-		store.FileRecord{Path: "extra.go", ContentHash: "e", IndexedAt: now},
+	if err := repoDB.ReplaceFileMap(
+		store.FileRecord{Checkout: extraCanon, Path: "extra.go", ContentHash: "e", IndexedAt: now},
 		[]store.Symbol{{Name: "ExtraWidget", Kind: "function_declaration", Line: 2, Exported: true}},
 		nil,
 	); err != nil {
 		t.Fatal(err)
 	}
-	if err := extraDB.Close(); err != nil {
+	if err := repoDB.RegisterCheckout(extraCanon, config.CheckoutHex(extraCanon)); err != nil {
 		t.Fatal(err)
 	}
-	before, err := os.ReadFile(extraPath)
+	if err := repoDB.Close(); err != nil {
+		t.Fatal(err)
+	}
+	dbPath := config.StorePath(repo)
+	before, err := os.ReadFile(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ro, err := store.OpenReadOnly(extraPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ro.Close()
-	canon, err := config.Canonical(extra)
-	if err != nil {
-		t.Fatal(err)
-	}
-	primary, err := store.Open(config.StorePath(repo))
+	primary, err := store.Open(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer primary.Close()
 	s := New(repo, config.Default(), primary, nil, nil)
-	s.Archive.Extras = []archive.Extra{{Root: canon, DB: ro}}
 
 	got := callTool(t, s, "map", map[string]any{"query": "Widget"}).(map[string]any)
 	names := symbolNames(t, got["symbols"])
 	if !slices.Contains(names, "PrimaryWidget") || slices.Contains(names, "ExtraWidget") {
 		t.Fatalf("top-level symbols %v", names)
 	}
-	archives, _ := got["archives"].([]any)
-	if len(archives) != 1 {
+	if _, ok := got["archives"]; ok {
 		t.Fatalf("archives %#v", got["archives"])
 	}
-	row, _ := archives[0].(map[string]any)
-	if row["root"] != canon {
-		t.Fatalf("root %#v", row["root"])
-	}
-	extraNames := symbolNames(t, row["symbols"])
+	extraGot := callTool(t, s, "map", map[string]any{"query": "Widget", "checkout": extraCanon}).(map[string]any)
+	extraNames := symbolNames(t, extraGot["symbols"])
 	if !slices.Contains(extraNames, "ExtraWidget") || slices.Contains(extraNames, "PrimaryWidget") {
 		t.Fatalf("extra symbols %v", extraNames)
 	}
-	after, err := os.ReadFile(extraPath)
+	after, err := os.ReadFile(dbPath)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(before) != string(after) {
-		t.Fatal("map changed the extra database")
-	}
-
-	plain := New(repo, config.Default(), primary, nil, nil)
-	noExtra := callTool(t, plain, "map", map[string]any{"query": "Widget"}).(map[string]any)
-	if _, ok := noExtra["archives"]; ok {
-		t.Fatalf("archives field present: %#v", noExtra["archives"])
+		t.Fatal("map changed the database")
 	}
 }
 
@@ -685,7 +691,7 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dataDir := config.DataDir(root)
+	dataDir := filepath.Dir(config.HomeStorePath())
 	t.Cleanup(func() {
 		_ = os.Chmod(dataDir, 0o755)
 		entries, _ := os.ReadDir(dataDir)
@@ -894,10 +900,10 @@ func TestToolIndexWritesCheckoutMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fresh.Close()
-	if !symbolNamed(t, fresh, "sub/scoped.go", "ScopedOnly") {
+	if !symbolNamed(t, fresh, canon, "sub/scoped.go", "ScopedOnly") {
 		t.Fatal("missing ScopedOnly")
 	}
-	if !symbolNamed(t, fresh, "widget.go", "UniqueWidget") {
+	if !symbolNamed(t, fresh, canon, "widget.go", "UniqueWidget") {
 		t.Fatal("scope index removed UniqueWidget")
 	}
 }
@@ -959,7 +965,7 @@ func TestToolEmbedReportsOllamaDown(t *testing.T) {
 	})
 	s := New(t.TempDir(), cfg, repoDB, homeDB, nil)
 	req := mcp.CallToolRequest{}
-	req.Params.Arguments = map[string]any{"once": true}
+	req.Params.Arguments = map[string]any{"once": true, "checkout": s.RepoRoot}
 	res, err := s.toolEmbed(context.Background(), req)
 	if err != nil {
 		t.Fatal(err)
@@ -983,9 +989,9 @@ func writeGoFile(t *testing.T, root, rel, content string) {
 	}
 }
 
-func symbolNamed(t *testing.T, st *store.Store, path, name string) bool {
+func symbolNamed(t *testing.T, st *store.Store, checkout, path, name string) bool {
 	t.Helper()
-	syms, err := st.SymbolsForFile("", path)
+	syms, err := st.SymbolsForFile(checkout, path)
 	if err != nil {
 		t.Fatal(err)
 	}

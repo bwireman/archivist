@@ -284,12 +284,15 @@ func TestSearchReadsNonWritableStores(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	dataDir := config.DataDir(root)
+	checkouts := filepath.Dir(filepath.Dir(config.CommandsLogPath(root)))
+	if err := os.MkdirAll(checkouts, 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.Remove(config.CommandsLogPath(root)); err != nil && !os.IsNotExist(err) {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(dataDir, 0o755) })
-	if err := os.Chmod(dataDir, 0o555); err != nil {
+	t.Cleanup(func() { _ = os.Chmod(checkouts, 0o755) })
+	if err := os.Chmod(checkouts, 0o555); err != nil {
 		t.Fatal(err)
 	}
 	repoHit := runSearch(t, root, "--json", "RepoFrozenToken")

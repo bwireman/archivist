@@ -262,6 +262,7 @@ func TestCursorRuleDescriptions(t *testing.T) {
 }
 
 func TestRulesStale(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	stale, target, err := RulesStale(root)
 	if err != nil || stale || target != "" {

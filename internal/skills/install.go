@@ -221,6 +221,12 @@ func renderedRuleFiles(target Target, rules map[string][]byte) map[string]string
 // the templates Install would write now. A missing manifest is not stale.
 // target is the host recorded in the manifest, or empty when it cannot be used.
 func RulesStale(repoRoot string) (stale bool, target string, err error) {
+	if home, herr := homeManifest(); herr == nil {
+		stale, err = userSkillsStale(home)
+		return stale, "user", err
+	} else if !errors.Is(herr, os.ErrNotExist) {
+		return false, "", herr
+	}
 	m, err := loadManifest(repoRoot)
 	if errors.Is(err, os.ErrNotExist) {
 		return false, "", nil
@@ -259,6 +265,9 @@ func RulesStale(repoRoot string) (stale bool, target string, err error) {
 
 // StaleRulesNotice is the stderr prompt when installed rules do not match.
 func StaleRulesNotice(target string) string {
+	if target == "user" {
+		return "archivist: installed agent rules are out of date. Reinstall with:\n  archivist skills install --user\n"
+	}
 	if target == "" {
 		target = "cursor"
 	}
@@ -447,4 +456,123 @@ func writeFile(path, content string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(content), 0o644)
+}
+
+// InstallUser writes skills once under ~/.agents/skills and one archivist
+// server into ~/.cursor/mcp.json. It does not write ~/.cursor/rules.
+func InstallUser(cli string) error {
+	skillFiles, err := loadSkills("")
+	if err != nil {
+		return err
+	}
+	skillFiles = pinCLI(skillFiles, cli)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	for _, rel := range sortedKeys(skillFiles) {
+		name := path.Dir(rel)
+		dst := filepath.Join(home, ".agents", "skills", name, "SKILL.md")
+		if err := writeFile(dst, string(skillFiles[rel])); err != nil {
+			return err
+		}
+	}
+	if err := writeFile(filepath.Join(home, ".archivist", "install.json"), string(mustManifest("user", cli, nil, skillFiles))); err != nil {
+		return err
+	}
+	return mergeUserMCP(filepath.Join(home, ".cursor", "mcp.json"))
+}
+
+func mustManifest(target, cli string, rules, skillFiles map[string][]byte) []byte {
+	m := Manifest{
+		Version: version.Version,
+		Commit:  version.Revision(),
+		Target:  target,
+		CLI:     cli,
+		Rules:   hashRules(TargetCursor, rules),
+		Skills:  hashSkills(skillFiles),
+	}
+	if rules == nil {
+		m.Rules = map[string]string{}
+	}
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		panic(err)
+	}
+	return append(data, '\n')
+}
+
+func homeManifest() (Manifest, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return Manifest{}, err
+	}
+	data, err := os.ReadFile(filepath.Join(home, ".archivist", "install.json"))
+	if err != nil {
+		return Manifest{}, err
+	}
+	var m Manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		return Manifest{}, err
+	}
+	return m, nil
+}
+
+func userSkillsStale(m Manifest) (bool, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return false, err
+	}
+	files, err := loadSkills("")
+	if err != nil {
+		return false, err
+	}
+	files = pinCLI(files, m.CLI)
+	for rel, want := range files {
+		name := path.Dir(rel)
+		got, rerr := os.ReadFile(filepath.Join(home, ".agents", "skills", name, "SKILL.md"))
+		if rerr != nil {
+			if errors.Is(rerr, os.ErrNotExist) {
+				return true, nil
+			}
+			return false, rerr
+		}
+		if string(got) != string(want) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func mergeUserMCP(path string) error {
+	data, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		data = []byte(`{"mcpServers":{}}`)
+	} else if err != nil {
+		return err
+	}
+	var cfg map[string]json.RawMessage
+	if err := json.Unmarshal(data, &cfg); err != nil {
+		return err
+	}
+	servers := map[string]json.RawMessage{}
+	if raw, ok := cfg["mcpServers"]; ok && len(raw) > 0 && string(raw) != "null" {
+		if err := json.Unmarshal(raw, &servers); err != nil {
+			return err
+		}
+	}
+	if _, ok := servers["archivist"]; !ok {
+		servers["archivist"] = json.RawMessage(`{"command":"archivist","args":["mcp"]}`)
+	}
+	encoded, err := json.Marshal(servers)
+	if err != nil {
+		return err
+	}
+	cfg["mcpServers"] = encoded
+	out, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	out = append(out, '\n')
+	return writeFile(path, string(out))
 }

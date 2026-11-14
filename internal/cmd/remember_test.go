@@ -20,6 +20,13 @@ func TestRememberArchiveWritesOnlyExtra(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	extraCanon, err := config.Canonical(extra)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RegisterCheckout(extraCanon, config.CheckoutHex(extraCanon)); err != nil {
+		t.Fatal(err)
+	}
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -46,17 +53,9 @@ func TestRememberArchiveWritesOnlyExtra(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer primary.Close()
-	n, err := primary.RecordCount()
-	if err != nil || n != 0 {
-		t.Fatalf("primary count %d err=%v", n, err)
-	}
-	extraDB, err := store.OpenReadOnly(config.StorePath(extra))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer extraDB.Close()
-	if n, err := extraDB.RecordCount(); err != nil || n != 1 {
-		t.Fatalf("extra count %d err=%v", n, err)
+	rec, ok, err := primary.GetRecordBySlug("extra-only")
+	if err != nil || !ok || rec.Checkout != extraCanon {
+		t.Fatalf("remembered checkout ok=%v err=%v rec=%+v", ok, err, rec)
 	}
 }
 

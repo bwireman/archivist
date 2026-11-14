@@ -12,6 +12,7 @@ import (
 )
 
 func TestInvocationWarnsWhenRulesAreStale(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	if err := skills.Install(root, skills.TargetCursor); err != nil {
 		t.Fatal(err)
@@ -44,6 +45,7 @@ func TestInvocationWarnsWhenRulesAreStale(t *testing.T) {
 }
 
 func TestNoArgsWarnsOnce(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	if err := skills.Install(root, skills.TargetCursor); err != nil {
 		t.Fatal(err)

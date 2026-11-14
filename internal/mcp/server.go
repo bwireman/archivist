@@ -80,7 +80,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
 		annotate("Search archive", true, false, true),
-		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, links}. results are the ranked cards; each card includes a snippet, cosine, applies_to, and superseded_by. links are record, pin, and repo edges followed from this checkout. A linked checkout does not need to be listed in archives. Followed records include source files named by applies_to, at most 4 files and 2KiB each, and 24KiB for the whole response. Call get for the body. Pass full=true for every stored field of each ranked hit."),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, links}. results are the ranked cards; each card includes a snippet, cosine, checkout, applies_to, and superseded_by. links are record, pin, and repo edges followed from this checkout. Followed records include source files named by applies_to, at most 4 files and 2KiB each, and 24KiB for the whole response. Call get for the body. Pass full=true for every stored field of each ranked hit."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
@@ -89,7 +89,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolSearch)
 	srv.AddTool(mcp.NewTool("get",
 		annotate("Get record", true, false, true),
-		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field. When the record is in this checkout, links lists its record and repo edges. A record edge includes the full linked record and source files named by that record's applies_to (at most 4 files, 2KiB each, 24KiB for the response). A repo edge has no source. Lookup also opens a linked checkout when the id or slug is not in this checkout, the home store, or archives."),
+		mcp.WithDescription("Get one archive record by id or slug after search. Default returns id, slug, type, scope, title, status, severity, body, tags, applies_to, and superseded_by. Pass full=true for every stored field. When the record is in this checkout, links lists its record and repo edges. A record edge includes the full linked record and source files named by that record's applies_to (at most 4 files, 2KiB each, 24KiB for the response). A repo edge has no source. Lookup also opens a linked checkout when the id or slug is not in this database."),
 		mcp.WithString("id", mcp.Required()),
 		mcp.WithBoolean("full", mcp.Description("When true, return every stored field.")),
 	), s.toolGet)
@@ -103,7 +103,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolCheck)
 	srv.AddTool(mcp.NewTool("map",
 		annotate("Explore code map", true, false, true),
-		mcp.WithDescription("Explore the code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. The top-level result is the process checkout. Configured archives are returned under archives and are not indexed by this call. Call index (or run `archivist index`) in a checkout before reading its map. When reindex is set, the stored extractor is older than this binary."),
+		mcp.WithDescription("Explore this checkout's code map: symbols and files matching the query, the imports those files declare, the files that import the query, and recent commits mentioning it. Pass checkout. Call index (or run `archivist index`) in that checkout before reading its map. When reindex is set, the stored extractor is older than this binary."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithNumber("limit", mcp.Description("max rows per section (default 30)")),
 		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout to map")),
@@ -175,13 +175,13 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolImport)
 	srv.AddTool(mcp.NewTool("index",
 		annotate("Index code map", false, true, true),
-		mcp.WithDescription("Index this checkout's code map and recent git history. No Ollama. Does not ingest or delete records and does not walk configured archives. Optional scope limits the walk to a subdirectory. Returns files_indexed, files_removed, commits_new, and records."),
+		mcp.WithDescription("Index this checkout's code map and recent git history. No Ollama. Does not ingest or delete records. Optional scope limits the walk to a subdirectory. Returns files_indexed, files_removed, commits_new, and records."),
 		mcp.WithString("scope", mcp.Description("limit indexing to a subdirectory; empty indexes the checkout")),
 		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout to index")),
 	), s.toolIndex)
 	srv.AddTool(mcp.NewTool("embed",
 		annotate("Embed records", false, true, true),
-		mcp.WithDescription("Drain the embed queue via Ollama and store vectors. Fails when Ollama is unreachable (run: ollama serve). once defaults to false and loops until the queue is empty; set once=true to process the queue a single time. concurrency is the parallel worker count (default 2). Returns embedded. Does not walk configured archives."),
+		mcp.WithDescription("Drain the embed queue via Ollama and store vectors. Fails when Ollama is unreachable (run: ollama serve). once defaults to false and loops until the queue is empty; set once=true to process the queue a single time. concurrency is the parallel worker count (default 2). Returns embedded."),
 		mcp.WithBoolean("once", mcp.Description("process every queued item once, then return")),
 		mcp.WithNumber("concurrency", mcp.Description("parallel embed workers (default 2)")),
 		mcp.WithString("checkout", mcp.Required(), mcp.Description("canonical path of the checkout whose queue to embed")),
@@ -263,7 +263,14 @@ func mcpLogResult(res *mcp.CallToolResult) any {
 // agentInstructions is returned on MCP initialize so hosts without skills
 // install still consult the archive, cite a record that changed the work, ask when a gap is unsettled, distill lasting facts, and review the archive when one is due.
 func agentInstructions() string {
-	return mustRule("consult.md") + "\n\n" + mustRule("cite.md") + "\n\n" + mustRule("ask.md") + "\n\n" + mustRule("record.md") + "\n\n" + mustRule("link.md") + "\n\n" + mustRule("review.md")
+	return strings.TrimSpace(mustRule("consult.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("cite.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("ask.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("record.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("link.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("current.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("refresh.md")) + "\n\n" +
+		strings.TrimSpace(mustRule("review.md"))
 }
 
 func mustRule(name string) string {
@@ -340,9 +347,6 @@ func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 
 func (s *Server) registeredCheckout(raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
-	if raw == "" && s != nil {
-		raw = s.RepoRoot
-	}
 	if s != nil && s.regErr != nil {
 		return "", s.regErr
 	}
@@ -405,18 +409,6 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 	res.Reindex, err = index.ReindexPrompt(s.RepoDB)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
-	}
-	if s.Archive != nil {
-		for _, ex := range s.Archive.Extras {
-			if ex.DB == nil {
-				continue
-			}
-			section, err := ex.DB.ExploreCode(ex.Root, query, limit)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			res.Archives = append(res.Archives, store.RootedCodeSearch{Root: ex.Root, CodeSearch: section})
-		}
 	}
 	return jsonResult(res)
 }
