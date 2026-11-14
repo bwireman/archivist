@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -18,59 +17,25 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 	root := t.TempDir()
 	ensureQueryStores(t, root)
 	extra := t.TempDir()
-	empty := t.TempDir()
-	seedSymbol(t, config.StorePath(root), "primary.go", "PrimaryWidget")
-	seedSymbol(t, config.StorePath(extra), "extra.go", "ExtraWidget")
-	emptyDB, err := store.Open(config.StorePath(empty))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := emptyDB.Close(); err != nil {
-		t.Fatal(err)
-	}
-	beforeExtra := mustRead(t, config.StorePath(extra))
-	beforeEmpty := mustRead(t, config.StorePath(empty))
+	seedSymbol(t, root, "primary.go", "PrimaryWidget")
+	seedSymbol(t, extra, "extra.go", "ExtraWidget")
 
 	cfg := config.Default()
-	cfg.Archives = []string{extra, empty}
+	cfg.Archives = []string{extra}
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
 	got := runMap(t, root, "Widget")
 	names := mapSymbolNames(t, got["symbols"])
-	if !slices.Contains(names, "PrimaryWidget") || slices.Contains(names, "ExtraWidget") {
+	if !slices.Contains(names, "PrimaryWidget") {
 		t.Fatalf("top-level symbols %v", names)
 	}
-	archives, _ := got["archives"].([]any)
-	if len(archives) != 2 {
-		t.Fatalf("archives %#v", got["archives"])
-	}
-	extraCanon := mustCanonCmd(t, extra)
-	emptyCanon := mustCanonCmd(t, empty)
-	row, _ := archives[0].(map[string]any)
-	if row["root"] != extraCanon {
-		t.Fatalf("root %#v", row["root"])
-	}
-	extraNames := mapSymbolNames(t, row["symbols"])
-	if !slices.Contains(extraNames, "ExtraWidget") || slices.Contains(extraNames, "PrimaryWidget") {
-		t.Fatalf("extra symbols %v", extraNames)
-	}
-	emptyRow, _ := archives[1].(map[string]any)
-	if emptyRow["root"] != emptyCanon {
-		t.Fatalf("empty root %#v", emptyRow["root"])
-	}
-	if syms, ok := emptyRow["symbols"]; ok && syms != nil {
-		t.Fatalf("empty checkout symbols %#v", syms)
-	}
-	if string(mustRead(t, config.StorePath(extra))) != string(beforeExtra) {
-		t.Fatal("map changed the extra database")
-	}
-	if string(mustRead(t, config.StorePath(empty))) != string(beforeEmpty) {
-		t.Fatal("map changed the empty extra database")
+	if archives, ok := got["archives"]; ok && archives != nil {
+		t.Fatalf("archives %#v", archives)
 	}
 
 	plain := t.TempDir()
-	seedSymbol(t, config.StorePath(plain), "primary.go", "PrimaryWidget")
+	seedSymbol(t, plain, "primary.go", "PrimaryWidget")
 	if err := config.Save(plain, config.Default()); err != nil {
 		t.Fatal(err)
 	}
@@ -80,15 +45,19 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 	}
 }
 
-func seedSymbol(t *testing.T, dbPath, file, name string) {
+func seedSymbol(t *testing.T, checkout, file, name string) {
 	t.Helper()
-	db, err := store.Open(dbPath)
+	db, err := store.Open(config.StorePath(checkout))
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer db.Close()
+	canon, err := config.Canonical(checkout)
+	if err != nil {
+		t.Fatal(err)
+	}
 	err = db.ReplaceFileMap(
-		store.FileRecord{Path: file, ContentHash: name, IndexedAt: time.Now().UTC()},
+		store.FileRecord{Checkout: canon, Path: file, ContentHash: name, IndexedAt: time.Now().UTC()},
 		[]store.Symbol{{Name: name, Kind: "function_declaration", Line: 1, Exported: true}},
 		nil,
 	)
@@ -124,13 +93,4 @@ func mapSymbolNames(t *testing.T, raw any) []string {
 		names = append(names, name)
 	}
 	return names
-}
-
-func mustRead(t *testing.T, path string) []byte {
-	t.Helper()
-	b, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return b
 }

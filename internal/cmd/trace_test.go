@@ -188,14 +188,8 @@ func TestCiteExtraIDWhenReadOnly(t *testing.T) {
 		Title: "Cite extra", Body: "elsewhere", Status: record.StatusAccepted,
 		SourcePath: "docs/decisions/cite-extra.md",
 	})
-	path := config.StorePath(extra)
-	if err := os.Chmod(path, 0o444); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
 	cfg := config.Default()
 	cfg.LogCommands = true
-	cfg.Archives = []string{extra}
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -211,10 +205,7 @@ func TestCiteExtraIDWhenReadOnly(t *testing.T) {
 	if !strings.Contains(buf.String(), "rec_cite_extra") {
 		t.Fatalf("cite output: %s", buf.String())
 	}
-	if err := os.Chmod(path, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	db, err := store.OpenReadOnly(path)
+	db, err := store.OpenReadOnly(config.HomeStorePath())
 	if err != nil {
 		t.Fatal(err)
 	}

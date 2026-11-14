@@ -641,6 +641,13 @@ func TestMCPQueryReadsFrozenStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	canon, err := config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
 	if err := repo.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -781,6 +788,13 @@ func TestToolIndexWritesCheckoutMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	canon, err := config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
 	if err := repo.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -842,7 +856,21 @@ func TestToolIndexWritesCheckoutMap(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer fresh.Close()
-	if !symbolNamed(t, fresh, "widget.go", "UniqueWidget") {
+	canon, err = config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	syms, err := fresh.SymbolsForFile(canon, "widget.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, sym := range syms {
+		if sym.Name == "UniqueWidget" {
+			found = true
+		}
+	}
+	if !found {
 		t.Fatal("missing UniqueWidget")
 	}
 	after, err := os.ReadFile(extraPath)

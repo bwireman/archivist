@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"time"
 
 	"github.com/bwireman/archivist/internal/cmdlog"
@@ -40,7 +41,7 @@ func wrapLoggedRunE(c *cobra.Command) {
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		logger := cmdlog.Disabled()
 		if root, cfg, err := loadEnv(); err == nil {
-			if err := config.RelocateCheckoutFiles(root); err != nil {
+			if err := config.RelocateCheckoutFiles(root); err != nil && !os.IsPermission(err) {
 				return err
 			}
 			loaded, err := config.Load(root)

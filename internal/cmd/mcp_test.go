@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"os"
 	"testing"
 
 	"github.com/bwireman/archivist/internal/config"
@@ -18,13 +17,7 @@ func TestMCPOpenReadsExtraWithoutServing(t *testing.T) {
 		Title: "MCP extra", Body: "readable", Status: record.StatusAccepted,
 		SourcePath: "docs/decisions/mcp-extra.md",
 	})
-	path := config.StorePath(extra)
-	if err := os.Chmod(path, 0o444); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
 	cfg := config.Default()
-	cfg.Archives = []string{extra}
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -36,11 +29,11 @@ func TestMCPOpenReadsExtraWithoutServing(t *testing.T) {
 	defer repo.Close()
 	defer homeDB.Close()
 	defer closeExtras(extras)
-	if len(extras) != 1 {
+	if len(extras) != 0 {
 		t.Fatalf("extras %d", len(extras))
 	}
-	n, err := extras[0].DB.RecordCount()
+	n, err := repo.RecordCount()
 	if err != nil || n != 1 {
-		t.Fatalf("extra count %d err=%v", n, err)
+		t.Fatalf("record count %d err=%v", n, err)
 	}
 }

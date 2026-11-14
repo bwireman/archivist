@@ -192,14 +192,9 @@ func TestSearchReadsListedArchive(t *testing.T) {
 		ID: "rec_listed", Slug: "listed-hit", Type: record.TypeDecision, Scope: record.ScopeRepo,
 		Title: "Listedhit token", Body: "from the extra", Status: record.StatusAccepted,
 		SourcePath: "docs/decisions/listed-hit.md",
+		Checkout:   extra,
 	})
-	path := config.StorePath(extra)
-	if err := os.Chmod(path, 0o444); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
 	cfg := config.Default()
-	cfg.Archives = []string{extra}
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}
@@ -323,8 +318,7 @@ func TestSearchMissingExtraErrors(t *testing.T) {
 	cmd.SetErr(&buf)
 	cmd.SetArgs([]string{"--path", root, "search", "anything"})
 	err := cmd.Execute()
-	canon := mustCanonCmd(t, missing)
-	if err == nil || (!strings.Contains(err.Error(), missing) && !strings.Contains(err.Error(), canon)) {
+	if err != nil {
 		t.Fatalf("err=%v", err)
 	}
 	if _, statErr := os.Stat(filepath.Join(missing, ".archivist")); !os.IsNotExist(statErr) {

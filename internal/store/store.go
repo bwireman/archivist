@@ -803,14 +803,29 @@ func AppendEmbedGaps(st *Store, root string, missing, giveups []EmbedGap) ([]Emb
 		return nil, nil, err
 	}
 	for _, g := range miss {
+		if gapSeen(missing, g.ID) {
+			continue
+		}
 		g.Archive = root
 		missing = append(missing, g)
 	}
 	for _, g := range gave {
+		if gapSeen(giveups, g.ID) {
+			continue
+		}
 		g.Archive = root
 		giveups = append(giveups, g)
 	}
 	return missing, giveups, nil
+}
+
+func gapSeen(list []EmbedGap, id string) bool {
+	for _, g := range list {
+		if g.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // SeedEmbedQueue inserts one queue row. Foreign keys are off for the insert so

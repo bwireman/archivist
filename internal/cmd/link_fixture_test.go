@@ -25,12 +25,14 @@ func TestLinkFixtureRepos(t *testing.T) {
 		ID: "rec_pantry", Type: record.TypeFeature, Scope: record.ScopeRepo,
 		Title: "Pantry shelf", Slug: "pantry-shelf", Status: record.StatusAccepted,
 		Body: "local pantry checkout", SourcePath: "docs/pantry.md",
+		Checkout: primary,
 	})
 	seedCheckoutRecord(t, peer, &record.Record{
 		ID: "rec_seal", Type: record.TypeFeature, Scope: record.ScopeRepo,
 		Title: "Jar seal", Slug: "jar-seal", Status: record.StatusAccepted,
 		Body: "brimstone wax stamp", SourcePath: "docs/seal.md",
 		AppliesTo: []string{"pantry/jar/jar.go"},
+		Checkout:  peer,
 	})
 	if err := config.Save(primary, config.Default()); err != nil {
 		t.Fatal(err)

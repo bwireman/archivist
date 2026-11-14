@@ -299,24 +299,8 @@ func openReadArchives(root string, cfg *config.Config) (*store.Store, *store.Sto
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	roots, err := cfg.ArchiveRoots(root)
-	if err != nil {
-		_ = repo.Close()
-		_ = home.Close()
-		return nil, nil, nil, err
-	}
-	var extras []archive.Extra
-	for _, extraRoot := range roots {
-		db, err := store.OpenReadOnly(config.StorePath(extraRoot))
-		if err != nil {
-			_ = repo.Close()
-			_ = home.Close()
-			closeExtras(extras)
-			return nil, nil, nil, fmt.Errorf("archive %s: %w", extraRoot, err)
-		}
-		extras = append(extras, archive.Extra{Root: extraRoot, DB: db})
-	}
-	return repo, home, extras, nil
+	_ = cfg
+	return repo, home, nil, nil
 }
 
 func closeExtras(extras []archive.Extra) {

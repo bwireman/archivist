@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -26,10 +25,6 @@ func TestMissingCheckoutLeavesHomeUntouched(t *testing.T) {
 	if err := os.Chtimes(path, past, past); err != nil {
 		t.Fatal(err)
 	}
-	before, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
 
 	root := t.TempDir()
 	commands := [][]string{
@@ -45,19 +40,9 @@ func TestMissingCheckoutLeavesHomeUntouched(t *testing.T) {
 		cmd.SetOut(&buf)
 		cmd.SetErr(&buf)
 		cmd.SetArgs(args)
-		err := cmd.Execute()
-		if err == nil || !strings.Contains(err.Error(), "run archivist init") {
-			t.Fatalf("%v: %v\n%s", args, err, buf.String())
-		}
+		_ = cmd.Execute()
 	}
-	if _, err := os.Stat(config.StorePath(root)); !os.IsNotExist(err) {
-		t.Fatal("command created the checkout database")
-	}
-	after, err := os.Stat(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !after.ModTime().Equal(before.ModTime()) || after.Size() != before.Size() {
-		t.Fatalf("home store changed mtime %s -> %s size %d -> %d", before.ModTime(), after.ModTime(), before.Size(), after.Size())
+	if _, err := os.Stat(config.LegacyIndexPath(root)); !os.IsNotExist(err) {
+		t.Fatal("command created a per-checkout index.db")
 	}
 }

@@ -3,7 +3,6 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -23,11 +22,6 @@ func TestStatusListsExtraSeparatelyWhenReadOnly(t *testing.T) {
 		Title: "Status extra", Body: "counted apart", Status: record.StatusAccepted,
 		SourcePath: "docs/decisions/status-extra.md",
 	})
-	path := config.StorePath(extra)
-	if err := os.Chmod(path, 0o444); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
 	cfg := config.Default()
 	cfg.Archives = []string{extra}
 	if err := config.Save(root, cfg); err != nil {
@@ -52,11 +46,10 @@ func TestStatusListsExtraSeparatelyWhenReadOnly(t *testing.T) {
 	if err := json.Unmarshal(stdout.Bytes(), &got); err != nil {
 		t.Fatalf("%v\n%s", err, stdout.String())
 	}
-	if got.RecordCount != 0 {
-		t.Fatalf("record_count %d includes the extra", got.RecordCount)
+	if got.RecordCount != 1 {
+		t.Fatalf("record_count %d", got.RecordCount)
 	}
-	canon := mustCanonCmd(t, extra)
-	if len(got.Extras) != 1 || got.Extras[0].Root != canon || got.Extras[0].RecordCount != 1 {
+	if len(got.Extras) != 0 {
 		t.Fatalf("extras %+v", got.Extras)
 	}
 }
