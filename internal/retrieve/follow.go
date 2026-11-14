@@ -3,6 +3,7 @@ package retrieve
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/embed"
@@ -287,7 +288,11 @@ func openLinked(root string, opened map[string]*store.Store) (*store.Store, erro
 	if db, ok := opened[root]; ok {
 		return db, nil
 	}
-	db, err := store.OpenReadOnly(config.LegacyIndexPath(root))
+	path := config.LegacyIndexPath(root)
+	if info, err := os.Stat(path); err != nil || info.IsDir() {
+		path = config.StorePath(root)
+	}
+	db, err := store.OpenReadOnly(path)
 	if err != nil {
 		return nil, err
 	}

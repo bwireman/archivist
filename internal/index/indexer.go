@@ -74,12 +74,24 @@ func (idx *Indexer) Index(ctx context.Context, scopePath string) (Progress, erro
 	}
 
 	now := time.Now().UTC()
-	if err := idx.Store.StampIndexed(now); err != nil {
-		return idx.progress, err
-	}
-	if scopePath == "" {
-		if err := idx.Store.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
+	if idx.Checkout == "" {
+		if err := idx.Store.StampIndexed(now); err != nil {
 			return idx.progress, err
+		}
+		if scopePath == "" {
+			if err := idx.Store.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
+				return idx.progress, err
+			}
+		}
+	} else {
+		stamp := now.UTC().Format(time.RFC3339)
+		if err := idx.Store.SetCheckoutMeta(idx.Checkout, store.MetaLastIndexedAt, stamp); err != nil {
+			return idx.progress, err
+		}
+		if scopePath == "" {
+			if err := idx.Store.SetCheckoutMeta(idx.Checkout, store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
+				return idx.progress, err
+			}
 		}
 	}
 	return idx.progress, nil
@@ -255,7 +267,14 @@ func (idx *Indexer) needsCodemapRemap() (bool, error) {
 	if idx.Store == nil {
 		return false, nil
 	}
-	raw, ok, err := idx.Store.GetMeta(store.MetaCodemapVersion)
+	var raw string
+	var ok bool
+	var err error
+	if idx.Checkout == "" {
+		raw, ok, err = idx.Store.GetMeta(store.MetaCodemapVersion)
+	} else {
+		raw, ok, err = idx.Store.GetCheckoutMeta(idx.Checkout, store.MetaCodemapVersion)
+	}
 	if err != nil {
 		return false, err
 	}

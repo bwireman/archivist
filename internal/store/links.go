@@ -214,22 +214,25 @@ func (s *Store) targetRecordExists(link Link) error {
 	if link.Kind == LinkRepo {
 		return nil
 	}
-	if rec, ok, err := s.GetRecordByID(link.ToID); err != nil {
+	rec, ok, err := s.GetRecordByID(link.ToID)
+	if err != nil {
 		return err
-	} else if ok {
-		if !record.ValidType(rec.Type) {
-			return fmt.Errorf("record links: record %s has type %s", link.ToID, rec.Type)
+	}
+	if !ok {
+		legacy := config.LegacyIndexPath(link.ToRoot)
+		info, statErr := os.Stat(legacy)
+		if statErr != nil || info.IsDir() {
+			return fmt.Errorf("record links: record %s not found", link.ToID)
 		}
-		return nil
-	}
-	db, err := OpenReadOnly(config.LegacyIndexPath(link.ToRoot))
-	if err != nil {
-		return fmt.Errorf("record links: %w", err)
-	}
-	defer db.Close()
-	rec, ok, err := db.GetRecordByID(link.ToID)
-	if err != nil {
-		return err
+		db, err := OpenReadOnly(legacy)
+		if err != nil {
+			return fmt.Errorf("record links: %w", err)
+		}
+		defer db.Close()
+		rec, ok, err = db.GetRecordByID(link.ToID)
+		if err != nil {
+			return err
+		}
 	}
 	if !ok {
 		return fmt.Errorf("record links: record %s not found", link.ToID)

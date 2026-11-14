@@ -47,6 +47,18 @@ func (s *Service) Remember(rec *record.Record, archiveRoot string) (string, erro
 	if rec.ID == "" {
 		rec.ID = record.NewID()
 	}
+	if rec.Scope == record.ScopeRepo && rec.Checkout == "" {
+		if strings.TrimSpace(archiveRoot) == "" {
+			rec.Checkout = s.RepoRoot
+		} else if root, err := s.matchExtra(archiveRoot); err != nil {
+			return "", err
+		} else {
+			rec.Checkout = root
+		}
+	}
+	if rec.Scope == record.ScopeGlobal || rec.Scope == record.ScopeDev {
+		rec.Checkout = ""
+	}
 	if err := rec.Validate(); err != nil {
 		return "", err
 	}

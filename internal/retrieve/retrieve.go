@@ -271,7 +271,7 @@ func archiveBand(root string) int {
 func overlayKey(root string, rec *record.Record) string {
 	base := string(rec.Type) + "/" + rec.Slug
 	checkout := root
-	if rec != nil && rec.Checkout != "" {
+	if rec.Checkout != "" {
 		checkout = rec.Checkout
 	}
 	if checkout != "" {

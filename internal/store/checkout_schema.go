@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/bwireman/archivist/internal/config"
 )
@@ -166,41 +167,13 @@ func swapCheckoutSchema(tx *sql.Tx) error {
 			value TEXT NOT NULL,
 			PRIMARY KEY (checkout, key)
 		)`,
-		`DELETE FROM meta WHERE key = 'fts_tokenizer'`,
-		`DROP TABLE IF EXISTS records_fts`,
-		`CREATE VIRTUAL TABLE records_fts USING fts5(
-			record_id UNINDEXED,
-			title, body, tags, applies_to,
-			tokenize = '` + ftsTokenizer + `'
-		)`,
 	}
 	for _, stmt := range stmts {
 		if _, err := tx.Exec(stmt); err != nil {
 			return fmt.Errorf("checkout schema: %w", err)
 		}
 	}
-	rows, err := tx.Query(`SELECT id, title, body, COALESCE(tags,''), COALESCE(applies_to,'') FROM records`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-	for rows.Next() {
-		var id, title, body, tags, applies string
-		if err := rows.Scan(&id, &title, &body, &tags, &applies); err != nil {
-			return err
-		}
-		if err := insertFTS(tx, id, title, body, tags, applies); err != nil {
-			return err
-		}
-	}
-	if err := rows.Err(); err != nil {
-		return err
-	}
-	_, err = tx.Exec(`
-INSERT INTO meta (key, value) VALUES (?, ?)
-ON CONFLICT(key) DO UPDATE SET value = excluded.value
-`, MetaFTSTokenizer, ftsSchema)
-	return err
+	return rebuildFTSTx(tx)
 }
 
 // MergeCheckout copies legacyRoot/.archivist/index.db into this database.
@@ -372,7 +345,7 @@ CREATE VIRTUAL TABLE records_fts USING fts5(
 		if err := rows.Scan(&id, &title, &body, &tags, &applies); err != nil {
 			return err
 		}
-		if err := insertFTS(tx, id, title, body, tags, applies); err != nil {
+		if err := insertFTS(tx, id, title, body, strings.Join(decodeJSONList(tags), " "), strings.Join(decodeJSONList(applies), " ")); err != nil {
 			return err
 		}
 	}

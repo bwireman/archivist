@@ -276,8 +276,8 @@ CREATE TABLE IF NOT EXISTS symbols (
     exported INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE INDEX IF NOT EXISTS idx_symbols_path ON symbols(file_path);
-CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(name);
+CREATE INDEX IF NOT EXISTS idx_symbols_path ON symbols(checkout, file_path);
+CREATE INDEX IF NOT EXISTS idx_symbols_name ON symbols(checkout, name);
 
 CREATE TABLE IF NOT EXISTS symbol_edges (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -287,7 +287,7 @@ CREATE TABLE IF NOT EXISTS symbol_edges (
     edge_type TEXT NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS idx_symbol_edges_from ON symbol_edges(from_file);
+CREATE INDEX IF NOT EXISTS idx_symbol_edges_from ON symbol_edges(checkout, from_file);
 
 CREATE TABLE IF NOT EXISTS commits (
     checkout TEXT NOT NULL DEFAULT '',
@@ -707,7 +707,7 @@ func (s *Store) DeleteRecordByPath(checkout, path string) error {
 	if err != nil {
 		return err
 	}
-	_, err = s.db.Exec(`DELETE FROM records WHERE source_path = ?`, path)
+	_, err = s.db.Exec(`DELETE FROM records WHERE checkout = ? AND source_path = ?`, checkout, path)
 	return err
 }
 
