@@ -283,7 +283,7 @@ func TestStorePaths(t *testing.T) {
 	if legacy := config.LegacyIndexPath(dir); legacy != filepath.Join(dir, ".archivist", "index.db") {
 		t.Fatalf("legacy: %q", legacy)
 	}
-	if got := config.CommandsLogPath(dir); got != filepath.Join(dir, ".archivist", "commands.log") {
+	if got := config.CommandsLogPath(dir); got != filepath.Join(config.CheckoutDir(dir), "commands.log") {
 		t.Fatalf("commands log: %q", got)
 	}
 	if home == "" {

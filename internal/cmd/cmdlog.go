@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/bwireman/archivist/internal/cmdlog"
+	"github.com/bwireman/archivist/internal/config"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -25,6 +26,14 @@ func wrapArchiveCommandLogs(root *cobra.Command) {
 	walk(root)
 }
 
+func writableArchiveCommand(c *cobra.Command) bool {
+	switch c.Name() {
+	case "remember", "update", "retire", "index", "embed", "export", "import", "publish", "link", "unlink", "init":
+		return true
+	default:
+		return false
+	}
+}
 func archiveCommand(c *cobra.Command) bool {
 	switch c.Name() {
 	case "search", "map", "status", "remember", "update", "retire", "check", "index", "embed", "export", "import", "publish", "cite", "link", "unlink", "list", "propose", "review":
@@ -39,6 +48,12 @@ func wrapLoggedRunE(c *cobra.Command) {
 	c.RunE = func(cmd *cobra.Command, args []string) error {
 		logger := cmdlog.Disabled()
 		if root, cfg, err := loadEnv(); err == nil {
+			if writableArchiveCommand(cmd) {
+				_ = config.RelocateCheckoutFiles(root)
+				if cfg, err = config.Load(root); err != nil {
+					cfg = nil
+				}
+			}
 			logger = cmdlog.FromConfig(root, cfg)
 		}
 		box := &cmdlog.ResultBox{}

@@ -208,6 +208,32 @@ func Default() *Config {
 
 func Load(repoRoot string) (*Config, error) {
 	cfg := Default()
+	if canon, err := Canonical(repoRoot); err == nil {
+		if data, err := os.ReadFile(homeOllamaPath()); err == nil {
+			var ollama OllamaConfig
+			if json.Unmarshal(data, &ollama) == nil {
+				cfg.Ollama = ollama
+			}
+		}
+		if path := checkoutConfigPath(canon); path != "" {
+			if data, err := os.ReadFile(path); err == nil {
+				if err := json.Unmarshal(data, cfg); err != nil {
+					return nil, fmt.Errorf("parse config: %w", err)
+				}
+				if data, err := os.ReadFile(homeOllamaPath()); err == nil {
+					var ollama OllamaConfig
+					if json.Unmarshal(data, &ollama) == nil && strings.TrimSpace(ollama.EmbedModel) != "" {
+						num := cfg.Ollama.EmbedNumCtx
+						cfg.Ollama = ollama
+						if num > 0 {
+							cfg.Ollama.EmbedNumCtx = num
+						}
+					}
+				}
+				return finishLoad(cfg), nil
+			}
+		}
+	}
 	path := filepath.Join(repoRoot, DefaultConfigName)
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -219,6 +245,10 @@ func Load(repoRoot string) (*Config, error) {
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	return finishLoad(cfg), nil
+}
+
+func finishLoad(cfg *Config) *Config {
 	if strings.TrimSpace(cfg.Ollama.EmbedModel) == "" {
 		cfg.Ollama.EmbedModel = DefaultEmbedModel
 	}
@@ -226,7 +256,7 @@ func Load(repoRoot string) (*Config, error) {
 		cfg.Ollama.EmbedTimeout = DefaultEmbedTimeoutStr
 	}
 	cfg.Records = cfg.Records.withDefaults()
-	return cfg, nil
+	return cfg
 }
 
 func Save(repoRoot string, cfg *Config) error {
@@ -334,6 +364,13 @@ func (c *Config) ArchiveRoots(repoRoot string) ([]string, error) {
 }
 
 func CommandsLogPath(repoRoot string) string {
+	canon, err := Canonical(repoRoot)
+	if err != nil {
+		canon = repoRoot
+	}
+	if dir := CheckoutDir(canon); dir != "" {
+		return filepath.Join(dir, DefaultCommandsLog)
+	}
 	return filepath.Join(repoRoot, DefaultDataDir, DefaultCommandsLog)
 }
 
