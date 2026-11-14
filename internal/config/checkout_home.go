@@ -81,7 +81,7 @@ func RelocateCheckoutFiles(root string) error {
 			return err
 		}
 	}
-	return moveCommandsLog(canon, dir)
+	return moveCommandsLog(canon)
 }
 
 func writeHomeOllama(ollama OllamaConfig) error {
@@ -89,9 +89,16 @@ func writeHomeOllama(ollama OllamaConfig) error {
 	if path == "" {
 		return nil
 	}
-	if data, err := os.ReadFile(path); err == nil {
+	data, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if err == nil {
 		var existing OllamaConfig
-		if json.Unmarshal(data, &existing) == nil && strings.TrimSpace(existing.EmbedModel) != "" {
+		if err := json.Unmarshal(data, &existing); err != nil {
+			return err
+		}
+		if strings.TrimSpace(existing.EmbedModel) != "" {
 			return nil
 		}
 	}
@@ -106,19 +113,23 @@ func writeHomeOllama(ollama OllamaConfig) error {
 	return os.WriteFile(path, body, 0o644)
 }
 
-func moveCommandsLog(root, dir string) error {
-	src := filepath.Join(root, DefaultDataDir, DefaultCommandsLog)
+func moveCommandsLog(root string) error {
+	src := filepath.Join(DataDir(root), DefaultCommandsLog)
 	if _, err := os.Stat(src); err != nil {
 		if os.IsNotExist(err) {
 			return nil
 		}
 		return err
 	}
-	dst := filepath.Join(dir, DefaultCommandsLog)
-	if _, err := os.Stat(dst); err == nil {
+	dst := CommandsLogPath(root)
+	if _, err := os.Stat(dst); err != nil {
+		if !os.IsNotExist(err) {
+			return err
+		}
+	} else {
 		return nil
 	}
-	if err := os.MkdirAll(dir, 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
 	return os.Rename(src, dst)

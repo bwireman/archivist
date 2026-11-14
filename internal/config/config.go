@@ -208,44 +208,68 @@ func Default() *Config {
 
 func Load(repoRoot string) (*Config, error) {
 	cfg := Default()
-	if canon, err := Canonical(repoRoot); err == nil {
-		if data, err := os.ReadFile(homeOllamaPath()); err == nil {
-			var ollama OllamaConfig
-			if json.Unmarshal(data, &ollama) == nil {
-				cfg.Ollama = ollama
-			}
-		}
-		if path := checkoutConfigPath(canon); path != "" {
-			if data, err := os.ReadFile(path); err == nil {
-				if err := json.Unmarshal(data, cfg); err != nil {
-					return nil, fmt.Errorf("parse config: %w", err)
-				}
-				if data, err := os.ReadFile(homeOllamaPath()); err == nil {
-					var ollama OllamaConfig
-					if json.Unmarshal(data, &ollama) == nil && strings.TrimSpace(ollama.EmbedModel) != "" {
-						num := cfg.Ollama.EmbedNumCtx
-						cfg.Ollama = ollama
-						if num > 0 {
-							cfg.Ollama.EmbedNumCtx = num
-						}
-					}
-				}
-				return finishLoad(cfg), nil
-			}
-		}
-	}
-	path := filepath.Join(repoRoot, DefaultConfigName)
-	data, err := os.ReadFile(path)
+	canon, err := Canonical(repoRoot)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return cfg, nil
-		}
-		return nil, fmt.Errorf("read config: %w", err)
+		canon = repoRoot
+	}
+	data, path, err := readCheckoutOrLegacy(canon, repoRoot)
+	if err != nil {
+		return nil, err
+	}
+	if path == "" {
+		return finishLoad(cfg), nil
 	}
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, fmt.Errorf("parse config: %w", err)
 	}
+	if err := overlayHomeOllama(cfg); err != nil {
+		return nil, err
+	}
 	return finishLoad(cfg), nil
+}
+
+func readCheckoutOrLegacy(canon, repoRoot string) ([]byte, string, error) {
+	if path := checkoutConfigPath(canon); path != "" {
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return data, path, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, "", fmt.Errorf("read config: %w", err)
+		}
+	}
+	path := filepath.Join(canon, DefaultConfigName)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, "", nil
+		}
+		return nil, "", fmt.Errorf("read config: %w", err)
+	}
+	return data, path, nil
+}
+
+func overlayHomeOllama(cfg *Config) error {
+	data, err := os.ReadFile(homeOllamaPath())
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("read config: %w", err)
+	}
+	var ollama OllamaConfig
+	if err := json.Unmarshal(data, &ollama); err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+	if strings.TrimSpace(ollama.EmbedModel) == "" {
+		return nil
+	}
+	num := cfg.Ollama.EmbedNumCtx
+	cfg.Ollama = ollama
+	if num > 0 {
+		cfg.Ollama.EmbedNumCtx = num
+	}
+	return nil
 }
 
 func finishLoad(cfg *Config) *Config {

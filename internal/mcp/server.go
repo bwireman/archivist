@@ -191,6 +191,9 @@ func (s *Server) commandLogMiddleware() mcpserver.ToolHandlerMiddleware {
 	log := cmdlog.FromConfig(s.RepoRoot, s.Cfg)
 	return func(next mcpserver.ToolHandlerFunc) mcpserver.ToolHandlerFunc {
 		return func(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+			if err := config.RelocateCheckoutFiles(s.RepoRoot); err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
 			start := time.Now()
 			name := req.Params.Name
 			id := log.In("mcp", name, req.GetArguments())
