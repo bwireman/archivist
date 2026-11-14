@@ -5,8 +5,11 @@
 # mcps/ directory only while that workspace is open.
 set -euo pipefail
 
-work="${EFFICACY_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/archivist-efficacy}"
-slug=$(printf '%s' "$work/project" | tr -d . | tr / - | sed 's/^-//')
+root=$(cd "$(dirname "$0")/.." && pwd)
+# shellcheck source=efficacy-paths.sh
+source "$root/scripts/efficacy-paths.sh"
+project=$(efficacy_project)
+slug=$(printf '%s' "$project" | tr -d . | tr / - | sed 's/^-//')
 mcps="$HOME/.cursor/projects/$slug/mcps"
 for _ in 1 2 3 4 5 6; do
   if ls "$mcps" 2>/dev/null | grep -q 'archivist$'; then
@@ -16,5 +19,5 @@ for _ in 1 2 3 4 5 6; do
   sleep 5
 done
 echo "efficacy-mcp-ready.sh: Cursor has not loaded the fixture archivist MCP server (no *archivist in $mcps)." >&2
-echo "  With $work/project as the workspace root, enable archivist in Cursor Settings > MCP." >&2
+echo "  With $project as the workspace root, enable archivist in Cursor Settings > MCP." >&2
 exit 1

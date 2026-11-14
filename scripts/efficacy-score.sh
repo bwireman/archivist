@@ -8,8 +8,7 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=efficacy-paths.sh
 source "$root/scripts/efficacy-paths.sh"
-work=$(efficacy_work)
-W="$work/project"
+W=$(efficacy_project)
 
 if [ "$#" -lt 2 ]; then
   echo "usage: efficacy-score.sh <run-dir> <arm> [db-name] [--agent <id>]..." >&2

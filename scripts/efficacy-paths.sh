@@ -4,13 +4,7 @@
 # Source this file. It does not run commands.
 
 efficacy_work() {
-  if [ -n "${EFFICACY_WORK:-}" ]; then
-    printf '%s\n' "$EFFICACY_WORK"
-  elif [ -n "${XDG_CACHE_HOME:-}" ]; then
-    printf '%s\n' "$XDG_CACHE_HOME/archivist-efficacy"
-  else
-    printf '%s\n' "$HOME/.cache/archivist-efficacy"
-  fi
+  printf '%s\n' "${EFFICACY_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/archivist-efficacy}"
 }
 
 efficacy_project() {

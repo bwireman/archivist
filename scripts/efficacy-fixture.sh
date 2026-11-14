@@ -9,7 +9,7 @@ source "$root/scripts/efficacy-paths.sh"
 src="$root/testdata/efficacy-fixture"
 # Outside this repo so an agent in the checkout cannot walk up into the
 # hidden tests or this repo's archive.
-work="${EFFICACY_WORK:-${XDG_CACHE_HOME:-$HOME/.cache}/archivist-efficacy}"
+work=$(efficacy_work)
 case "$work/" in
 "$root"/*)
   echo "efficacy-fixture.sh: EFFICACY_WORK must be outside $root" >&2
@@ -107,10 +107,8 @@ replay() {
   git -C "$dest" push -u origin main >/dev/null
 }
 
-install_shim() {
-  # Binary built from this tree. A PATH archivist can be stale and would
-  # open ~/.archivist. HOME is wiped so a new seed does not see the last run.
-  rm -rf "$home_dir/home"
+# Point the checkout at this work dir's shim. Does not wipe the home database.
+write_shim() {
   mkdir -p "$dest/bin" "$dest/.cursor" "$home_dir/home"
   (cd "$root" && go build -o "$home_dir/archivist" ./cmd/archivist)
   sed -e "s|__HOME__|$home_dir/home|" -e "s|__BIN__|$home_dir/archivist|" \
@@ -126,6 +124,13 @@ install_shim() {
   }
 }
 EOF
+}
+
+install_shim() {
+  # A PATH archivist can be stale and would open ~/.archivist.
+  # HOME is wiped so a new seed does not see the last run.
+  rm -rf "$home_dir/home"
+  write_shim
 }
 
 # `skills install --cli` pins installed files. The unattended plan skill is
@@ -158,6 +163,8 @@ set_embed() {
 import json, os, sys
 run = json.load(open(sys.argv[1]))
 cfg_path, home_path = sys.argv[2], sys.argv[3]
+if not os.path.isfile(cfg_path):
+    sys.exit("efficacy-fixture.sh: missing checkout config %s" % cfg_path)
 cfg = json.load(open(cfg_path))
 cfg["log_commands"] = True
 ollama = cfg.setdefault("ollama", {})
@@ -180,16 +187,19 @@ PY
 
 restore_snapshot() {
   replay
-  mkdir -p "$dest/.archivist" "$dest/bin" "$(dirname "$(efficacy_archive_db)")"
-  rm -f "$(efficacy_archive_db)" "$(efficacy_archive_db)-wal" "$(efficacy_archive_db)-shm"
-  rm -f "$(efficacy_commands_log)"
   if [ -f "$snap/archive.db" ]; then
-    cp -a "$snap/archive.db" "$(efficacy_archive_db)"
+    kind=archive
   elif [ -f "$snap/index.db" ]; then
-    cp -a "$snap/index.db" "$dest/.archivist/index.db"
+    kind=index
   else
     echo "efficacy-fixture.sh: snapshot has no archive.db or index.db" >&2
     exit 1
+  fi
+  saved=$(mktemp)
+  if [ "$kind" = archive ]; then
+    cp -a "$snap/archive.db" "$saved"
+  else
+    cp -a "$snap/index.db" "$saved"
   fi
   if [ -f "$snap/.archivist.json" ]; then
     cp -a "$snap/.archivist.json" "$dest/.archivist.json"
@@ -197,11 +207,22 @@ restore_snapshot() {
   cp -a "$snap/.archivist-install.json" "$dest/.archivist-install.json"
   rm -rf "$dest/.cursor"
   cp -a "$snap/.cursor" "$dest/.cursor"
-  cp -a "$snap/bin/archivist" "$dest/bin/archivist"
-  chmod +x "$dest/bin/archivist"
-  if [ -f "$dest/.archivist/index.db" ]; then
+  write_shim
+  archive_db=$(efficacy_archive_db)
+  mkdir -p "$(dirname "$archive_db")"
+  rm -f "$archive_db" "$archive_db-wal" "$archive_db-shm"
+  rm -f "$(efficacy_commands_log)"
+  if [ "$kind" = archive ]; then
+    cp -a "$saved" "$archive_db"
+  else
+    mkdir -p "$dest/.archivist"
+    cp -a "$saved" "$dest/.archivist/index.db"
+  fi
+  rm -f "$saved"
+  if [ ! -f "$(efficacy_checkout_config)" ] || [ -f "$dest/.archivist/index.db" ]; then
     "$dest/bin/archivist" --path "$dest" init >/dev/null
   fi
+  set_embed
 }
 
 case "$mode" in

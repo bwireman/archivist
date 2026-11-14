@@ -12,7 +12,6 @@ set -euo pipefail
 root=$(cd "$(dirname "$0")/.." && pwd)
 # shellcheck source=efficacy-paths.sh
 source "$root/scripts/efficacy-paths.sh"
-work=$(efficacy_work)
 if [ "$#" -ne 3 ]; then
   echo "usage: efficacy-logs.sh <run-dir> <arm> <db-file>" >&2
   exit 2
