@@ -404,7 +404,7 @@ func (s *Server) toolMap(_ context.Context, req mcp.CallToolRequest) (*mcp.CallT
 		return mcp.NewToolResultError(err.Error()), nil
 	}
 	res := store.MapResult{CodeSearch: primary}
-	res.Reindex, err = index.ReindexPrompt(s.DB)
+	res.Reindex, err = index.ReindexPrompt(s.DB, checkout)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -739,7 +739,14 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	if health.EmbedderError != "" {
 		status["embedder_error"] = health.EmbedderError
 	}
-	if prompt, err := index.ReindexPrompt(s.DB); err != nil {
+	checkout := s.RepoRoot
+	if checkout != "" {
+		checkout, err = config.Canonical(checkout)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+	}
+	if prompt, err := index.ReindexPrompt(s.DB, checkout); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	} else if prompt != "" {
 		status["reindex"] = prompt

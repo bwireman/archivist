@@ -59,16 +59,20 @@ func TestStatusPromptsWhenCodeMapIsOld(t *testing.T) {
 	t.Setenv("HOME", home)
 	root := t.TempDir()
 	ensureQueryStores(t, root)
+	canon, err := config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
 	db, err := store.Open(config.StorePath(root))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := db.ReplaceFileMap(store.FileRecord{
-		Path: "a.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
+		Checkout: canon, Path: "a.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
 	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.SetMeta(store.MetaCodemapVersion, "1"); err != nil {
+	if err := db.SetCheckoutMeta(canon, store.MetaCodemapVersion, "1"); err != nil {
 		t.Fatal(err)
 	}
 	if err := db.Close(); err != nil {

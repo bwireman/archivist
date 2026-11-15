@@ -367,7 +367,7 @@ func newStatusCmd() *cobra.Command {
 			if hasIdx {
 				s.LastIndexedAt = lastIdx.Format("2006-01-02 15:04:05 UTC")
 			}
-			s.Reindex, err = index.ReindexPrompt(db)
+			s.Reindex, err = index.ReindexPrompt(db, root)
 			if err != nil {
 				return err
 			}

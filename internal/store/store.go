@@ -1369,6 +1369,12 @@ func (s *Store) FileCount() (int, error) {
 	return n, err
 }
 
+func (s *Store) CheckoutFileCount(checkout string) (int, error) {
+	var n int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM files WHERE checkout = ?`, checkout).Scan(&n)
+	return n, err
+}
+
 func (s *Store) SearchSymbols(checkout, query string, limit int) ([]Symbol, error) {
 	terms := searchTerms(query)
 	if len(terms) == 0 || limit <= 0 {

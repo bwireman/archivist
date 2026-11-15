@@ -36,7 +36,7 @@ func newMapCmd() *cobra.Command {
 				return err
 			}
 			res := store.MapResult{CodeSearch: primary}
-			res.Reindex, err = index.ReindexPrompt(db)
+			res.Reindex, err = index.ReindexPrompt(db, root)
 			if err != nil {
 				return err
 			}

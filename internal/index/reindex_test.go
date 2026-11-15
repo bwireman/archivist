@@ -19,7 +19,7 @@ func TestReindexPrompt(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = st.Close() })
 
-	got, err := index.ReindexPrompt(st)
+	got, err := index.ReindexPrompt(st, "")
 	if err != nil || got != "" {
 		t.Fatalf("empty checkout: %q %v", got, err)
 	}
@@ -28,7 +28,7 @@ func TestReindexPrompt(t *testing.T) {
 	}, nil, nil); err != nil {
 		t.Fatal(err)
 	}
-	got, err = index.ReindexPrompt(st)
+	got, err = index.ReindexPrompt(st, "")
 	if err != nil || got == "" {
 		t.Fatalf("missing version: %q %v", got, err)
 	}
@@ -36,7 +36,7 @@ func TestReindexPrompt(t *testing.T) {
 	if err := st.SetMeta(store.MetaCodemapVersion, "1"); err != nil {
 		t.Fatal(err)
 	}
-	got, err = index.ReindexPrompt(st)
+	got, err = index.ReindexPrompt(st, "")
 	if err != nil || got == "" {
 		t.Fatalf("old version: %q %v", got, err)
 	}
@@ -49,7 +49,7 @@ func TestReindexPrompt(t *testing.T) {
 	if err := st.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
 		t.Fatal(err)
 	}
-	got, err = index.ReindexPrompt(st)
+	got, err = index.ReindexPrompt(st, "")
 	if err != nil || got != "" {
 		t.Fatalf("current version: %q %v", got, err)
 	}
@@ -57,8 +57,45 @@ func TestReindexPrompt(t *testing.T) {
 	if err := st.SetMeta(store.MetaCodemapVersion, strconv.Itoa(codemap.Version+1)); err != nil {
 		t.Fatal(err)
 	}
-	got, err = index.ReindexPrompt(st)
+	got, err = index.ReindexPrompt(st, "")
 	if err != nil || got != "" {
 		t.Fatalf("newer map: %q %v", got, err)
+	}
+}
+
+func TestReindexPromptReadsCheckoutMeta(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	const checkout = "/tmp/pantry"
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Checkout: checkout, Path: "a.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
+	}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	got, err := index.ReindexPrompt(st, checkout)
+	if err != nil || got == "" {
+		t.Fatalf("missing checkout version: %q %v", got, err)
+	}
+	if err := st.SetMeta(store.MetaCodemapVersion, "1"); err != nil {
+		t.Fatal(err)
+	}
+	got, err = index.ReindexPrompt(st, checkout)
+	if err != nil || !strings.Contains(got, "no extractor version") {
+		t.Fatalf("global meta should not silence a checkout: %q %v", got, err)
+	}
+	if err := st.SetCheckoutMeta(checkout, store.MetaCodemapVersion, strconv.Itoa(codemap.Version)); err != nil {
+		t.Fatal(err)
+	}
+	got, err = index.ReindexPrompt(st, checkout)
+	if err != nil || got != "" {
+		t.Fatalf("current checkout version: %q %v", got, err)
+	}
+	other, err := index.ReindexPrompt(st, "/tmp/other")
+	if err != nil || other != "" {
+		t.Fatalf("other checkout: %q %v", other, err)
 	}
 }
