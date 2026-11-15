@@ -487,7 +487,6 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 	cfg := config.Default()
 	cfg.LogCommands = true
 	s := New(repo, cfg, repoDB, nil)
-	s.Archive.ExtraRoots = []string{canon}
 
 	checked := callTool(t, s, "check", map[string]any{"description": "Zedextra rule only"})
 	raw, err := json.Marshal(checked)

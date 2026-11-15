@@ -281,7 +281,7 @@ func TestWorkerEmbedsFileQueue(t *testing.T) {
 		t.Fatalf("embedded %d", n)
 	}
 	hash, ok, err := st.FileVectorHash("/checkout", "jar.go")
-	if err != nil || !ok || hash != "hash" {
+	if err != nil || !ok || hash == "" || hash == "hash" {
 		t.Fatalf("vector ok=%v hash=%q err=%v", ok, hash, err)
 	}
 	depth, _ := st.FileQueueDepth()

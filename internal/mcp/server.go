@@ -708,7 +708,7 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	}
 	health := embed.CheckHealth(context.Background(), s.Cfg)
 	count, _ := s.DB.RecordCount()
-	queue, _ := s.DB.QueueDepth()
+	queue, _ := s.DB.EmbedWorkDepth()
 	missing, giveups, err := store.AppendEmbedGaps(s.DB, "", []store.EmbedGap{}, []store.EmbedGap{})
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -733,6 +733,11 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	}
 	if hasIdx {
 		status["last_indexed_at"] = lastIdx.UTC().Format(time.RFC3339)
+	}
+	if files, err := s.DB.FileEmbedGiveups(); err != nil {
+		return mcp.NewToolResultError(err.Error()), nil
+	} else if len(files) > 0 {
+		status["file_embed_giveups"] = files
 	}
 	if health.EmbedderError != "" {
 		status["embedder_error"] = health.EmbedderError

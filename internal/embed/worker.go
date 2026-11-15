@@ -2,6 +2,8 @@ package embed
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -261,12 +263,17 @@ func (w *Worker) processFile(ctx context.Context, st *store.Store, item store.Fi
 	if err != nil {
 		if item.Attempts+1 >= maxAttempts {
 			fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", item.Path, item.Attempts+1, err)
+			if gerr := st.RecordFileGiveup(item.Checkout, item.Path, item.Attempts+1, err.Error()); gerr != nil {
+				return false, gerr
+			}
 			return false, st.DropFileQueueItem(item.Checkout, item.Path)
 		}
 		_ = st.FailFileQueueItem(item.Checkout, item.Path, err.Error())
 		return false, fmt.Errorf("embed %s: %w", item.Path, err)
 	}
-	if err := st.SetFileVector(item.Checkout, item.Path, w.resolvedModel(), item.TextHash, emb); err != nil {
+	sum := sha256.Sum256([]byte(text))
+	hash := hex.EncodeToString(sum[:])
+	if err := st.SetFileVector(item.Checkout, item.Path, w.resolvedModel(), hash, emb); err != nil {
 		return false, err
 	}
 	return true, nil

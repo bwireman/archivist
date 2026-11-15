@@ -14,10 +14,9 @@ import (
 )
 
 type Service struct {
-	RepoRoot   string
-	Records    config.RecordsConfig
-	DB         *store.Store
-	ExtraRoots []string
+	RepoRoot string
+	Records  config.RecordsConfig
+	DB       *store.Store
 }
 
 func New(repoRoot string, cfg *config.Config, db *store.Store) *Service {
@@ -99,12 +98,17 @@ func (s *Service) matchExtra(archiveRoot string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	for _, root := range s.ExtraRoots {
-		if root == canon {
-			return root, nil
-		}
+	if s.DB == nil {
+		return "", fmt.Errorf("checkout %s is not registered; run archivist init", canon)
 	}
-	return "", fmt.Errorf("archive %s is not a configured extra", canon)
+	ok, err := s.DB.HasCheckout(canon)
+	if err != nil {
+		return "", err
+	}
+	if !ok {
+		return "", fmt.Errorf("checkout %s is not registered; run archivist init", canon)
+	}
+	return canon, nil
 }
 
 func (s *Service) Update(id string, fn func(*record.Record) error) error {
@@ -150,8 +154,8 @@ func (s *Service) Get(idOrSlug string) (*record.Record, error) {
 	return rec, err
 }
 
-// Lookup finds a record in the open database, then a listed extra, then a
-// legacy checkout file named by a link. A link target is one hop.
+// Lookup finds a record in the open database, then a checkout named by a
+// link. A link target is one hop.
 func (s *Service) Lookup(idOrSlug string) (*record.Record, Origin, error) {
 	rec, _, ok, err := s.findPrimary(idOrSlug)
 	if err != nil {

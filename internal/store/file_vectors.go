@@ -29,6 +29,14 @@ CREATE TABLE IF NOT EXISTS file_vectors (
     text_hash TEXT NOT NULL,
     PRIMARY KEY (checkout, path)
 );
+CREATE TABLE IF NOT EXISTS file_embed_giveup (
+    checkout TEXT NOT NULL,
+    path TEXT NOT NULL,
+    attempts INTEGER NOT NULL,
+    last_error TEXT,
+    failed_at TEXT NOT NULL,
+    PRIMARY KEY (checkout, path)
+);
 `)
 	return err
 }
@@ -48,7 +56,11 @@ func (s *Store) FileVectorHash(checkout, path string) (string, bool, error) {
 
 // EnqueueFileEmbed queues one file. A matching text hash replaces the row and resets attempts.
 func (s *Store) EnqueueFileEmbed(checkout, path, textHash string) error {
-	_, err := s.db.Exec(`
+	_, err := s.db.Exec(`DELETE FROM file_embed_giveup WHERE checkout = ? AND path = ?`, checkout, path)
+	if err != nil && !noSuchTable(err) {
+		return err
+	}
+	_, err = s.db.Exec(`
 INSERT INTO file_embed_queue (checkout, path, text_hash, enqueued_at, attempts, last_error)
 VALUES (?, ?, ?, ?, 0, NULL)
 ON CONFLICT(checkout, path) DO UPDATE SET
@@ -146,6 +158,56 @@ ON CONFLICT(checkout, path) DO UPDATE SET
 		return err
 	}
 	return s.DropFileQueueItem(checkout, path)
+}
+
+func (s *Store) RecordFileGiveup(checkout, path string, attempts int, lastError string) error {
+	_, err := s.db.Exec(`
+INSERT INTO file_embed_giveup (checkout, path, attempts, last_error, failed_at)
+VALUES (?, ?, ?, ?, ?)
+ON CONFLICT(checkout, path) DO UPDATE SET
+    attempts = excluded.attempts,
+    last_error = excluded.last_error,
+    failed_at = excluded.failed_at
+`, checkout, path, attempts, lastError, time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+type FileGiveup struct {
+	Checkout string `json:"checkout,omitempty"`
+	Path     string `json:"path"`
+	Error    string `json:"error,omitempty"`
+}
+
+func (s *Store) FileEmbedGiveups() ([]FileGiveup, error) {
+	rows, err := s.db.Query(`SELECT checkout, path, COALESCE(last_error,'') FROM file_embed_giveup ORDER BY path`)
+	if noSuchTable(err) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []FileGiveup
+	for rows.Next() {
+		var g FileGiveup
+		if err := rows.Scan(&g.Checkout, &g.Path, &g.Error); err != nil {
+			return nil, err
+		}
+		out = append(out, g)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) EmbedWorkDepth() (int, error) {
+	records, err := s.QueueDepth()
+	if err != nil {
+		return 0, err
+	}
+	files, err := s.FileQueueDepth()
+	if err != nil {
+		return 0, err
+	}
+	return records + files, nil
 }
 
 // CodeHit is one file whose symbol text is near a query.

@@ -336,20 +336,21 @@ func newStatusCmd() *cobra.Command {
 			health := embed.CheckHealth(cmd.Context(), cfg)
 			recCount, _ := db.RecordCount()
 			fileCount, _ := db.CheckoutFileCount(root)
-			queue, _ := db.QueueDepth()
+			queue, _ := db.EmbedWorkDepth()
 			lastIdx, hasIdx, _ := db.CheckoutIndexedAt(root)
 
 			type status struct {
-				Version        string           `json:"version"`
-				EmbedderOK     bool             `json:"embedder_ok"`
-				EmbedderError  string           `json:"embedder_error,omitempty"`
-				RecordCount    int              `json:"record_count"`
-				FileCount      int              `json:"file_count"`
-				QueueDepth     int              `json:"queue_depth"`
-				LastIndexedAt  string           `json:"last_indexed_at,omitempty"`
-				Reindex        string           `json:"reindex,omitempty"`
-				MissingVectors []store.EmbedGap `json:"missing_vectors"`
-				EmbedGiveups   []store.EmbedGap `json:"embed_giveups"`
+				Version          string             `json:"version"`
+				EmbedderOK       bool               `json:"embedder_ok"`
+				EmbedderError    string             `json:"embedder_error,omitempty"`
+				RecordCount      int                `json:"record_count"`
+				FileCount        int                `json:"file_count"`
+				QueueDepth       int                `json:"queue_depth"`
+				LastIndexedAt    string             `json:"last_indexed_at,omitempty"`
+				Reindex          string             `json:"reindex,omitempty"`
+				MissingVectors   []store.EmbedGap   `json:"missing_vectors"`
+				EmbedGiveups     []store.EmbedGap   `json:"embed_giveups"`
+				FileEmbedGiveups []store.FileGiveup `json:"file_embed_giveups,omitempty"`
 			}
 			missing, giveups, err := store.AppendEmbedGaps(db, "", []store.EmbedGap{}, []store.EmbedGap{})
 			if err != nil {
@@ -372,6 +373,7 @@ func newStatusCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			s.FileEmbedGiveups, _ = db.FileEmbedGiveups()
 			noteResult(cmd, s)
 			out := cmd.OutOrStdout()
 			if asJSON {
@@ -397,6 +399,9 @@ func newStatusCmd() *cobra.Command {
 				if g.Archive != "" {
 					fmt.Fprintf(out, "  %s\n", g.Archive)
 				}
+			}
+			for _, g := range s.FileEmbedGiveups {
+				fmt.Fprintf(out, "File embed gave up: %s %s\n", g.Path, g.Error)
 			}
 			if hasIdx {
 				fmt.Fprintf(out, "Last indexed: %s\n", s.LastIndexedAt)

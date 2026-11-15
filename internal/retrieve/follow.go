@@ -115,7 +115,6 @@ func Follow(ctx context.Context, e *Engine, embedder embed.Embedder, opts Option
 }
 
 // RepoEngine is the search engine for one linked checkout.
-// Extras stay empty so that checkout's own links are not followed.
 func RepoEngine(parent *Engine, db *store.Store) *Engine {
 	model := ""
 	if parent != nil {
@@ -163,7 +162,7 @@ func LinksForRecord(repo *store.Store, rec *record.Record) ([]GetLink, error) {
 func repoHitIDs(repo *store.Store, results []Result) (map[string]struct{}, error) {
 	ids := make([]string, 0, len(results))
 	for _, r := range results {
-		if r.Archive != "" || r.Record == nil || r.Record.ID == "" {
+		if r.Record == nil || r.Record.ID == "" {
 			continue
 		}
 		ids = append(ids, r.Record.ID)

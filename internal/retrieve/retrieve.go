@@ -66,11 +66,15 @@ func (e *Engine) searchStores() []searchStore {
 }
 
 func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Options) ([]Result, error) {
-	results, _, err := e.SearchWithCode(ctx, embedder, opts)
+	results, _, err := e.search(ctx, embedder, opts, false)
 	return results, err
 }
 
 func (e *Engine) SearchWithCode(ctx context.Context, embedder embed.Embedder, opts Options) ([]Result, []store.CodeHit, error) {
+	return e.search(ctx, embedder, opts, true)
+}
+
+func (e *Engine) search(ctx context.Context, embedder embed.Embedder, opts Options, withCode bool) ([]Result, []store.CodeHit, error) {
 	if opts.TopK <= 0 {
 		opts.TopK = DefaultTopK
 	}
@@ -141,10 +145,11 @@ func (e *Engine) SearchWithCode(ctx context.Context, embedder embed.Embedder, op
 	}
 
 	var code []store.CodeHit
-	if len(qEmb) > 0 && e != nil && e.Repo != nil && e.Checkout != "" {
+	if withCode && len(qEmb) > 0 && e.Repo != nil && e.Checkout != "" {
 		code, err = e.Repo.RankFileVectors(e.Checkout, qEmb, e.QueryModel, opts.TopK)
 		if err != nil {
-			return nil, nil, err
+			fmt.Fprintf(os.Stderr, "search code: %v\n", err)
+			code = nil
 		}
 	}
 
@@ -162,9 +167,8 @@ func (e *Engine) SearchWithCode(ctx context.Context, embedder embed.Embedder, op
 		return nil, nil, err
 	}
 
-	// A record can exist in both stores under the same type and slug; the
-	// narrower scope wins the overlay. Keying on type as well as slug keeps
-	// unrelated records that happen to share a slug from evicting each other.
+	// One database. The overlay key includes checkout, so the same slug in
+	// two checkouts stays two hits.
 	best := map[string]Result{}
 	for _, id := range ids {
 		rec, ok := recs[id]

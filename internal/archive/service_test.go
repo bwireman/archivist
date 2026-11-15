@@ -165,8 +165,10 @@ func TestRememberWritesTheCheckoutColumn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := repoDB.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
 	svc := New(repo, config.Default(), repoDB)
-	svc.ExtraRoots = []string{canon}
 
 	id, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Extra fact",
@@ -229,8 +231,10 @@ func TestRememberRelativeArchiveMatchesConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err := repoDB.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
 	svc := New(repo, config.Default(), repoDB)
-	svc.ExtraRoots = []string{canon}
 	id, err := svc.Remember(&record.Record{
 		Type: record.TypeDecision, Scope: record.ScopeRepo, Title: "Sibling",
 		Body: "about the other checkout", Status: record.StatusAccepted,

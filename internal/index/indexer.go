@@ -149,9 +149,6 @@ func (idx *Indexer) indexPath(rel, abs string) error {
 }
 
 func (idx *Indexer) queueFileEmbed(rel string) error {
-	if idx.Store == nil {
-		return nil
-	}
 	syms, err := idx.Store.SymbolsForFile(idx.Checkout, rel)
 	if err != nil {
 		return err
