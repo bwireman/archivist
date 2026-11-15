@@ -16,14 +16,24 @@ func ReindexPrompt(st *store.Store, checkout string) (string, error) {
 	if st == nil {
 		return "", nil
 	}
-	raw, ok, err := codemapVersion(st, checkout)
+	raw, ok, n, err := lookupCodemap(st, checkout)
 	if err != nil {
 		return "", err
 	}
-	if !ok {
-		n, err := codemapFileCount(st, checkout)
-		if err != nil || n == 0 {
+	// swapCheckoutSchema keeps pre-checkout rows at checkout '' and the
+	// version in home meta. A named checkout with no rows still needs that prompt.
+	if !ok && n == 0 && checkout != "" {
+		legacyRaw, legacyOK, legacyN, err := lookupCodemap(st, "")
+		if err != nil {
 			return "", err
+		}
+		if legacyN > 0 {
+			raw, ok, n = legacyRaw, legacyOK, legacyN
+		}
+	}
+	if !ok {
+		if n == 0 {
+			return "", nil
 		}
 		return "Code map has no extractor version. Run `archivist index` or call MCP index to rebuild it.", nil
 	}
@@ -34,16 +44,18 @@ func ReindexPrompt(st *store.Store, checkout string) (string, error) {
 	return "", nil
 }
 
+func lookupCodemap(st *store.Store, checkout string) (string, bool, int, error) {
+	raw, ok, err := codemapVersion(st, checkout)
+	if err != nil {
+		return "", false, 0, err
+	}
+	n, err := st.CheckoutFileCount(checkout)
+	return raw, ok, n, err
+}
+
 func codemapVersion(st *store.Store, checkout string) (string, bool, error) {
 	if checkout == "" {
 		return st.GetMeta(store.MetaCodemapVersion)
 	}
 	return st.GetCheckoutMeta(checkout, store.MetaCodemapVersion)
-}
-
-func codemapFileCount(st *store.Store, checkout string) (int, error) {
-	if checkout == "" {
-		return st.FileCount()
-	}
-	return st.CheckoutFileCount(checkout)
 }

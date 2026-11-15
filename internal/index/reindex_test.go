@@ -99,3 +99,24 @@ func TestReindexPromptReadsCheckoutMeta(t *testing.T) {
 		t.Fatalf("other checkout: %q %v", other, err)
 	}
 }
+
+func TestReindexPromptFallsBackToEmptyCheckout(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "index.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = st.Close() })
+
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Path: "a.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
+	}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetMeta(store.MetaCodemapVersion, "1"); err != nil {
+		t.Fatal(err)
+	}
+	got, err := index.ReindexPrompt(st, "/tmp/pantry")
+	if err != nil || !strings.Contains(got, "extractor is 1") {
+		t.Fatalf("migrated map: %q %v", got, err)
+	}
+}
