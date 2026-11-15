@@ -9,7 +9,6 @@ import (
 	"testing"
 
 	"github.com/bwireman/archivist/internal/config"
-	"github.com/bwireman/archivist/internal/store"
 )
 
 func fullConfig() *config.Config {
@@ -366,56 +365,19 @@ func TestDataDir(t *testing.T) {
 	}
 }
 
-func TestArchiveRoots(t *testing.T) {
+func TestLoadIgnoresArchivesKey(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	primary := t.TempDir()
-	extra := t.TempDir()
-	if err := os.MkdirAll(filepath.Join(extra, ".archivist"), 0o755); err != nil {
+	other := filepath.Join(t.TempDir(), "not-opened")
+	raw := []byte(`{"archives":["` + other + `"],"ollama":{"embed_model":"qwen3-embedding:0.6b"}}`)
+	if err := os.WriteFile(filepath.Join(primary, config.DefaultConfigName), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	db, err := store.Open(config.LegacyIndexPath(extra))
-	if err != nil {
+	if _, err := config.Load(primary); err != nil {
 		t.Fatal(err)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatal(err)
-	}
-	nested := filepath.Join(t.TempDir(), "not-opened")
-	if err := os.WriteFile(filepath.Join(extra, config.DefaultConfigName), []byte(`{"archives":["`+nested+`"]}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-
-	cfg := config.Default()
-	cfg.Archives = []string{extra}
-	got, err := cfg.ArchiveRoots(primary)
-	if err != nil {
-		t.Fatal(err)
-	}
-	want, err := config.Canonical(extra)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(got) != 1 || got[0] != want {
-		t.Fatalf("roots %v", got)
-	}
-	if _, err := os.Stat(nested); !os.IsNotExist(err) {
-		t.Fatal("nested archives path was created")
-	}
-
-	cfg.Archives = []string{primary}
-	if _, err := cfg.ArchiveRoots(primary); err == nil {
-		t.Fatal("expected primary path to be rejected")
-	}
-	cfg.Archives = []string{extra, extra}
-	if _, err := cfg.ArchiveRoots(primary); err == nil {
-		t.Fatal("expected duplicate path to be rejected")
-	}
-	empty := t.TempDir()
-	cfg.Archives = []string{empty}
-	if _, err := cfg.ArchiveRoots(primary); err == nil || !strings.Contains(err.Error(), empty) && !strings.Contains(err.Error(), mustCanon(t, empty)) {
-		t.Fatalf("missing index.db: %v", err)
-	}
-	if _, err := os.Stat(filepath.Join(empty, ".archivist")); !os.IsNotExist(err) {
-		t.Fatal("created .archivist")
+	if _, err := os.Stat(other); !os.IsNotExist(err) {
+		t.Fatal("archives path was created")
 	}
 }
 

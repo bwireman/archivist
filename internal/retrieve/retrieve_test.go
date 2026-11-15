@@ -2,11 +2,13 @@ package retrieve_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
@@ -359,13 +361,7 @@ func TestSearchExtraKeepsSameSlug(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	extraPath := filepath.Join(t.TempDir(), "extra.db")
-	extra, err := store.Open(extraPath)
-	if err != nil {
-		t.Fatal(err)
-	}
 	defer repo.Close()
-	defer extra.Close()
 	primary := &record.Record{
 		ID: "rec_primary", Slug: "shared-slug", Type: record.TypeDecision, Scope: record.ScopeRepo,
 		Title: "Sharedslug primary", Status: record.StatusAccepted, Body: "sharedslug token",
@@ -379,37 +375,27 @@ func TestSearchExtraKeepsSameSlug(t *testing.T) {
 	if err := repo.UpsertRecord(primary); err != nil {
 		t.Fatal(err)
 	}
-	if err := extra.UpsertRecord(other); err != nil {
+	other.Checkout = "/other"
+	if err := repo.UpsertRecord(other); err != nil {
 		t.Fatal(err)
 	}
 	beforeRepo, _ := repo.RecordCount()
-	beforeExtra, _ := extra.RecordCount()
-	root := filepath.Dir(filepath.Dir(extraPath))
-	engine := &retrieve.Engine{Repo: repo, Extras: []retrieve.Extra{{Root: root, DB: extra}}}
+	engine := &retrieve.Engine{Repo: repo}
 	results, err := engine.Search(context.Background(), nil, retrieve.Options{Query: "sharedslug", TopK: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
 	got := map[string]string{}
 	for _, r := range results {
-		got[r.Record.ID] = r.Archive
+		got[r.Record.ID] = r.Record.Checkout
 	}
-	if _, ok := got["rec_primary"]; !ok {
-		t.Fatalf("missing primary: %+v", results)
-	}
-	if got["rec_primary"] != "" {
-		t.Fatalf("primary archive %q", got["rec_primary"])
-	}
-	if got["rec_extra"] != root {
-		t.Fatalf("extra archive %q results %+v", got["rec_extra"], results)
+	if got["rec_primary"] != "" || got["rec_extra"] != "/other" {
+		t.Fatalf("checkouts %+v results %+v", got, results)
 	}
 	cards := retrieve.ProjectSearch(results)
 	for _, card := range cards {
-		if card.ID == "rec_primary" && card.Archive != "" {
-			t.Fatalf("primary card archive %q", card.Archive)
-		}
-		if card.ID == "rec_extra" && card.Archive != root {
-			t.Fatalf("extra card %+v", card)
+		if card.Archive != "" {
+			t.Fatalf("card archive %+v", card)
 		}
 	}
 	empty := retrieve.ProjectSearch([]retrieve.Result{{
@@ -423,9 +409,8 @@ func TestSearchExtraKeepsSameSlug(t *testing.T) {
 		t.Fatal("empty archive should stay unset")
 	}
 	afterRepo, _ := repo.RecordCount()
-	afterExtra, _ := extra.RecordCount()
-	if beforeRepo != afterRepo || beforeExtra != afterExtra {
-		t.Fatalf("counts changed %d/%d -> %d/%d", beforeRepo, beforeExtra, afterRepo, afterExtra)
+	if beforeRepo != afterRepo {
+		t.Fatalf("count changed %d -> %d", beforeRepo, afterRepo)
 	}
 }
 
@@ -464,18 +449,13 @@ func TestExtraArchiveSortsAfterWeakerCheckoutHit(t *testing.T) {
 	if err := extra.UpsertRecord(outside); err != nil {
 		t.Fatal(err)
 	}
-	results, err := (&retrieve.Engine{Repo: repo, Extras: []retrieve.Extra{{Root: "/extra", DB: extra}}}).Search(
+	results, err := (&retrieve.Engine{Repo: repo}).Search(
 		context.Background(), nil, retrieve.Options{Query: "zqxband", TopK: 10})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(results) != 3 || results[2].Record.ID != outside.ID || results[2].Archive == "" {
-		t.Fatalf("extra should sort last: %+v", results)
-	}
-	for _, r := range results[:2] {
-		if r.Archive != "" {
-			t.Fatalf("checkout archive: %+v", results)
-		}
+	if len(results) != 2 {
+		t.Fatalf("other database should stay out: %+v", results)
 	}
 }
 
@@ -767,6 +747,99 @@ func TestGetRecordLinkSource(t *testing.T) {
 	}
 	if repoLink == nil || len(repoLink.Files) != 0 {
 		t.Fatalf("repo link %#v", repoLink)
+	}
+}
+
+func TestSearchCodeOmitsMissingTable(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "archive.db")
+	st, err := store.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rec := &record.Record{
+		ID: "rec_keep", Slug: "keep", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Keep the seal", Status: record.StatusAccepted, Body: "sealjar token",
+		SourcePath: "docs/decisions/keep.md",
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.Close(); err != nil {
+		t.Fatal(err)
+	}
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DROP TABLE file_vectors`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := db.Exec(`DROP TABLE file_embed_queue`); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.Close(); err != nil {
+		t.Fatal(err)
+	}
+	ro, err := store.OpenReadOnly(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ro.Close()
+	results, code, err := (&retrieve.Engine{Repo: ro, Checkout: "/checkout", QueryModel: "fixed"}).SearchWithCode(
+		context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{Query: "sealjar", TopK: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || len(code) != 0 {
+		t.Fatalf("results %+v code %+v", results, code)
+	}
+	has, err := ro.HasFileVectorTable()
+	if err != nil || has {
+		t.Fatalf("table created has=%v err=%v", has, err)
+	}
+}
+
+func TestSearchCodeNeighborStaysOutOfResults(t *testing.T) {
+	st, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer st.Close()
+	const checkout = "/checkout"
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Checkout: checkout, Path: "pantry/jar/jar.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
+	}, []store.Symbol{{
+		Name: "Seal", Kind: "function_declaration", Line: 5, Exported: true, DocLine: "Seal closes a jar.",
+	}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetFileVector(checkout, "pantry/jar/jar.go", "fixed", "h", []float32{1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetFileVector("/other", "other.go", "fixed", "h", []float32{1, 0}); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.SetFileVector(checkout, "far.go", "fixed", "h", []float32{0, 1}); err != nil {
+		t.Fatal(err)
+	}
+	rec := &record.Record{
+		ID: "rec_keep", Slug: "keep", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Keep the seal", Status: record.StatusAccepted, Body: "sealjar token",
+		SourcePath: "docs/decisions/keep.md", Checkout: checkout,
+	}
+	if err := st.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	results, code, err := (&retrieve.Engine{Repo: st, Checkout: checkout, QueryModel: "fixed"}).SearchWithCode(
+		context.Background(), fixedEmbedder{vec: []float32{1, 0}}, retrieve.Options{Query: "sealjar", TopK: 5})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Record.ID != "rec_keep" {
+		t.Fatalf("results %+v", results)
+	}
+	if len(code) != 1 || code[0].Path != "pantry/jar/jar.go" {
+		t.Fatalf("code %+v", code)
 	}
 }
 

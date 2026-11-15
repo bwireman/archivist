@@ -223,3 +223,25 @@ func TestFormatSummary(t *testing.T) {
 		t.Fatalf("got %q", changed)
 	}
 }
+
+func TestIndexUnchangedFileStillQueuesEmbed(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "foo.go", "package foo\n\n// Bar keeps a jar.\nfunc Bar() {}\n")
+	idx, st := newIndexer(t, root)
+	if _, err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.DropFileQueueItem("", "foo.go"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := idx.Index(context.Background(), ""); err != nil {
+		t.Fatal(err)
+	}
+	items, err := st.DequeueFileEmbed()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 || items[0].Path != "foo.go" || items[0].TextHash == "" {
+		t.Fatalf("queue %+v", items)
+	}
+}

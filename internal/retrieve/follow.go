@@ -37,8 +37,9 @@ type GetLink struct {
 }
 
 type SearchEnvelope struct {
-	Results any          `json:"results"`
-	Links   []SearchLink `json:"links"`
+	Results any             `json:"results"`
+	Code    []store.CodeHit `json:"code,omitempty"`
+	Links   []SearchLink    `json:"links"`
 }
 
 // Envelope wraps ranked hits. links is never null.

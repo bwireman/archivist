@@ -34,7 +34,6 @@ type Config struct {
 	Records     RecordsConfig `json:"records"`
 	Publish     PublishConfig `json:"publish,omitzero"`
 	LogCommands bool          `json:"log_commands,omitempty"`
-	Archives    []string      `json:"archives,omitempty"` // other checkout roots; each opens <root>/.archivist/index.db
 }
 
 type PublishConfig struct {
@@ -280,7 +279,6 @@ func finishLoad(cfg *Config) *Config {
 		cfg.Ollama.EmbedTimeout = DefaultEmbedTimeoutStr
 	}
 	cfg.Records = cfg.Records.withDefaults()
-	cfg.Archives = nil
 	return cfg
 }
 
@@ -339,8 +337,8 @@ func LegacyIndexPath(repoRoot string) string {
 	return filepath.Join(repoRoot, DefaultDataDir, DefaultIndexDB)
 }
 
-// ResolveCheckout cleans a checkout path the same way ArchiveRoots does:
-// trim, expand ~/, and resolve a relative path against repoRoot.
+// ResolveCheckout cleans a checkout path: trim, expand ~/, and resolve a
+// relative path against repoRoot.
 func ResolveCheckout(repoRoot, raw string) (string, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -358,48 +356,6 @@ func ResolveCheckout(repoRoot, raw string) (string, error) {
 		return "", fmt.Errorf("archives path %s: %w", raw, err)
 	}
 	return root, nil
-}
-
-// ArchiveRoots resolves c.Archives to canonical checkout roots. Each entry must
-// be a directory other than repoRoot that already contains .archivist/index.db.
-// The listed checkout's own archives list is not read.
-func (c *Config) ArchiveRoots(repoRoot string) ([]string, error) {
-	if c == nil || len(c.Archives) == 0 {
-		return nil, nil
-	}
-	primary, err := Canonical(repoRoot)
-	if err != nil {
-		return nil, err
-	}
-	seen := map[string]struct{}{}
-	var out []string
-	for _, raw := range c.Archives {
-		root, err := ResolveCheckout(repoRoot, raw)
-		if err != nil {
-			return nil, err
-		}
-		if root == primary {
-			return nil, fmt.Errorf("archives path %s is the primary checkout", root)
-		}
-		if _, ok := seen[root]; ok {
-			return nil, fmt.Errorf("duplicate archives path %s", root)
-		}
-		seen[root] = struct{}{}
-		info, err := os.Stat(root)
-		if err != nil {
-			return nil, fmt.Errorf("archives path %s: %w", root, err)
-		}
-		if !info.IsDir() {
-			return nil, fmt.Errorf("archives path %s is not a directory", root)
-		}
-		db := LegacyIndexPath(root)
-		dbInfo, err := os.Stat(db)
-		if err != nil || dbInfo.IsDir() {
-			return nil, fmt.Errorf("archives path %s has no .archivist/index.db", root)
-		}
-		out = append(out, root)
-	}
-	return out, nil
 }
 
 func CommandsLogPath(repoRoot string) string {

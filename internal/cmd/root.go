@@ -287,7 +287,7 @@ func newSearchCmd() *cobra.Command {
 			if recType != "" {
 				opts.Type = record.Type(recType)
 			}
-			results, err := engine.Search(cmd.Context(), embedder, opts)
+			results, code, err := engine.SearchWithCode(cmd.Context(), embedder, opts)
 			if err != nil {
 				return err
 			}
@@ -300,9 +300,10 @@ func newSearchCmd() *cobra.Command {
 				ranked = retrieve.ProjectSearch(results)
 			}
 			payload := retrieve.Envelope(ranked, links)
+			payload.Code = code
 			noteResult(cmd, payload)
 			if !asJSON {
-				_, err := fmt.Fprint(cmd.OutOrStdout(), retrieve.FormatResults(results, links))
+				_, err := fmt.Fprint(cmd.OutOrStdout(), retrieve.FormatResults(results, links)+retrieve.FormatCode(code))
 				return err
 			}
 			return writeIndentedJSON(cmd.OutOrStdout(), payload)
@@ -334,9 +335,9 @@ func newStatusCmd() *cobra.Command {
 
 			health := embed.CheckHealth(cmd.Context(), cfg)
 			recCount, _ := db.RecordCount()
-			fileCount, _ := db.FileCount()
+			fileCount, _ := db.CheckoutFileCount(root)
 			queue, _ := db.QueueDepth()
-			lastIdx, hasIdx, _ := db.LastIndexedAt()
+			lastIdx, hasIdx, _ := db.CheckoutIndexedAt(root)
 
 			type status struct {
 				Version        string           `json:"version"`

@@ -13,18 +13,10 @@ import (
 	"github.com/bwireman/archivist/internal/store"
 )
 
-// Extra is a listed checkout. DB is the read-only open used by Get.
-// Writes use OpenExisting on Root and do not use DB.
-type Extra struct {
-	Root string
-	DB   *store.Store
-}
-
 type Service struct {
 	RepoRoot   string
 	Records    config.RecordsConfig
 	DB         *store.Store
-	Extras     []Extra
 	ExtraRoots []string
 }
 
@@ -167,18 +159,6 @@ func (s *Service) Lookup(idOrSlug string) (*record.Record, Origin, error) {
 	}
 	if ok {
 		return rec, s.origin(rec), nil
-	}
-	for _, ex := range s.Extras {
-		if ex.DB == nil {
-			continue
-		}
-		got, found, err := ex.DB.GetRecordByID(idOrSlug)
-		if err != nil {
-			return nil, "", err
-		}
-		if found {
-			return got, OriginOther, nil
-		}
 	}
 	got, err := s.recordFromLinks(idOrSlug)
 	if err != nil {

@@ -309,9 +309,8 @@ func TestSearchMissingExtraErrors(t *testing.T) {
 	t.Setenv("HOME", home)
 	root := t.TempDir()
 	missing := t.TempDir()
-	cfg := config.Default()
-	cfg.Archives = []string{missing}
-	if err := config.Save(root, cfg); err != nil {
+	raw := []byte(`{"archives":["` + missing + `"]}`)
+	if err := os.WriteFile(filepath.Join(root, ".archivist.json"), raw, 0o644); err != nil {
 		t.Fatal(err)
 	}
 	ensureQueryStores(t, root)

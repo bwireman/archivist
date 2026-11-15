@@ -13,7 +13,6 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 
-	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
@@ -488,8 +487,6 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 	cfg := config.Default()
 	cfg.LogCommands = true
 	s := New(repo, cfg, repoDB, nil)
-	s.Engine.Extras = []retrieve.Extra{{Root: canon, DB: ro}}
-	s.Archive.Extras = []archive.Extra{{Root: canon, DB: ro}}
 	s.Archive.ExtraRoots = []string{canon}
 
 	checked := callTool(t, s, "check", map[string]any{"description": "Zedextra rule only"})
@@ -505,9 +502,14 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	cited := callTool(t, s, "cite", map[string]any{"id": "rec_extra_rule", "effect": "kept the extra rule"}).(map[string]any)
-	if cited["id"] != "rec_extra_rule" {
-		t.Fatalf("cite %#v", cited)
+	req := mcp.CallToolRequest{}
+	req.Params.Arguments = map[string]any{"id": "rec_extra_rule", "effect": "kept the extra rule"}
+	cited, err := s.toolCite(context.Background(), req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cited == nil || !cited.IsError {
+		t.Fatalf("cite of a record in another file should fail: %+v", cited)
 	}
 	after, err := ro.RecordCount()
 	if err != nil || after != before {
@@ -534,17 +536,8 @@ func TestCheckIgnoresExtraAndCiteRememberStatusUseIt(t *testing.T) {
 	if _, ok := status["record_count"]; !ok {
 		t.Fatalf("status %#v", status)
 	}
-	extras, _ := status["extras"].([]any)
-	if len(extras) != 1 {
+	if _, ok := status["file_count"]; !ok {
 		t.Fatalf("status %#v", status)
-	}
-	row, _ := extras[0].(map[string]any)
-	if row["root"] != canon {
-		t.Fatalf("extra status %#v", row)
-	}
-	count, _ := row["record_count"].(float64)
-	if count < 1 {
-		t.Fatalf("extra record_count %#v", row)
 	}
 }
 
@@ -843,14 +836,8 @@ func TestToolIndexWritesCheckoutMap(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	extraRO, err := store.OpenReadOnly(extraPath)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer extraRO.Close()
 
 	s := New(root, config.Default(), repoRO, nil)
-	s.Archive.Extras = []archive.Extra{{Root: extra, DB: extraRO}}
 
 	got := callTool(t, s, "index", map[string]any{}).(map[string]any)
 	assertJSONKeys(t, got, "files_indexed", "files_removed", "commits_new", "records")
@@ -1053,5 +1040,52 @@ func assertJSONKeys(t *testing.T, m map[string]any, want ...string) {
 		if _, ok := m[k]; !ok {
 			t.Fatalf("missing %s in %#v", k, m)
 		}
+	}
+}
+
+func TestMCPStatusFileCountIsThisCheckout(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	root := t.TempDir()
+	other := t.TempDir()
+	db, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	canon, err := config.Canonical(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherCanon, err := config.Canonical(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RegisterCheckout(canon, config.CheckoutHex(canon)); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.RegisterCheckout(otherCanon, config.CheckoutHex(otherCanon)); err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := db.ReplaceFileMap(store.FileRecord{
+		Checkout: canon, Path: "a.go", ContentHash: "a", IndexedAt: now,
+	}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.ReplaceFileMap(store.FileRecord{
+		Checkout: otherCanon, Path: "b.go", ContentHash: "b", IndexedAt: now,
+	}, nil, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.SetCheckoutMeta(canon, store.MetaLastIndexedAt, now.Format(time.RFC3339)); err != nil {
+		t.Fatal(err)
+	}
+	s := New(canon, config.Default(), db, nil)
+	status := callTool(t, s, "status", map[string]any{}).(map[string]any)
+	if status["file_count"] != float64(1) {
+		t.Fatalf("file_count %#v", status["file_count"])
+	}
+	if status["last_indexed_at"] != now.Format(time.RFC3339) {
+		t.Fatalf("last_indexed_at %#v", status["last_indexed_at"])
 	}
 }

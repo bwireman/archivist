@@ -78,7 +78,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	srv := mcpserver.NewMCPServer("archivist", version.Version, opts...)
 	srv.AddTool(mcp.NewTool("search",
 		annotate("Search archive", true, false, true),
-		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, links}. results are the ranked cards; each card includes a snippet, cosine, checkout, applies_to, and superseded_by. links are record, pin, and repo edges followed from this checkout. Followed records include source files named by applies_to, at most 4 files and 2KiB each, and 24KiB for the whole response. Call get for the body. Pass full=true for every stored field of each ranked hit."),
+		mcp.WithDescription("Search the knowledge archive before implementing or writing a record. Hybrid FTS + vectors; keyword-only if Ollama is down. Use this to reuse an existing decision, rule, or feature instead of creating a duplicate. Returns {results, code, links}. results are the ranked record cards; each card includes a snippet, cosine, checkout, applies_to, and superseded_by. code lists this checkout's files whose symbol text is near the query, and is omitted when empty or when the query was not embedded. links are record, pin, and repo edges followed from this checkout. Followed records include source files named by applies_to, at most 4 files and 2KiB each, and 24KiB for the whole response. Call get for the body. Pass full=true for every stored field of each ranked hit."),
 		mcp.WithString("query", mcp.Required()),
 		mcp.WithString("type", mcp.Description("optional filter: decision, rule, feature, guide, map, pitfall")),
 		mcp.WithString("status", mcp.Description("optional record status: proposed, accepted, deprecated, or superseded. Default omits deprecated and superseded.")),
@@ -297,7 +297,7 @@ func (s *Server) toolSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if st := req.GetString("status", ""); st != "" {
 		opts.Status = record.Status(st)
 	}
-	results, err := s.Engine.Search(ctx, s.Embedder, opts)
+	results, code, err := s.Engine.SearchWithCode(ctx, s.Embedder, opts)
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
@@ -309,7 +309,9 @@ func (s *Server) toolSearch(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 	if !req.GetBool("full", false) {
 		ranked = retrieve.ProjectSearch(results)
 	}
-	return jsonResult(retrieve.Envelope(ranked, links))
+	env := retrieve.Envelope(ranked, links)
+	env.Code = code
+	return jsonResult(env)
 }
 
 func (s *Server) toolGet(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -711,40 +713,29 @@ func (s *Server) toolStatus(_ context.Context, _ mcp.CallToolRequest) (*mcp.Call
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	var extras []map[string]any
-	if s.Archive != nil && len(s.Archive.Extras) > 0 {
-		extras = make([]map[string]any, 0, len(s.Archive.Extras))
-		for _, ex := range s.Archive.Extras {
-			if ex.DB == nil {
-				continue
-			}
-			n, _ := ex.DB.RecordCount()
-			extras = append(extras, map[string]any{"root": ex.Root, "record_count": n})
-			if missing, giveups, err = store.AppendEmbedGaps(ex.DB, ex.Root, missing, giveups); err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-		}
-	}
-	status := map[string]any{
-		"version":         version.String(),
-		"record_count":    count,
-		"queue_depth":     queue,
-		"embedder_ok":     health.EmbedderOK,
-		"missing_vectors": missing,
-		"embed_giveups":   giveups,
-	}
-	if len(extras) > 0 {
-		status["extras"] = extras
-	}
-	if health.EmbedderError != "" {
-		status["embedder_error"] = health.EmbedderError
-	}
 	checkout := s.RepoRoot
 	if checkout != "" {
 		checkout, err = config.Canonical(checkout)
 		if err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
+	}
+	fileCount, _ := s.DB.CheckoutFileCount(checkout)
+	lastIdx, hasIdx, _ := s.DB.CheckoutIndexedAt(checkout)
+	status := map[string]any{
+		"version":         version.String(),
+		"record_count":    count,
+		"file_count":      fileCount,
+		"queue_depth":     queue,
+		"embedder_ok":     health.EmbedderOK,
+		"missing_vectors": missing,
+		"embed_giveups":   giveups,
+	}
+	if hasIdx {
+		status["last_indexed_at"] = lastIdx.UTC().Format(time.RFC3339)
+	}
+	if health.EmbedderError != "" {
+		status["embedder_error"] = health.EmbedderError
 	}
 	if prompt, err := index.ReindexPrompt(s.DB, checkout); err != nil {
 		return mcp.NewToolResultError(err.Error()), nil

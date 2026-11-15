@@ -30,11 +30,6 @@ func TestRememberArchiveWritesOnlyExtra(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	cfg := config.Default()
-	cfg.Archives = []string{extra}
-	if err := config.Save(root, cfg); err != nil {
-		t.Fatal(err)
-	}
 	cmd := NewRoot()
 	var buf bytes.Buffer
 	cmd.SetOut(&buf)
@@ -65,7 +60,6 @@ func TestRememberMissingArchive(t *testing.T) {
 	root := t.TempDir()
 	missing := t.TempDir()
 	cfg := config.Default()
-	cfg.Archives = []string{missing}
 	if err := config.Save(root, cfg); err != nil {
 		t.Fatal(err)
 	}

@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
@@ -256,6 +257,36 @@ func TestGiveupDropsBothQueueRows(t *testing.T) {
 	gave, err = home.EmbedGiveups()
 	if err != nil || len(gave) != 0 {
 		t.Fatalf("giveup remained %+v err %v", gave, err)
+	}
+}
+
+func TestWorkerEmbedsFileQueue(t *testing.T) {
+	st := openStore(t)
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Checkout: "/checkout", Path: "jar.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
+	}, []store.Symbol{{
+		Name: "Seal", Kind: "function_declaration", Line: 1, Exported: true, DocLine: "Seal closes a jar.",
+	}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	if err := st.EnqueueFileEmbed("/checkout", "jar.go", "hash"); err != nil {
+		t.Fatal(err)
+	}
+	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 4}, Model: "test"}
+	n, err := w.Run(context.Background(), WorkerOptions{Once: true, Concurrency: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("embedded %d", n)
+	}
+	hash, ok, err := st.FileVectorHash("/checkout", "jar.go")
+	if err != nil || !ok || hash != "hash" {
+		t.Fatalf("vector ok=%v hash=%q err=%v", ok, hash, err)
+	}
+	depth, _ := st.FileQueueDepth()
+	if depth != 0 {
+		t.Fatalf("file queue %d", depth)
 	}
 }
 

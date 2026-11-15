@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
 )
@@ -97,6 +98,11 @@ func (w *Worker) queueDepth() int {
 			continue
 		}
 		n += d
+		fd, err := st.FileQueueDepth()
+		if err != nil {
+			continue
+		}
+		n += fd
 	}
 	return n
 }
@@ -120,7 +126,7 @@ func (w *Worker) drain(ctx context.Context, opts WorkerOptions) (int, error) {
 		}
 	}
 	if len(jobs) == 0 {
-		return 0, nil
+		return w.drainFiles(ctx)
 	}
 
 	sem := make(chan struct{}, opts.Concurrency)
@@ -147,7 +153,11 @@ func (w *Worker) drain(ctx context.Context, opts WorkerOptions) (int, error) {
 		}(j)
 	}
 	wg.Wait()
-	return done, firstErr
+	fn, ferr := w.drainFiles(ctx)
+	if firstErr == nil {
+		firstErr = ferr
+	}
+	return done + fn, firstErr
 }
 
 func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.QueueItem) (bool, error) {
@@ -212,4 +222,52 @@ func (w *Worker) lookupRecord(id string, prefer *store.Store) (*record.Record, *
 		}
 	}
 	return nil, nil, nil
+}
+
+func (w *Worker) drainFiles(ctx context.Context) (int, error) {
+	var n int
+	var first error
+	for _, st := range w.Stores {
+		if st == nil {
+			continue
+		}
+		items, err := st.DequeueFileEmbed()
+		if err != nil {
+			return n, err
+		}
+		for _, item := range items {
+			ok, err := w.processFile(ctx, st, item)
+			if err != nil && first == nil {
+				first = err
+			}
+			if ok {
+				n++
+			}
+		}
+	}
+	return n, first
+}
+
+func (w *Worker) processFile(ctx context.Context, st *store.Store, item store.FileQueueItem) (bool, error) {
+	syms, err := st.SymbolsForFile(item.Checkout, item.Path)
+	if err != nil {
+		return false, err
+	}
+	text := index.FileEmbedText(item.Path, syms)
+	if text == "" {
+		return false, st.DropFileEmbed(item.Checkout, item.Path)
+	}
+	emb, err := w.Embedder.Embed(ctx, text)
+	if err != nil {
+		if item.Attempts+1 >= maxAttempts {
+			fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", item.Path, item.Attempts+1, err)
+			return false, st.DropFileQueueItem(item.Checkout, item.Path)
+		}
+		_ = st.FailFileQueueItem(item.Checkout, item.Path, err.Error())
+		return false, fmt.Errorf("embed %s: %w", item.Path, err)
+	}
+	if err := st.SetFileVector(item.Checkout, item.Path, w.resolvedModel(), item.TextHash, emb); err != nil {
+		return false, err
+	}
+	return true, nil
 }

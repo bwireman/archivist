@@ -125,6 +125,10 @@ func OpenExisting(path string) (*Store, error) {
 		_ = s.Close()
 		return nil, err
 	}
+	if err := s.ensureFileVectors(); err != nil {
+		_ = s.Close()
+		return nil, err
+	}
 	return s, nil
 }
 
@@ -327,6 +331,9 @@ CREATE TABLE IF NOT EXISTS checkout_meta (
 	if err := s.ensureEmbedGiveup(); err != nil {
 		return err
 	}
+	if err := s.ensureFileVectors(); err != nil {
+		return err
+	}
 	if err := s.ensureCheckoutSchema(); err != nil {
 		return err
 	}
@@ -432,6 +439,35 @@ func (s *Store) LastIndexedAt() (time.Time, bool, error) {
 	}
 	t, err := time.Parse(time.RFC3339, val)
 	return t, true, err
+}
+
+// CheckoutLastIndexedAt reads checkout_meta last_indexed_at.
+func (s *Store) CheckoutLastIndexedAt(checkout string) (time.Time, bool, error) {
+	val, ok, err := s.GetCheckoutMeta(checkout, MetaLastIndexedAt)
+	if err != nil || !ok {
+		return time.Time{}, ok, err
+	}
+	t, err := time.Parse(time.RFC3339, val)
+	return t, true, err
+}
+
+// CheckoutIndexedAt is this checkout's timestamp. The home meta row is used
+// only when this checkout has no files and the schema swap left rows at
+// checkout "".
+func (s *Store) CheckoutIndexedAt(checkout string) (time.Time, bool, error) {
+	t, ok, err := s.CheckoutLastIndexedAt(checkout)
+	if err != nil || ok {
+		return t, ok, err
+	}
+	n, err := s.CheckoutFileCount(checkout)
+	if err != nil || n > 0 {
+		return time.Time{}, false, err
+	}
+	legacy, err := s.CheckoutFileCount("")
+	if err != nil || legacy == 0 {
+		return time.Time{}, false, err
+	}
+	return s.LastIndexedAt()
 }
 
 func (s *Store) StampIndexed(t time.Time) error {
@@ -1343,7 +1379,10 @@ func (s *Store) DeleteFile(checkout, path string) error {
 		return err
 	}
 	_, err = s.db.Exec(`DELETE FROM files WHERE checkout = ? AND path = ?`, checkout, path)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.DropFileEmbed(checkout, path)
 }
 
 func (s *Store) AllFilePaths(checkout string) ([]string, error) {
@@ -1642,19 +1681,9 @@ type CodeSearch struct {
 	Commits   []CommitRecord `json:"commits,omitempty"`
 }
 
-// RootedCodeSearch is one listed checkout's code map.
-type RootedCodeSearch struct {
-	Root string `json:"root"`
-	CodeSearch
-}
-
-// MapResult is the primary checkout's code map. Archives is omitted when no
-// extra checkouts are configured. Reindex is set when the stored extractor
-// is older than this binary.
 type MapResult struct {
 	CodeSearch
-	Archives []RootedCodeSearch `json:"archives,omitempty"`
-	Reindex  string             `json:"reindex,omitempty"`
+	Reindex string `json:"reindex,omitempty"`
 }
 
 // DefaultExploreLimit is the row cap for each section of ExploreCode when the

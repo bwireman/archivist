@@ -60,10 +60,6 @@ func formatMap(res store.MapResult) string {
 		b.WriteByte('\n')
 	}
 	b.WriteString(formatCodeSearch(res.CodeSearch))
-	for _, extra := range res.Archives {
-		fmt.Fprintf(&b, "\n# %s\n", extra.Root)
-		b.WriteString(formatCodeSearch(extra.CodeSearch))
-	}
 	return b.String()
 }
 

@@ -19,12 +19,6 @@ func TestMapReadsExtraCodeMapWithoutWriting(t *testing.T) {
 	extra := t.TempDir()
 	seedSymbol(t, root, "primary.go", "PrimaryWidget")
 	seedSymbol(t, extra, "extra.go", "ExtraWidget")
-
-	cfg := config.Default()
-	cfg.Archives = []string{extra}
-	if err := config.Save(root, cfg); err != nil {
-		t.Fatal(err)
-	}
 	got := runMap(t, root, "Widget")
 	names := mapSymbolNames(t, got["symbols"])
 	if !slices.Contains(names, "PrimaryWidget") {

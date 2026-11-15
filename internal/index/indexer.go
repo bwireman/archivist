@@ -128,7 +128,7 @@ func (idx *Indexer) indexPath(rel, abs string) error {
 		return err
 	}
 	if ok && existing.ContentHash == hash && !idx.remap {
-		return nil
+		return idx.queueFileEmbed(rel)
 	}
 
 	result, err := codemap.Extract(rel, string(data))
@@ -145,7 +145,31 @@ func (idx *Indexer) indexPath(rel, abs string) error {
 		return err
 	}
 	idx.progress.FilesIndexed++
-	return nil
+	return idx.queueFileEmbed(rel)
+}
+
+func (idx *Indexer) queueFileEmbed(rel string) error {
+	if idx.Store == nil {
+		return nil
+	}
+	syms, err := idx.Store.SymbolsForFile(idx.Checkout, rel)
+	if err != nil {
+		return err
+	}
+	text := FileEmbedText(rel, syms)
+	if text == "" {
+		return idx.Store.DropFileEmbed(idx.Checkout, rel)
+	}
+	sum := sha256.Sum256([]byte(text))
+	hash := hex.EncodeToString(sum[:])
+	have, ok, err := idx.Store.FileVectorHash(idx.Checkout, rel)
+	if err != nil {
+		return err
+	}
+	if ok && have == hash {
+		return idx.Store.DropFileQueueItem(idx.Checkout, rel)
+	}
+	return idx.Store.EnqueueFileEmbed(idx.Checkout, rel, hash)
 }
 
 // commitHistoryLimit is how many recent commits the code map keeps.

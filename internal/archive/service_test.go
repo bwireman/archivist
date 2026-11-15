@@ -318,30 +318,10 @@ func TestGetReadsExtraIDOnlyWhenFileIsReadOnly(t *testing.T) {
 	if err := db.Close(); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Chmod(path, 0o444); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Chmod(path, 0o644) })
-	ro, err := store.OpenReadOnly(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer ro.Close()
-	canon, err := config.Canonical(extra)
-	if err != nil {
-		t.Fatal(err)
-	}
 	svc := New(repo, config.Default(), repoDB)
-	svc.Extras = []Extra{{Root: canon, DB: ro}}
-	got, err := svc.Get("rec_ro")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Title != "Only extra" {
-		t.Fatalf("title %q", got.Title)
-	}
-	if _, err := svc.Get("only-extra"); err == nil {
-		t.Fatal("slug only in the extra should be not found")
+	_, err = svc.Get("rec_ro")
+	if err == nil {
+		t.Fatal("record in another file should be not found")
 	}
 }
 

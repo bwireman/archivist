@@ -44,12 +44,7 @@ func TestFollowLinks(t *testing.T) {
 
 	homeOnly := &record.Record{ID: "rec_home_only", Type: record.TypeFeature, Scope: record.ScopeGlobal, Title: "home"}
 	local := &record.Record{ID: "rec_local", Type: record.TypeFeature, Scope: record.ScopeRepo, Title: "local"}
-	eng := &retrieve.Engine{Repo: repo, Extras: []retrieve.Extra{{Root: peer, DB: peerDB}}, QueryModel: "m", Checkout: primary}
-	linked := retrieve.RepoEngine(eng, peerDB)
-	if len(linked.Extras) != 0 {
-		t.Fatal("repo-engine-no-extras")
-	}
-
+	eng := &retrieve.Engine{Repo: repo, QueryModel: "m", Checkout: primary}
 	opts := retrieve.Options{Query: "remote", TopK: 5}
 	got, err := retrieve.Follow(context.Background(), eng, nil, opts, []retrieve.Result{
 		{Record: homeOnly},

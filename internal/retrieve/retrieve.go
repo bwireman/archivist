@@ -43,15 +43,8 @@ type Result struct {
 	Snippet string
 }
 
-// Extra is one listed checkout opened for search.
-type Extra struct {
-	Root string
-	DB   *store.Store
-}
-
 type Engine struct {
 	Repo       *store.Store
-	Extras     []Extra
 	QueryModel string
 	Checkout   string
 }
@@ -69,22 +62,21 @@ func (e *Engine) searchStores() []searchStore {
 	if e.Repo != nil {
 		out = append(out, searchStore{db: e.Repo})
 	}
-	for _, ex := range e.Extras {
-		if ex.DB == nil {
-			continue
-		}
-		out = append(out, searchStore{db: ex.DB, root: ex.Root})
-	}
 	return out
 }
 
 func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Options) ([]Result, error) {
+	results, _, err := e.SearchWithCode(ctx, embedder, opts)
+	return results, err
+}
+
+func (e *Engine) SearchWithCode(ctx context.Context, embedder embed.Embedder, opts Options) ([]Result, []store.CodeHit, error) {
 	if opts.TopK <= 0 {
 		opts.TopK = DefaultTopK
 	}
 	filter, err := searchFilter(opts)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	rankLimit := opts.TopK * 3
 
@@ -96,7 +88,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 		st := src.db
 		ftsResults, err := st.SearchFTS(opts.Query, rankLimit, filter)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for i, fr := range ftsResults {
 			rank := ftsRank
@@ -129,7 +121,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 			st := src.db
 			ranked, err := st.RankEmbeddings(qEmb, e.QueryModel, filter, rankLimit)
 			if err != nil {
-				return nil, err
+				return nil, nil, err
 			}
 			for i, row := range ranked {
 				if _, ok := vectorHit[row.RecordID]; ok {
@@ -148,6 +140,14 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 		}
 	}
 
+	var code []store.CodeHit
+	if len(qEmb) > 0 && e != nil && e.Repo != nil && e.Checkout != "" {
+		code, err = e.Repo.RankFileVectors(e.Checkout, qEmb, e.QueryModel, opts.TopK)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
 	ids := make([]string, 0, len(ftsRank)+len(vectorHit))
 	for id := range ftsRank {
 		ids = append(ids, id)
@@ -159,7 +159,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	}
 	recs, archives, err := e.lookupRecords(ids)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// A record can exist in both stores under the same type and slug; the
@@ -213,7 +213,7 @@ func (e *Engine) Search(ctx context.Context, embedder embed.Embedder, opts Optio
 	if len(results) > opts.TopK {
 		results = results[:opts.TopK]
 	}
-	return results, nil
+	return results, code, nil
 }
 
 // overlayWins reports whether candidate should replace existing for the same
@@ -296,9 +296,6 @@ func (e *Engine) lookupRecords(ids []string) (map[string]*record.Record, map[str
 				continue
 			}
 			out[id] = rec
-			if src.root != "" {
-				archives[id] = src.root
-			}
 		}
 		remaining = next
 	}
@@ -350,6 +347,19 @@ func FormatResults(results []Result, links []SearchLink) string {
 			title = link.Missing
 		}
 		fmt.Fprintf(&b, "%s\t%s\t%s\n", link.Kind, link.Archive, title)
+	}
+	return b.String()
+}
+
+// FormatCode prints file neighbors after the record list.
+func FormatCode(code []store.CodeHit) string {
+	if len(code) == 0 {
+		return ""
+	}
+	var b strings.Builder
+	b.WriteString("\nCode\n")
+	for _, hit := range code {
+		fmt.Fprintf(&b, "  %s (%.4f)\n", hit.Path, hit.Cosine)
 	}
 	return b.String()
 }
