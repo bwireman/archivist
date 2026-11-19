@@ -1,5 +1,5 @@
 {
-  "model": "claude-opus-5-5-low",
+  "model": "claude-haiku-5-5-thinking-low",
   "subagent_type": "generalPurpose",
   "environment": "local",
   "embed_model": "qwen3-embedding:8b",

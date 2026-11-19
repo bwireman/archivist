@@ -34,7 +34,16 @@ sys.exit(0 if want in names or want + ":latest" in names else 1)
 fi
 
 basename "$R" >"$R/utc.txt"
-archivist version >"$R/version.txt"
+# The shim is built from this tree. PATH may be an older install.
+{
+  printf 'repo %s\n' "$(git -C "$root" rev-parse HEAD)"
+  if command -v archivist >/dev/null 2>&1; then
+    printf 'path '
+    archivist version
+  else
+    echo "path missing"
+  fi
+} >"$R/version.txt"
 git -C "$root" rev-parse HEAD >"$R/archivist-commit.txt"
 git -C "$root" status --porcelain >"$R/repo-dirty.txt"
 if [ -f "$HOME/.archivist/archive.db" ]; then

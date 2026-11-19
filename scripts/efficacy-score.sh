@@ -109,7 +109,7 @@ fi
 
 commands_log=$(efficacy_commands_log)
 if [ -f "$commands_log" ]; then
-  python3 - "$commands_log" <<'PY'
+  mcp_line=$(python3 - "$commands_log" <<'PY'
 import json, sys
 src = set()
 for line in open(sys.argv[1]):
@@ -119,9 +119,11 @@ for line in open(sys.argv[1]):
         pass
 print("mcp:", "used" if "mcp" in src else ("cli" if src else "none"))
 PY
+)
 else
-  echo "mcp: none"
+  mcp_line="mcp: none"
 fi
+echo "$mcp_line"
 
 if [ -n "$db" ] && [ -f "$R/$db" ]; then
   "$root/scripts/efficacy-logs.sh" "$R" "$arm" "$R/$db"
@@ -171,3 +173,12 @@ for s in starts:
     total += int(e.read_text()) - int(s.read_text())
 print(f"wall: {total}s")
 PY
+
+case "$arm" in
+seed | with | plan)
+  if [ "$mcp_line" != "mcp: used" ]; then
+    echo "harness: $arm requires the fixture MCP (commands.log source mcp); got ${mcp_line#mcp: }" >&2
+    exit 1
+  fi
+  ;;
+esac

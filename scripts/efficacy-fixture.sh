@@ -251,10 +251,14 @@ with)
   ;;
 feature)
   restore_snapshot
+  # The snapshot's rules are pinned to the binary that seeded it. Reinstall
+  # so they match this tree; a stale notice on every command is not the eval.
+  "$dest/bin/archivist" --path "$dest" skills install --target cursor --cli ./bin/archivist
   rm -rf "$dest/.cursor/skills/plan-changes"
   ;;
 plan)
   restore_snapshot
+  "$dest/bin/archivist" --path "$dest" skills install --target cursor --cli ./bin/archivist
   mkdir -p "$dest/.cursor/skills/plan-changes"
   cp -a "$src/skills/plan-changes/SKILL.md" "$dest/.cursor/skills/plan-changes/SKILL.md"
   pin_cli
