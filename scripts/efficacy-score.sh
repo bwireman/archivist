@@ -177,7 +177,7 @@ PY
 case "$arm" in
 seed | with | plan)
   if [ "$mcp_line" != "mcp: used" ]; then
-    echo "harness: $arm requires the fixture MCP (commands.log source mcp); got ${mcp_line#mcp: }" >&2
+    echo "harness: $arm requires the fixture MCP (commands.log source mcp); got ${mcp_line#mcp: }"
     exit 1
   fi
   ;;

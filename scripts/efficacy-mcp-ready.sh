@@ -29,9 +29,6 @@ for _ in 1 2 3 4 5 6; do
       break
     fi
   fi
-  if [ -n "$others" ]; then
-    break
-  fi
   sleep 5
 done
 
