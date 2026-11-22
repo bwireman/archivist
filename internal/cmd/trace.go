@@ -119,7 +119,7 @@ func (c storeCatalog) Record(id string) (*record.Record, error) {
 	if ok {
 		return rec, nil
 	}
-	rec, ok, err = c.db.RecordBySlug(id, []string{c.checkout})
+	rec, ok, err = c.db.RecordBySlug(id, config.CheckoutAliases(c.checkout))
 	if err != nil || !ok {
 		return nil, err
 	}

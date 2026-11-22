@@ -2,8 +2,6 @@ package embed
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
@@ -172,32 +170,12 @@ func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.Que
 		return false, st.DropQueueItem(item.RecordID)
 	}
 	textHash := rec.ContentHash
+	if item.TextHash != "" && item.TextHash != textHash {
+		return false, nil
+	}
 	emb, err := w.Embedder.Embed(ctx, rec.EmbedText())
 	if err != nil {
-		if item.Attempts+1 >= maxAttempts {
-			fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", rec.SourcePath, item.Attempts+1, err)
-			if gerr := recStore.RecordGiveup(rec.ID, item.Attempts+1, err.Error()); gerr != nil {
-				return false, gerr
-			}
-			if gerr := recStore.DropQueueItem(item.RecordID); gerr != nil {
-				return false, gerr
-			}
-			if recStore != st {
-				if gerr := st.DropQueueItem(item.RecordID); gerr != nil {
-					return false, gerr
-				}
-			}
-			return false, nil
-		}
-		if ferr := recStore.FailQueueItem(item.RecordID, err.Error()); ferr != nil {
-			return false, ferr
-		}
-		if recStore != st {
-			if ferr := st.FailQueueItem(item.RecordID, err.Error()); ferr != nil {
-				return false, ferr
-			}
-		}
-		return false, fmt.Errorf("embed %s: %w", rec.SourcePath, err)
+		return w.failRecord(st, recStore, item, rec, err)
 	}
 	committed, err := recStore.CommitRecordVector(rec.ID, w.resolvedModel(), textHash, emb)
 	if err != nil {
@@ -270,25 +248,91 @@ func (w *Worker) processFile(ctx context.Context, st *store.Store, item store.Fi
 	if text == "" {
 		return false, st.DropFileEmbed(item.Checkout, item.Path)
 	}
-	sum := sha256.Sum256([]byte(text))
-	hash := hex.EncodeToString(sum[:])
+	hash := index.FileEmbedHash(text)
+	if item.TextHash != "" && item.TextHash != hash {
+		return false, nil
+	}
 	emb, err := w.Embedder.Embed(ctx, text)
 	if err != nil {
-		if item.Attempts+1 >= maxAttempts {
-			fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", item.Path, item.Attempts+1, err)
-			if gerr := st.RecordFileGiveup(item.Checkout, item.Path, item.Attempts+1, err.Error()); gerr != nil {
-				return false, gerr
-			}
-			return false, st.DropFileQueueItem(item.Checkout, item.Path)
-		}
-		if ferr := st.FailFileQueueItem(item.Checkout, item.Path, err.Error()); ferr != nil {
-			return false, ferr
-		}
-		return false, fmt.Errorf("embed %s: %w", item.Path, err)
+		return w.failFile(st, item, hash, err)
 	}
 	committed, err := st.CommitFileVector(item.Checkout, item.Path, w.resolvedModel(), hash, emb)
 	if err != nil {
 		return false, err
 	}
 	return committed, nil
+}
+
+func (w *Worker) failRecord(st, recStore *store.Store, item store.QueueItem, rec *record.Record, embedErr error) (bool, error) {
+	live, ok, err := st.EmbedQueueItem(item.RecordID)
+	if err != nil {
+		return false, err
+	}
+	if item.TextHash != "" && (!ok || live.TextHash != item.TextHash) {
+		return false, nil
+	}
+	attempts := item.Attempts
+	if ok {
+		attempts = live.Attempts
+	}
+	if attempts+1 < maxAttempts {
+		if ferr := recStore.FailQueueItem(item.RecordID, embedErr.Error()); ferr != nil {
+			return false, ferr
+		}
+		if recStore != st {
+			if ferr := st.FailQueueItem(item.RecordID, embedErr.Error()); ferr != nil {
+				return false, ferr
+			}
+		}
+		return false, fmt.Errorf("embed %s: %w", rec.SourcePath, embedErr)
+	}
+	fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", rec.SourcePath, attempts+1, embedErr)
+	if gerr := recStore.RecordGiveup(rec.ID, attempts+1, embedErr.Error()); gerr != nil {
+		return false, gerr
+	}
+	drop := func(db *store.Store) error {
+		if item.TextHash != "" {
+			return db.DropQueueItemHash(item.RecordID, item.TextHash)
+		}
+		return db.DropQueueItem(item.RecordID)
+	}
+	if gerr := drop(recStore); gerr != nil {
+		return false, gerr
+	}
+	if recStore != st {
+		return false, drop(st)
+	}
+	return false, nil
+}
+
+func (w *Worker) failFile(st *store.Store, item store.FileQueueItem, hash string, embedErr error) (bool, error) {
+	live, ok, err := st.FileEmbedQueueItem(item.Checkout, item.Path)
+	if err != nil {
+		return false, err
+	}
+	snapshot := item.TextHash
+	if snapshot == "" {
+		snapshot = hash
+	}
+	if snapshot != "" && (!ok || live.TextHash != snapshot) {
+		return false, nil
+	}
+	attempts := item.Attempts
+	if ok {
+		attempts = live.Attempts
+	}
+	if attempts+1 < maxAttempts {
+		if ferr := st.FailFileQueueItem(item.Checkout, item.Path, embedErr.Error()); ferr != nil {
+			return false, ferr
+		}
+		return false, fmt.Errorf("embed %s: %w", item.Path, embedErr)
+	}
+	fmt.Fprintf(os.Stderr, "giving up on %s after %d attempts: %v\n", item.Path, attempts+1, embedErr)
+	if gerr := st.RecordFileGiveup(item.Checkout, item.Path, attempts+1, embedErr.Error()); gerr != nil {
+		return false, gerr
+	}
+	if snapshot != "" {
+		return false, st.DropFileQueueItemHash(item.Checkout, item.Path, snapshot)
+	}
+	return false, st.DropFileQueueItem(item.Checkout, item.Path)
 }

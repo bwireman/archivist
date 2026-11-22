@@ -157,8 +157,7 @@ func (idx *Indexer) queueFileEmbed(rel string) error {
 	if text == "" {
 		return idx.Store.DropFileEmbed(idx.Checkout, rel)
 	}
-	sum := sha256.Sum256([]byte(text))
-	hash := hex.EncodeToString(sum[:])
+	hash := FileEmbedHash(text)
 	have, ok, err := idx.Store.FileVectorHash(idx.Checkout, rel)
 	if err != nil {
 		return err

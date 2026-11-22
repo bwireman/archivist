@@ -137,6 +137,31 @@ func Canonical(path string) (string, error) {
 	return resolved, nil
 }
 
+// CheckoutAliases is path plus its canonical path when those differ.
+func CheckoutAliases(path string) []string {
+	if path == "" {
+		return nil
+	}
+	out := []string{path}
+	if canon, err := Canonical(path); err == nil && canon != path {
+		out = append(out, canon)
+	}
+	return out
+}
+
+// SameCheckout reports whether two checkout paths are the same after canonicalization.
+func SameCheckout(a, b string) bool {
+	if a == b {
+		return true
+	}
+	ca, errA := Canonical(a)
+	cb, errB := Canonical(b)
+	if errA != nil || errB != nil {
+		return false
+	}
+	return ca == cb
+}
+
 func expandHomePath(p string) (string, bool) {
 	p = strings.TrimSpace(p)
 	if p != "~" && !strings.HasPrefix(p, "~/") {

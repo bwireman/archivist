@@ -1,6 +1,8 @@
 package index
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"strings"
 
 	"github.com/bwireman/archivist/internal/store"
@@ -29,6 +31,12 @@ func FileEmbedText(path string, syms []store.Symbol) string {
 	writeSyms(&b, exported)
 	writeSyms(&b, rest)
 	return b.String()
+}
+
+// FileEmbedHash is the queue hash for text from FileEmbedText.
+func FileEmbedHash(text string) string {
+	sum := sha256.Sum256([]byte(text))
+	return hex.EncodeToString(sum[:])
 }
 
 func writeSyms(b *strings.Builder, syms []store.Symbol) {

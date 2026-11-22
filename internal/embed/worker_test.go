@@ -2,8 +2,6 @@ package embed
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -276,8 +274,7 @@ func TestWorkerEmbedsFileQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sum := sha256.Sum256([]byte(index.FileEmbedText("jar.go", syms)))
-	if err := st.EnqueueFileEmbed("/checkout", "jar.go", hex.EncodeToString(sum[:])); err != nil {
+	if err := st.EnqueueFileEmbed("/checkout", "jar.go", index.FileEmbedHash(index.FileEmbedText("jar.go", syms))); err != nil {
 		t.Fatal(err)
 	}
 	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 4}, Model: "test"}
@@ -335,6 +332,42 @@ func TestWorkerSkipsStaleRecordVector(t *testing.T) {
 	}
 }
 
+func TestWorkerGiveupLeavesReplacedRecord(t *testing.T) {
+	st := openStore(t)
+	upsertQueued(t, st, "rec_stale", "Original")
+	rec, ok, err := st.GetRecordByID("rec_stale")
+	if err != nil || !ok {
+		t.Fatal(err)
+	}
+	w := &Worker{
+		Stores: []*store.Store{st},
+		Model:  "test",
+		Embedder: embedFunc(func(context.Context, string) ([]float32, error) {
+			updated := *rec
+			updated.Body = "newer body"
+			updated.ContentHash = ""
+			if err := st.UpsertRecord(&updated); err != nil {
+				return nil, err
+			}
+			return nil, errors.New("boom")
+		}),
+	}
+	committed, err := w.processOne(context.Background(), st, store.QueueItem{
+		RecordID: "rec_stale", TextHash: rec.ContentHash, Attempts: 4,
+	})
+	if err != nil || committed {
+		t.Fatalf("committed %v err %v", committed, err)
+	}
+	items, err := st.DequeueEmbed(0)
+	if err != nil || len(items) != 1 || items[0].TextHash == rec.ContentHash {
+		t.Fatalf("queue %+v err %v", items, err)
+	}
+	gave, err := st.EmbedGiveups()
+	if err != nil || len(gave) != 0 {
+		t.Fatalf("giveups %+v err %v", gave, err)
+	}
+}
+
 func TestWorkerSkipsStaleFileVector(t *testing.T) {
 	st := openStore(t)
 	if err := st.ReplaceFileMap(store.FileRecord{
@@ -348,8 +381,7 @@ func TestWorkerSkipsStaleFileVector(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sum := sha256.Sum256([]byte(index.FileEmbedText("jar.go", syms)))
-	hash := hex.EncodeToString(sum[:])
+	hash := index.FileEmbedHash(index.FileEmbedText("jar.go", syms))
 	if err := st.EnqueueFileEmbed("/checkout", "jar.go", hash); err != nil {
 		t.Fatal(err)
 	}

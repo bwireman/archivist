@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bwireman/archivist/internal/config"
 	"github.com/bwireman/archivist/internal/record"
 
 	_ "modernc.org/sqlite" // register the database/sql driver
@@ -686,14 +687,7 @@ func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
 	if err != nil {
 		return nil, false, err
 	}
-	switch len(recs) {
-	case 0:
-		return nil, false, nil
-	case 1:
-		return recs[0], true, nil
-	default:
-		return nil, false, fmt.Errorf("slug %q matches %d records", slug, len(recs))
-	}
+	return oneSlug(slug, recs)
 }
 
 // RecordBySlug returns the one row with slug whose checkout is empty or listed.
@@ -703,10 +697,29 @@ func (s *Store) RecordBySlug(slug string, checkouts []string) (*record.Record, b
 	if checkouts == nil {
 		checkouts = []string{}
 	}
-	recs, err := s.recordsBySlug(slug, checkouts)
+	recs, err := s.recordsBySlug(slug, nil)
 	if err != nil {
 		return nil, false, err
 	}
+	var matched []*record.Record
+	for _, rec := range recs {
+		if rec.Checkout == "" || checkoutListed(rec.Checkout, checkouts) {
+			matched = append(matched, rec)
+		}
+	}
+	return oneSlug(slug, matched)
+}
+
+func checkoutListed(stored string, checkouts []string) bool {
+	for _, checkout := range checkouts {
+		if stored == checkout || config.SameCheckout(stored, checkout) {
+			return true
+		}
+	}
+	return false
+}
+
+func oneSlug(slug string, recs []*record.Record) (*record.Record, bool, error) {
 	switch len(recs) {
 	case 0:
 		return nil, false, nil
@@ -723,21 +736,14 @@ func (s *Store) recordsBySlug(slug string, checkouts []string) ([]*record.Record
 	q := `SELECT ` + recordCols + ` FROM records WHERE slug = ?`
 	args := []any{slug}
 	if checkouts != nil {
-		clause := "checkout = ?"
-		args = append(args, "")
-		seen := map[string]struct{}{"": {}}
+		keys := []string{""}
 		for _, checkout := range checkouts {
-			if checkout == "" {
-				continue
+			if checkout != "" {
+				keys = append(keys, checkout)
 			}
-			if _, ok := seen[checkout]; ok {
-				continue
-			}
-			seen[checkout] = struct{}{}
-			clause += " OR checkout = ?"
-			args = append(args, checkout)
 		}
-		q += ` AND (` + clause + `)`
+		q += ` AND checkout IN (` + placeholders(len(keys)) + `)`
+		args = append(args, anyArgs(keys)...)
 	}
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
@@ -1234,6 +1240,26 @@ FROM embed_queue ORDER BY enqueued_at`
 		out = append(out, item)
 	}
 	return out, rows.Err()
+}
+
+// EmbedQueueItem reads one queue row. ok is false when the record is not queued.
+func (s *Store) EmbedQueueItem(recordID string) (QueueItem, bool, error) {
+	var item QueueItem
+	var at string
+	err := s.db.QueryRow(`
+SELECT record_id, text_hash, enqueued_at, attempts, COALESCE(last_error,'')
+FROM embed_queue WHERE record_id = ?`, recordID).Scan(&item.RecordID, &item.TextHash, &at, &item.Attempts, &item.LastError)
+	if errors.Is(err, sql.ErrNoRows) {
+		return QueueItem{}, false, nil
+	}
+	if err != nil {
+		return QueueItem{}, false, err
+	}
+	item.EnqueuedAt, err = time.Parse(time.RFC3339, at)
+	if err != nil {
+		return QueueItem{}, false, fmt.Errorf("embed queue %s enqueued_at: %w", recordID, err)
+	}
+	return item, true, nil
 }
 
 func (s *Store) DropQueueItem(recordID string) error {

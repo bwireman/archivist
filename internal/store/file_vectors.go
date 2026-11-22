@@ -129,6 +129,27 @@ FROM file_embed_queue ORDER BY enqueued_at`)
 	return out, rows.Err()
 }
 
+// FileEmbedQueueItem reads one file queue row. ok is false when the file is not queued.
+func (s *Store) FileEmbedQueueItem(checkout, path string) (FileQueueItem, bool, error) {
+	var item FileQueueItem
+	var at string
+	err := s.db.QueryRow(`
+SELECT checkout, path, text_hash, enqueued_at, attempts, COALESCE(last_error,'')
+FROM file_embed_queue WHERE checkout = ? AND path = ?`, checkout, path).Scan(
+		&item.Checkout, &item.Path, &item.TextHash, &at, &item.Attempts, &item.LastError)
+	if errors.Is(err, sql.ErrNoRows) || noSuchTable(err) {
+		return FileQueueItem{}, false, nil
+	}
+	if err != nil {
+		return FileQueueItem{}, false, err
+	}
+	item.EnqueuedAt, err = time.Parse(time.RFC3339, at)
+	if err != nil {
+		return FileQueueItem{}, false, err
+	}
+	return item, true, nil
+}
+
 func (s *Store) FailFileQueueItem(checkout, path, lastError string) error {
 	_, err := s.db.Exec(`
 UPDATE file_embed_queue SET attempts = attempts + 1, last_error = ? WHERE checkout = ? AND path = ?
@@ -138,6 +159,15 @@ UPDATE file_embed_queue SET attempts = attempts + 1, last_error = ? WHERE checko
 
 func (s *Store) DropFileQueueItem(checkout, path string) error {
 	_, err := s.db.Exec(`DELETE FROM file_embed_queue WHERE checkout = ? AND path = ?`, checkout, path)
+	if noSuchTable(err) {
+		return nil
+	}
+	return err
+}
+
+// DropFileQueueItemHash removes the queue row only when it still holds textHash.
+func (s *Store) DropFileQueueItemHash(checkout, path, textHash string) error {
+	_, err := s.db.Exec(`DELETE FROM file_embed_queue WHERE checkout = ? AND path = ? AND text_hash = ?`, checkout, path, textHash)
 	if noSuchTable(err) {
 		return nil
 	}
