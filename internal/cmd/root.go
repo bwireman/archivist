@@ -62,6 +62,7 @@ func NewRoot() *cobra.Command {
 	root.AddCommand(newPublishCmd())
 	root.AddCommand(newMCPCmd())
 	root.AddCommand(newRememberCmd())
+	root.AddCommand(newDecideCmd())
 	root.AddCommand(newUpdateCmd())
 	root.AddCommand(newRetireCmd())
 	root.AddCommand(newCheckCmd())

@@ -17,6 +17,7 @@ import (
 	"github.com/bwireman/archivist/internal/check"
 	"github.com/bwireman/archivist/internal/cmdlog"
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/critic"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/record"
@@ -108,7 +109,7 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 	), s.toolMap)
 	srv.AddTool(mcp.NewTool("remember",
 		annotate("Remember record", false, true, true),
-		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record. Writes SQLite only; does not create a markdown file."),
+		mcp.WithDescription("Create a record only after search shows a gap. Distill a lasting decision, rule, feature, guide, map, or pitfall from this conversation — not a chat transcript, session error, or restatement of an existing record. Writes SQLite only; does not create a markdown file. When ollama.critic_model is set, the result may include an advisory. The stored record stays the caller's."),
 		mcp.WithString("type", mcp.Required(), mcp.Description("decision, rule, feature, guide, map, or pitfall")),
 		mcp.WithString("scope", mcp.Required(), mcp.Description("repo, global, or dev")),
 		mcp.WithString("title", mcp.Required()),
@@ -118,6 +119,12 @@ func (s *Server) MCPServer() *mcpserver.MCPServer {
 		mcp.WithString("tags"),
 		mcp.WithString("checkout", mcp.Description("registered checkout for a repo record; omit for global and dev")),
 	), s.toolRemember)
+	srv.AddTool(mcp.NewTool("decide",
+		annotate("Score a candidate", true, false, true),
+		mcp.WithDescription("Score a candidate title and body. Does not write a record. Empty ollama.critic_model, an Ollama error, or unusable JSON returns {}."),
+		mcp.WithString("title", mcp.Required()),
+		mcp.WithString("body", mcp.Required()),
+	), s.toolDecide)
 	srv.AddTool(mcp.NewTool("update",
 		annotate("Update record", false, true, true),
 		mcp.WithDescription("Update an existing record in place when the same topic already has a current document. Prefer this over remember for refinements. Optional applies_to replaces the path list when non-empty."),
@@ -450,7 +457,7 @@ func (s *Server) writableStore() (*store.Store, func(), error) {
 	return db, func() { _ = db.Close() }, nil
 }
 
-func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+func (s *Server) toolRemember(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	svc, done, err := s.writer()
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
@@ -483,7 +490,24 @@ func (s *Server) toolRemember(_ context.Context, req mcp.CallToolRequest) (*mcp.
 	if err != nil {
 		return mcp.NewToolResultError(err.Error()), nil
 	}
-	return jsonResult(map[string]string{"id": id})
+	payload := map[string]any{"id": id}
+	if s.Cfg != nil {
+		if adv := critic.RememberAdvisory(ctx, s.Cfg.Ollama.ResolvedBaseURL(), s.Cfg.Ollama.CriticModel, s.Cfg.Ollama.EmbedModel, nil, rec.Title, rec.Body); adv != nil {
+			payload["advisory"] = adv
+		}
+	}
+	return jsonResult(payload)
+}
+
+func (s *Server) toolDecide(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	if s == nil || s.Cfg == nil {
+		return jsonResult(map[string]any{})
+	}
+	adv := critic.RememberAdvisory(ctx, s.Cfg.Ollama.ResolvedBaseURL(), s.Cfg.Ollama.CriticModel, s.Cfg.Ollama.EmbedModel, nil, req.GetString("title", ""), req.GetString("body", ""))
+	if adv == nil {
+		return jsonResult(map[string]any{})
+	}
+	return jsonResult(adv)
 }
 
 func (s *Server) toolUpdate(_ context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {

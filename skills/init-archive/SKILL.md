@@ -29,6 +29,8 @@ Skip source bodies, chat logs, generated `docs/archive/`, `.archivist/`, secrets
 
 ## 3. Write
 
+Score the candidate with MCP decide when ollama.critic_model is set. A disagreement does not drop the candidate. If unsure, or if decide returns {}, remember. CLI `archivist decide` only when MCP is unavailable. The returned type is a check against the type you were going to write. `lasting: false` does not drop the candidate.
+
 For each candidate, `search` the topic (filter `--type` when it is clear). If a current record exists, `update` it or leave it. Otherwise follow `record-decision`, `record-rule`, or `record-feature` and `remember` a short body.
 
 Before remember, search with no scope argument. Search covers repo, global, and dev.

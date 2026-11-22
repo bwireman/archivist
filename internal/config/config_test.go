@@ -475,6 +475,28 @@ func TestLoadPromotesLegacyHomeAndCheckout(t *testing.T) {
 	}
 }
 
+func TestFinishLoadLeavesCriticModelEmpty(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	path := config.GlobalConfigPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(`{"ollama":{"embed_model":""}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	loaded, err := config.Load(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Ollama.CriticModel != "" {
+		t.Fatalf("critic_model %q", loaded.Ollama.CriticModel)
+	}
+	if loaded.Ollama.EmbedModel != config.DefaultEmbedModel {
+		t.Fatalf("embed_model %q", loaded.Ollama.EmbedModel)
+	}
+}
+
 func TestNormalizeOllamaHostWithoutScheme(t *testing.T) {
 	cfg := config.OllamaConfig{BaseURL: "localhost:11434"}
 	if got := cfg.ResolvedBaseURL(); got != "http://localhost:11434" {

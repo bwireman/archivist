@@ -1,0 +1,14 @@
+Which archive record type is this text?
+
+decision: a choice among real alternatives. It is not a feature (how it works) and not a rule (must or must-not).
+rule: a must, must-not, should, or should-not that later work should follow.
+feature: how a capability works today. It is not why it was chosen and not a constraint.
+guide: a how-to procedure.
+map: a structural note about packages and how they connect. It is not the generated code map.
+pitfall: a confirmed gotcha, not a guess and not a one-off session error.
+
+Would a later session look this up?
+lasting true: a later session would look this up.
+lasting false: a transcript, a one-off session error, an unverified catalog, a restatement, or a detail that lives only in code.
+
+Return only the JSON object. Do not rewrite the record.

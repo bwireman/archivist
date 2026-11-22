@@ -49,6 +49,7 @@ type OllamaConfig struct {
 	EmbedModel   string `json:"embed_model"`
 	EmbedTimeout string `json:"embed_timeout,omitempty"`
 	EmbedNumCtx  int    `json:"embed_num_ctx,omitempty"`
+	CriticModel  string `json:"critic_model,omitempty"`
 }
 
 func (o OllamaConfig) EmbedTimeoutDuration() time.Duration {
@@ -338,6 +339,9 @@ func mergeMissing(dst, src *Config) {
 	}
 	if strings.TrimSpace(dst.Ollama.EmbedModel) == "" && strings.TrimSpace(src.Ollama.EmbedModel) != "" {
 		dst.Ollama.EmbedModel = src.Ollama.EmbedModel
+	}
+	if strings.TrimSpace(dst.Ollama.CriticModel) == "" && strings.TrimSpace(src.Ollama.CriticModel) != "" {
+		dst.Ollama.CriticModel = src.Ollama.CriticModel
 	}
 	if strings.TrimSpace(dst.Ollama.EmbedTimeout) == "" && strings.TrimSpace(src.Ollama.EmbedTimeout) != "" {
 		dst.Ollama.EmbedTimeout = src.Ollama.EmbedTimeout

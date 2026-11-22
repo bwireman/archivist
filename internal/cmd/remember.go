@@ -10,6 +10,7 @@ import (
 	"github.com/bwireman/archivist/internal/archive"
 	"github.com/bwireman/archivist/internal/check"
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/critic"
 	"github.com/bwireman/archivist/internal/embed"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/retrieve"
@@ -74,9 +75,13 @@ func newRememberCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			noteResult(cmd, map[string]string{"id": id})
+			payload := map[string]any{"id": id}
+			if adv := critic.RememberAdvisory(cmd.Context(), cfg.Ollama.ResolvedBaseURL(), cfg.Ollama.CriticModel, cfg.Ollama.EmbedModel, nil, rec.Title, rec.Body); adv != nil {
+				payload["advisory"] = adv
+			}
+			noteResult(cmd, payload)
 			if asJSON {
-				return json.NewEncoder(os.Stdout).Encode(map[string]string{"id": id})
+				return json.NewEncoder(cmd.OutOrStdout()).Encode(payload)
 			}
 			fmt.Printf("Remembered %s\n", id)
 			return nil

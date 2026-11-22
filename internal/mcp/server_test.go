@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"slices"
@@ -114,6 +117,7 @@ func TestToolAnnotations(t *testing.T) {
 		"unlink":   toolAnnotation("Unlink records", false, true, true),
 		"links":    toolAnnotation("List record links", true, false, true),
 		"review":   toolAnnotation("Review archive", true, false, true),
+		"decide":   toolAnnotation("Score a candidate", true, false, true),
 	}
 	listed := srv.ListTools()
 	if len(listed) != len(want) {
@@ -1086,5 +1090,50 @@ func TestMCPStatusFileCountIsThisCheckout(t *testing.T) {
 	}
 	if status["last_indexed_at"] != now.Format(time.RFC3339) {
 		t.Fatalf("last_indexed_at %#v", status["last_indexed_at"])
+	}
+}
+
+func TestDecideInsertsNoRow(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.WriteString(w, `{"message":{"content":"{\"type\":\"pitfall\",\"lasting\":false,\"reason\":\"gotcha\"}"}}`)
+	}))
+	t.Cleanup(srv.Close)
+	db, err := store.Open(config.StorePath(root))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	before, err := db.RecordCount()
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Default()
+	cfg.Ollama.BaseURL = srv.URL
+	cfg.Ollama.EmbedModel = "qwen3-embedding:8b"
+	cfg.Ollama.CriticModel = "gemma4:e2b"
+	s := New(root, cfg, db, nil)
+	res, err := s.toolDecide(context.Background(), mcp.CallToolRequest{
+		Params: mcp.CallToolParams{Arguments: map[string]any{"title": "Candidate", "body": "A confirmed gotcha."}},
+	})
+	if err != nil || res.IsError {
+		t.Fatalf("decide %v %+v", err, res)
+	}
+	text, _ := mcpLogResult(res).(map[string]any)
+	if text["type"] != "pitfall" {
+		t.Fatalf("result %#v", mcpLogResult(res))
+	}
+	after, err := db.RecordCount()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after != before {
+		t.Fatalf("rows %d to %d", before, after)
+	}
+	tool := s.MCPServer().GetTool("decide")
+	if tool == nil || tool.Tool.Annotations.DestructiveHint == nil || *tool.Tool.Annotations.DestructiveHint {
+		t.Fatal("decide must not be destructive")
 	}
 }

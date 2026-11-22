@@ -1,0 +1,10 @@
+{
+  "type": "object",
+  "properties": {
+    "type": {"enum": ["decision", "rule", "feature", "guide", "map", "pitfall"]},
+    "lasting": {"type": "boolean"},
+    "reason": {"type": "string"}
+  },
+  "required": ["type", "lasting", "reason"],
+  "additionalProperties": false
+}

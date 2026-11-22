@@ -29,6 +29,7 @@
 
 - Empty `ollama.base_url` uses `$OLLAMA_HOST` (host:port or a full URL), then `http://localhost:11434`. A value already set in the file wins, including an explicit localhost URL. `config.Load` leaves an empty `base_url` empty so that fallback runs. Omit the key for the same result.
 - Optional `ollama.embed_num_ctx` sets Ollama `options.num_ctx` on embed requests (worker and search). Omit it to use the model’s loaded context window.
+- Optional `ollama.critic_model` names a small instruct model for an advisory on `remember`. Empty means off. It is not the embed model. The default config example omits it.
 - A repo `.archivist.json` or `~/.archivist/checkouts/<sha256>/config.json` is merged once into `~/.archivist/config.json` and removed. A value already set is kept. `commands.log` and plans stay under that checkout directory.
 - Relative `records` paths and `index.skip_globs` are shared. A relative path is resolved against the checkout in use.
 - Empty `records.dev` is `~/.archivist/records`.
