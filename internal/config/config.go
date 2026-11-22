@@ -1,4 +1,4 @@
-// Package config loads and saves .archivist.json.
+// Package config loads and saves ~/.archivist/config.json.
 package config
 
 import (
@@ -206,69 +206,182 @@ func Default() *Config {
 }
 
 func Load(repoRoot string) (*Config, error) {
-	cfg := Default()
-	canon, err := Canonical(repoRoot)
-	if err != nil {
-		canon = repoRoot
+	cfg := &Config{}
+	globalPath := GlobalConfigPath()
+	legacyShape := false
+	haveGlobal := false
+	if globalPath != "" {
+		data, err := os.ReadFile(globalPath)
+		if err == nil {
+			haveGlobal = true
+			legacyShape, err = applyConfigBytes(cfg, data)
+			if err != nil {
+				return nil, err
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read config: %w", err)
+		}
 	}
-	data, path, err := readCheckoutOrLegacy(canon, repoRoot)
+	locals, err := readLocalConfigs(repoRoot)
 	if err != nil {
 		return nil, err
 	}
-	if path == "" {
-		return finishLoad(cfg), nil
+	pending := locals
+	if !haveGlobal && len(locals) > 0 {
+		cfg = &Config{}
+		if _, err := applyConfigBytes(cfg, locals[0].data); err != nil {
+			return nil, err
+		}
+		pending = locals[1:]
+	}
+	for _, local := range pending {
+		extra := &Config{}
+		if err := json.Unmarshal(local.data, extra); err != nil {
+			return nil, fmt.Errorf("parse config: %w", err)
+		}
+		mergeMissing(cfg, extra)
+	}
+	cfg = finishLoad(cfg)
+	if globalPath != "" && (legacyShape || len(locals) > 0) {
+		if err := writeConfigFile(globalPath, cfg); err != nil {
+			if !os.IsPermission(err) {
+				return nil, fmt.Errorf("write config: %w", err)
+			}
+		} else if err := removeConfigs(locals); err != nil {
+			return nil, err
+		}
+	}
+	return cfg, nil
+}
+
+// applyConfigBytes overlays data onto cfg. A top-level Ollama object is the
+// old ~/.archivist/config.json shape.
+func applyConfigBytes(cfg *Config, data []byte) (legacyOllama bool, err error) {
+	legacyOllama, err = isLegacyOllama(data)
+	if err != nil {
+		return false, fmt.Errorf("parse config: %w", err)
+	}
+	if legacyOllama {
+		var ollama OllamaConfig
+		if err := json.Unmarshal(data, &ollama); err != nil {
+			return true, fmt.Errorf("parse config: %w", err)
+		}
+		cfg.Ollama = ollama
+		return true, nil
 	}
 	if err := json.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		return false, fmt.Errorf("parse config: %w", err)
 	}
-	if err := overlayHomeOllama(cfg); err != nil {
-		return nil, err
-	}
-	return finishLoad(cfg), nil
+	return false, nil
 }
 
-func readCheckoutOrLegacy(canon, repoRoot string) ([]byte, string, error) {
-	if path := checkoutConfigPath(canon); path != "" {
+func isLegacyOllama(data []byte) (bool, error) {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return false, err
+	}
+	for _, key := range []string{"ollama", "records", "index", "publish", "log_commands"} {
+		if _, ok := raw[key]; ok {
+			return false, nil
+		}
+	}
+	for _, key := range []string{"base_url", "embed_model", "embed_timeout", "embed_num_ctx"} {
+		if _, ok := raw[key]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+type localConfig struct {
+	path string
+	data []byte
+}
+
+func localConfigPaths(repoRoot string) []string {
+	canon, err := Canonical(repoRoot)
+	if err != nil || strings.TrimSpace(canon) == "" {
+		canon = repoRoot
+	}
+	var paths []string
+	if p := checkoutConfigPath(canon); p != "" {
+		paths = append(paths, p)
+	}
+	if strings.TrimSpace(canon) != "" {
+		paths = append(paths, filepath.Join(canon, DefaultConfigName))
+	}
+	return paths
+}
+
+func readLocalConfigs(repoRoot string) ([]localConfig, error) {
+	var out []localConfig
+	for _, path := range localConfigPaths(repoRoot) {
 		data, err := os.ReadFile(path)
-		if err == nil {
-			return data, path, nil
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return nil, fmt.Errorf("read config: %w", err)
 		}
-		if !os.IsNotExist(err) {
-			return nil, "", fmt.Errorf("read config: %w", err)
+		if _, err := isLegacyOllama(data); err != nil {
+			return nil, fmt.Errorf("parse config: %w", err)
 		}
+		out = append(out, localConfig{path: path, data: data})
 	}
-	path := filepath.Join(canon, DefaultConfigName)
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, "", nil
-		}
-		return nil, "", fmt.Errorf("read config: %w", err)
-	}
-	return data, path, nil
+	return out, nil
 }
 
-func overlayHomeOllama(cfg *Config) error {
-	data, err := os.ReadFile(homeOllamaPath())
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
+func removeConfigs(files []localConfig) error {
+	for _, file := range files {
+		if err := os.Remove(file.path); err != nil && !os.IsNotExist(err) {
+			return err
 		}
-		return fmt.Errorf("read config: %w", err)
-	}
-	var ollama OllamaConfig
-	if err := json.Unmarshal(data, &ollama); err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
-	if strings.TrimSpace(ollama.EmbedModel) == "" {
-		return nil
-	}
-	num := cfg.Ollama.EmbedNumCtx
-	cfg.Ollama = ollama
-	if num > 0 {
-		cfg.Ollama.EmbedNumCtx = num
 	}
 	return nil
+}
+
+// mergeMissing copies set fields from src when dst does not have them.
+// Empty strings, a zero embed_num_ctx, and false do not replace a set value.
+func mergeMissing(dst, src *Config) {
+	if dst == nil || src == nil {
+		return
+	}
+	if strings.TrimSpace(dst.Ollama.BaseURL) == "" && strings.TrimSpace(src.Ollama.BaseURL) != "" {
+		dst.Ollama.BaseURL = src.Ollama.BaseURL
+	}
+	if strings.TrimSpace(dst.Ollama.EmbedModel) == "" && strings.TrimSpace(src.Ollama.EmbedModel) != "" {
+		dst.Ollama.EmbedModel = src.Ollama.EmbedModel
+	}
+	if strings.TrimSpace(dst.Ollama.EmbedTimeout) == "" && strings.TrimSpace(src.Ollama.EmbedTimeout) != "" {
+		dst.Ollama.EmbedTimeout = src.Ollama.EmbedTimeout
+	}
+	if dst.Ollama.EmbedNumCtx <= 0 && src.Ollama.EmbedNumCtx > 0 {
+		dst.Ollama.EmbedNumCtx = src.Ollama.EmbedNumCtx
+	}
+	if len(dst.Index.SkipGlobs) == 0 && len(src.Index.SkipGlobs) > 0 {
+		dst.Index.SkipGlobs = append([]string(nil), src.Index.SkipGlobs...)
+	}
+	if strings.TrimSpace(dst.Records.Repo) == "" && strings.TrimSpace(src.Records.Repo) != "" {
+		dst.Records.Repo = src.Records.Repo
+	}
+	if strings.TrimSpace(dst.Records.Global) == "" && strings.TrimSpace(src.Records.Global) != "" {
+		dst.Records.Global = src.Records.Global
+	}
+	if strings.TrimSpace(dst.Records.Dev) == "" && strings.TrimSpace(src.Records.Dev) != "" {
+		dst.Records.Dev = src.Records.Dev
+	}
+	if strings.TrimSpace(dst.Records.Export) == "" && strings.TrimSpace(src.Records.Export) != "" {
+		dst.Records.Export = src.Records.Export
+	}
+	if !dst.Records.WriteDocs && src.Records.WriteDocs {
+		dst.Records.WriteDocs = true
+	}
+	if len(dst.Publish.Destinations) == 0 && len(src.Publish.Destinations) > 0 {
+		dst.Publish.Destinations = src.Publish.Destinations
+	}
+	if !dst.LogCommands && src.LogCommands {
+		dst.LogCommands = true
+	}
 }
 
 func finishLoad(cfg *Config) *Config {
@@ -283,26 +396,50 @@ func finishLoad(cfg *Config) *Config {
 }
 
 func HasConfig(root string) bool {
-	canon, err := Canonical(root)
-	if err != nil {
-		canon = root
-	}
-	if path := checkoutConfigPath(canon); path != "" {
+	if path := GlobalConfigPath(); path != "" {
 		if _, err := os.Stat(path); err == nil {
 			return true
 		}
 	}
-	_, err = os.Stat(filepath.Join(canon, DefaultConfigName))
-	return err == nil
+	for _, path := range localConfigPaths(root) {
+		if _, err := os.Stat(path); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func Save(repoRoot string, cfg *Config) error {
+	path := GlobalConfigPath()
+	if path == "" {
+		if strings.TrimSpace(repoRoot) == "" {
+			return fmt.Errorf("cannot resolve config path (set $HOME)")
+		}
+		return writeConfigFile(filepath.Join(repoRoot, DefaultConfigName), cfg)
+	}
+	if err := writeConfigFile(path, cfg); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+	for _, local := range localConfigPaths(repoRoot) {
+		if local == "" || local == path {
+			continue
+		}
+		if err := os.Remove(local); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+	}
+	return nil
+}
+
+func writeConfigFile(path string, cfg *Config) error {
 	data, err := json.MarshalIndent(cfg, "", "  ")
 	if err != nil {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 	data = append(data, '\n')
-	path := filepath.Join(repoRoot, DefaultConfigName)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	return os.WriteFile(path, data, 0o644)
 }
 

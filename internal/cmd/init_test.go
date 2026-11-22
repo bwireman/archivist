@@ -40,8 +40,11 @@ func TestApplyInitCreatesDecisionDirs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(filepath.Join(config.CheckoutDir(canon), "config.json")); err != nil {
+	if _, err := os.Stat(config.GlobalConfigPath()); err != nil {
 		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(config.CheckoutDir(canon), "config.json")); err == nil {
+		t.Fatal("init should not write a checkout config")
 	}
 	if _, err := os.Stat(filepath.Join(root, ".githooks")); !os.IsNotExist(err) {
 		t.Fatal("init should not write .githooks")

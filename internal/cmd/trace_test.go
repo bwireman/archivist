@@ -18,6 +18,7 @@ import (
 )
 
 func TestTraceLoggingOff(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	cmd := NewRoot()
 	var buf bytes.Buffer
@@ -33,6 +34,7 @@ func TestTraceLoggingOff(t *testing.T) {
 }
 
 func TestTraceDoesNotLogItself(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.LogCommands = true
@@ -56,6 +58,7 @@ func TestTraceDoesNotLogItself(t *testing.T) {
 }
 
 func TestTraceDefaultsToLastSevenDays(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.LogCommands = true
@@ -115,6 +118,7 @@ func TestTraceDefaultsToLastSevenDays(t *testing.T) {
 }
 
 func TestCiteRejectedWhenLoggingOff(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	if err := config.Save(root, config.Default()); err != nil {
 		t.Fatal(err)

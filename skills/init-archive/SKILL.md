@@ -9,7 +9,7 @@ description: Scan a repository for existing decisions, rules, features, guides, 
 
 ## 1. Prepare
 
-1. If `.archivist.json` is missing, run `archivist init`.
+1. If `~/.archivist/config.json` is missing, run `archivist init`.
 2. MCP `import` so typed markdown already on disk is in SQLite. Import never deletes DB-only rows. `archivist import` only when MCP is unavailable.
 3. MCP `index` so the code map exists. No Ollama. `archivist index` only when MCP is unavailable.
 4. MCP `status`. `archivist status` only when MCP is unavailable. Continue when records already exist; skip topics search already covers.

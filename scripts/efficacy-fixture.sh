@@ -155,32 +155,32 @@ for path in root.rglob("*"):
 PY
 }
 
-# Feature and plan arms inherit log_commands through the shim's checkout config.
+# Feature and plan arms inherit log_commands through the shim's global config.
 set_embed() {
-  # init already moved config under the shim HOME. Load reads that file,
-  # not a later .archivist.json. commands.log is how a run proves MCP.
-  python3 - "$src/run.json" "$(efficacy_checkout_config)" "$(efficacy_home)/.archivist/config.json" <<'PY'
+  # init writes ~/.archivist/config.json. commands.log is how a run proves MCP.
+  python3 - "$src/run.json" "$(efficacy_home)/.archivist/config.json" <<'PY'
 import json, os, sys
 run = json.load(open(sys.argv[1]))
-cfg_path, home_path = sys.argv[2], sys.argv[3]
+cfg_path = sys.argv[2]
 if not os.path.isfile(cfg_path):
-    sys.exit("efficacy-fixture.sh: missing checkout config %s" % cfg_path)
+    sys.exit("efficacy-fixture.sh: missing config %s" % cfg_path)
 cfg = json.load(open(cfg_path))
+ollama_keys = ("base_url", "embed_model", "embed_timeout", "embed_num_ctx")
+if "ollama" not in cfg and any(k in cfg for k in ollama_keys):
+    ollama = {}
+    for key in ollama_keys:
+        if key in cfg:
+            ollama[key] = cfg.pop(key)
+    cfg["ollama"] = ollama
 cfg["log_commands"] = True
 ollama = cfg.setdefault("ollama", {})
 if "embed_num_ctx" in run:
     ollama["embed_num_ctx"] = run["embed_num_ctx"]
+if run.get("embed_model"):
+    ollama["embed_model"] = run["embed_model"]
+os.makedirs(os.path.dirname(cfg_path), exist_ok=True)
 with open(cfg_path, "w") as f:
     json.dump(cfg, f, indent=2)
-    f.write("\n")
-home = {}
-if os.path.exists(home_path):
-    home = json.load(open(home_path))
-if run.get("embed_model"):
-    home["embed_model"] = run["embed_model"]
-os.makedirs(os.path.dirname(home_path), exist_ok=True)
-with open(home_path, "w") as f:
-    json.dump(home, f, indent=2)
     f.write("\n")
 PY
 }
@@ -219,7 +219,7 @@ restore_snapshot() {
     cp -a "$saved" "$dest/.archivist/index.db"
   fi
   rm -f "$saved"
-  if [ ! -f "$(efficacy_checkout_config)" ] || [ -f "$dest/.archivist/index.db" ]; then
+  if [ ! -f "$(efficacy_home)/.archivist/config.json" ] || [ -f "$dest/.archivist/index.db" ]; then
     "$dest/bin/archivist" --path "$dest" init >/dev/null
   fi
   set_embed

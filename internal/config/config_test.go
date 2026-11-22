@@ -96,6 +96,12 @@ func TestLoadFullConfigFromDisk(t *testing.T) {
 	if !reflect.DeepEqual(loaded, want) {
 		t.Fatalf("want %#v\ngot %#v", want, loaded)
 	}
+	if _, err := os.Stat(filepath.Join(dir, config.DefaultConfigName)); !os.IsNotExist(err) {
+		t.Fatal("legacy config should be removed")
+	}
+	if _, err := os.Stat(config.GlobalConfigPath()); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestSaveLoadRoundTrip(t *testing.T) {
@@ -112,7 +118,10 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 	if !reflect.DeepEqual(loaded, want) {
 		t.Fatalf("want %#v\ngot %#v", want, loaded)
 	}
-	raw, err := os.ReadFile(filepath.Join(dir, config.DefaultConfigName))
+	if _, err := os.Stat(filepath.Join(dir, config.DefaultConfigName)); !os.IsNotExist(err) {
+		t.Fatal("save should not leave .archivist.json in the checkout")
+	}
+	raw, err := os.ReadFile(config.GlobalConfigPath())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,6 +137,7 @@ func TestSaveLoadRoundTrip(t *testing.T) {
 }
 
 func TestLoadMissingConfigUsesDefaults(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	loaded, err := config.Load(dir)
 	if err != nil {
@@ -139,6 +149,7 @@ func TestLoadMissingConfigUsesDefaults(t *testing.T) {
 }
 
 func TestLoadInvalidJSON(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), []byte("{invalid"), 0o644); err != nil {
 		t.Fatal(err)
@@ -149,6 +160,7 @@ func TestLoadInvalidJSON(t *testing.T) {
 }
 
 func TestLoadEmbedNumCtx(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	raw := []byte(`{"ollama": {"embed_num_ctx": 32768}}`)
 	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
@@ -192,6 +204,7 @@ func TestLoadOmitsRecordsUsesDefaults(t *testing.T) {
 }
 
 func TestLoadWriteDocsTrue(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	dir := t.TempDir()
 	raw := []byte(`{"records": {"write_docs": true}}`)
 	if err := os.WriteFile(filepath.Join(dir, config.DefaultConfigName), raw, 0o644); err != nil {
@@ -388,6 +401,78 @@ func mustCanon(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return got
+}
+
+func TestLoadPromotesLegacyHomeAndCheckout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	root := t.TempDir()
+	canon := mustCanon(t, root)
+	if err := os.MkdirAll(filepath.Dir(config.GlobalConfigPath()), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	homeBody := []byte("{\n  \"base_url\": \"http://localhost:11434\",\n  \"embed_model\": \"qwen3-embedding:8b\",\n  \"embed_timeout\": \"5m\",\n  \"embed_num_ctx\": 32768\n}\n")
+	if err := os.WriteFile(config.GlobalConfigPath(), homeBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(config.CheckoutDir(canon), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	checkoutPath := filepath.Join(config.CheckoutDir(canon), "config.json")
+	checkoutBody := []byte(`{
+	  "ollama": {"base_url": "", "embed_model": "", "embed_num_ctx": 8192},
+	  "index": {"skip_globs": ["testdata/efficacy-fixture/**"]},
+	  "records": {"repo": "docs/decisions", "global": "docs/global-decisions", "export": "docs/archive"},
+	  "log_commands": true
+	}`)
+	if err := os.WriteFile(checkoutPath, checkoutBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := config.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Ollama.EmbedModel != "qwen3-embedding:8b" || loaded.Ollama.EmbedNumCtx != 32768 {
+		t.Fatalf("ollama %#v", loaded.Ollama)
+	}
+	if !loaded.LogCommands || loaded.Records.Global != "docs/global-decisions" {
+		t.Fatalf("records %#v log=%v", loaded.Records, loaded.LogCommands)
+	}
+	if len(loaded.Index.SkipGlobs) != 1 || loaded.Index.SkipGlobs[0] != "testdata/efficacy-fixture/**" {
+		t.Fatalf("globs %#v", loaded.Index.SkipGlobs)
+	}
+	if _, err := os.Stat(checkoutPath); !os.IsNotExist(err) {
+		t.Fatal("checkout config should be removed")
+	}
+	raw, err := os.ReadFile(config.GlobalConfigPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(raw), `"log_commands"`) || !strings.Contains(string(raw), `"ollama"`) {
+		t.Fatalf("global file %s", raw)
+	}
+
+	other := t.TempDir()
+	otherCanon := mustCanon(t, other)
+	if err := os.MkdirAll(config.CheckoutDir(otherCanon), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	otherPath := filepath.Join(config.CheckoutDir(otherCanon), "config.json")
+	otherBody := []byte(`{"ollama":{"base_url":"","embed_model":""},"records":{"repo":"docs/decisions","export":"docs/archive"}}`)
+	if err := os.WriteFile(otherPath, otherBody, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	again, err := config.Load(other)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Ollama.EmbedModel != "qwen3-embedding:8b" || !again.LogCommands || again.Records.Global != "docs/global-decisions" {
+		t.Fatalf("second checkout clobbered %#v log=%v", again.Ollama, again.LogCommands)
+	}
+	if _, err := os.Stat(otherPath); !os.IsNotExist(err) {
+		t.Fatal("second checkout config should be removed")
+	}
 }
 
 func TestNormalizeOllamaHostWithoutScheme(t *testing.T) {

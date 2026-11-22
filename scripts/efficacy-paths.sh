@@ -27,7 +27,3 @@ efficacy_archive_db() {
 efficacy_commands_log() {
   printf '%s\n' "$(efficacy_home)/.archivist/checkouts/$(efficacy_hex)/commands.log"
 }
-
-efficacy_checkout_config() {
-  printf '%s\n' "$(efficacy_home)/.archivist/checkouts/$(efficacy_hex)/config.json"
-}

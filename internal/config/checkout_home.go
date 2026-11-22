@@ -3,10 +3,8 @@ package config
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 // CheckoutHex is the directory name for a checkout under ~/.archivist/checkouts.
@@ -24,7 +22,8 @@ func CheckoutDir(root string) string {
 	return filepath.Join(home, "checkouts", CheckoutHex(root))
 }
 
-func homeOllamaPath() string {
+// GlobalConfigPath is ~/.archivist/config.json, the settings file for every checkout.
+func GlobalConfigPath() string {
 	home := ArchivistHome()
 	if home == "" {
 		return ""
@@ -40,77 +39,18 @@ func checkoutConfigPath(root string) string {
 	return filepath.Join(dir, "config.json")
 }
 
-// RelocateCheckoutFiles moves .archivist.json and commands.log under the home
-// checkout directory. The old json is removed only after both writes succeed.
-// The log moves only when the home log is not already there.
+// RelocateCheckoutFiles folds a repo .archivist.json or checkout config.json
+// into ~/.archivist/config.json and moves commands.log under the home
+// checkout directory. The log moves only when the home log is not already there.
 func RelocateCheckoutFiles(root string) error {
+	if _, err := Load(root); err != nil {
+		return err
+	}
 	canon, err := Canonical(root)
 	if err != nil {
 		return err
 	}
-	dir := CheckoutDir(canon)
-	if dir == "" {
-		return nil
-	}
-	legacyJSON := filepath.Join(canon, DefaultConfigName)
-	data, err := os.ReadFile(legacyJSON)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if err == nil {
-		var cfg Config
-		if err := json.Unmarshal(data, &cfg); err != nil {
-			return err
-		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return err
-		}
-		if err := writeHomeOllama(cfg.Ollama); err != nil {
-			return err
-		}
-		cfg.Ollama = OllamaConfig{EmbedNumCtx: cfg.Ollama.EmbedNumCtx}
-		body, err := json.MarshalIndent(&cfg, "", "  ")
-		if err != nil {
-			return err
-		}
-		body = append(body, '\n')
-		if err := os.WriteFile(checkoutConfigPath(canon), body, 0o644); err != nil {
-			return err
-		}
-		if err := os.Remove(legacyJSON); err != nil {
-			return err
-		}
-	}
 	return moveCommandsLog(canon)
-}
-
-func writeHomeOllama(ollama OllamaConfig) error {
-	path := homeOllamaPath()
-	if path == "" {
-		return nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	if err == nil {
-		var existing OllamaConfig
-		if err := json.Unmarshal(data, &existing); err != nil {
-			return err
-		}
-		if strings.TrimSpace(existing.EmbedModel) != "" {
-			return nil
-		}
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	body, err := json.MarshalIndent(ollama, "", "  ")
-	if err != nil {
-		return err
-	}
-	body = append(body, '\n')
-	return os.WriteFile(path, body, 0o644)
 }
 
 func moveCommandsLog(root string) error {

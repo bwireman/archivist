@@ -35,9 +35,12 @@ func TestTwoCheckoutsShareTheHomeDatabase(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := os.Stat(filepath.Join(config.CheckoutDir(canon), "config.json")); err != nil {
-			t.Fatal(err)
+		if _, err := os.Stat(filepath.Join(config.CheckoutDir(canon), "config.json")); err == nil {
+			t.Fatalf("checkout config for %s", root)
 		}
+	}
+	if _, err := os.Stat(config.GlobalConfigPath()); err != nil {
+		t.Fatal(err)
 	}
 
 	db, err := store.Open(config.HomeStorePath())

@@ -112,6 +112,7 @@ func TestCommandLogOffWritesNothing(t *testing.T) {
 }
 
 func TestCommandLogSkipsVersion(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
 	root := t.TempDir()
 	cfg := config.Default()
 	cfg.LogCommands = true

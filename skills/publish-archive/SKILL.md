@@ -5,7 +5,7 @@ description: Export an Archivist bundle and push it with a configured destinatio
 
 # Publish the archive
 
-1. In `.archivist.json`, set a named command. `{{bundle}}` is replaced with the export directory:
+1. In `~/.archivist/config.json`, set a named command. `{{bundle}}` is replaced with the export directory:
 
 ```json
 "publish": {

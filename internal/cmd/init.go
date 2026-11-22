@@ -35,7 +35,11 @@ func newInitCmd() *cobra.Command {
 			if existed {
 				verb = "Updated"
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s checkout config in %s\nEmbeddings use Ollama:\n  ollama pull %s\nSeed the archive from this repo with the init-archive skill (scan decisions, rules, and features, then embed).\n", verb, config.CheckoutDir(root), cfg.Ollama.EmbedModel)
+			where := config.GlobalConfigPath()
+			if where == "" {
+				where = filepath.Join(root, config.DefaultConfigName)
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "%s config in %s\nEmbeddings use Ollama:\n  ollama pull %s\nSeed the archive from this repo with the init-archive skill (scan decisions, rules, and features, then embed).\n", verb, where, cfg.Ollama.EmbedModel)
 			return nil
 		},
 	}
