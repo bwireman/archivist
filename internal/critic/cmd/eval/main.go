@@ -20,8 +20,8 @@ import (
 
 func main() {
 	model := flag.String("model", "gemma4:e2b", "ollama instruct tag")
-	report := flag.String("report", "evals/critic/report.md", "report path")
-	negatives := flag.String("negatives", "evals/critic/negatives.jsonl", "lasting negatives jsonl")
+	report := flag.String("report", "evals/critic/report.md", "report path; does not update the embedded gate in internal/critic/report.md")
+	negatives := flag.String("negatives", "internal/critic/negatives.jsonl", "lasting negatives jsonl")
 	flag.Parse()
 	if err := run(context.Background(), *model, *report, *negatives); err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -56,13 +56,6 @@ func run(ctx context.Context, model, reportPath, negativesPath string) error {
 	if !ok {
 		if err := pull(ctx, base, model); err != nil {
 			return err
-		}
-		ok, err = client.HasModel(ctx, model)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			return fmt.Errorf("ollama has no model %q", model)
 		}
 	}
 	db, err := store.OpenReadOnly(config.StorePath(root))

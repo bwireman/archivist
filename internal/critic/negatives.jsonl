@@ -1,0 +1,40 @@
+{"class":"code","title":"CheckoutHex","body":"CheckoutHex is the directory name for a checkout under ~/.archivist/checkouts."}
+{"class":"code","title":"StorePath","body":"StorePath is the one archive database, ~/.archivist/archive.db."}
+{"class":"code","title":"ResolvedBaseURL","body":"ResolvedBaseURL is ollama.base_url, else $OLLAMA_HOST, else localhost."}
+{"class":"code","title":"OpenReadOnly","body":"OpenReadOnly opens an existing database for reads. It does not create the file, parent directories, schema, or orphan cleanup."}
+{"class":"code","title":"Canonical","body":"Canonical returns path as a cleaned absolute path with symlinks resolved."}
+{"class":"code","title":"FileVectorHash","body":"FileVectorHash is the text hash stored with this file's vector."}
+{"class":"code","title":"Package config","body":"Package config loads and saves ~/.archivist/config.json."}
+{"class":"code","title":"Package archive","body":"Package archive creates, updates, retires, and imports records."}
+{"class":"transcript","title":"Chat excerpt","body":"User: the tests failed. Assistant: I will rerun go test and paste the log here."}
+{"class":"transcript","title":"Turn log","body":"User: can you see the error? Assistant: yes, the stack trace is in the last message."}
+{"class":"transcript","title":"Session paste","body":"Human: try again. Agent: running the same command now. Human: still broken."}
+{"class":"transcript","title":"Tool chatter","body":"Assistant: I called search. User: what did it return? Assistant: three hits, none of them the topic."}
+{"class":"transcript","title":"Back and forth","body":"User: stop. Assistant: stopping. User: no, continue the last command."}
+{"class":"transcript","title":"Quoted thread","body":"User said the build was red. The assistant replied that it would look at the compiler output next."}
+{"class":"transcript","title":"Conversation scrap","body":"User: hello. Assistant: hello. User: ignore that, the real question is below."}
+{"class":"transcript","title":"Dialogue dump","body":"A: did you push? B: not yet. A: leave it. B: ok."}
+{"class":"error","title":"MCP down","body":"This chat's error: MCP is down, so the tool call failed once."}
+{"class":"error","title":"Port closed","body":"curl to localhost:11434 failed with connection refused during this session."}
+{"class":"error","title":"One test flake","body":"go test ./internal/cmd failed once on a timeout and passed on the next run."}
+{"class":"error","title":"Missing binary","body":"The shell said archivist: command not found in this terminal."}
+{"class":"error","title":"Edit rejected","body":"The apply failed because the file changed under the editor in this turn."}
+{"class":"error","title":"Auth blip","body":"The registry returned 401 once. The next install succeeded."}
+{"class":"error","title":"Disk full","body":"The build stopped because the temp dir filled up on this machine today."}
+{"class":"error","title":"Stale socket","body":"The language server socket was stale and the window reloaded."}
+{"class":"catalog","title":"Unverified model list","body":"A blog lists twelve local models and their sizes. None of those claims were checked."}
+{"class":"catalog","title":"Package roundup","body":"An unread catalog of CLI tools with star counts copied from a web page."}
+{"class":"catalog","title":"Benchmark table","body":"A pasted table of accuracy numbers from a vendor page, not measured here."}
+{"class":"catalog","title":"Library index","body":"Names of embedding models gathered from a search page, with no local run."}
+{"class":"catalog","title":"Option dump","body":"A list of config keys copied from upstream docs and not tried in this checkout."}
+{"class":"catalog","title":"Release notes scrape","body":"Third-party release notes collected into a list. Versions were not confirmed."}
+{"class":"catalog","title":"Shortcut sheet","body":"A directory of shell aliases from a gist, not the commands this repo runs."}
+{"class":"catalog","title":"Paper list","body":"Titles of papers about retrieval, with no note on which ones this project uses."}
+{"class":"restatement","title":"Same decision again","body":"Restating the existing decision: SQLite is the source of truth for records."}
+{"class":"restatement","title":"Repeat the rule","body":"Again: if unsure whether a later session would look it up, write the record."}
+{"class":"restatement","title":"Feature echo","body":"This repeats the hybrid search feature: FTS and cosine, keyword-only when Ollama is down."}
+{"class":"restatement","title":"Review echo","body":"Restatement: review lists evidence and does not rank records."}
+{"class":"restatement","title":"Embed echo","body":"Saying again that embeddings go through Ollama and the model name is qwen3-embedding."}
+{"class":"restatement","title":"Scope echo","body":"Repeating the scope procedure: dev, repo, or global, and search has no scope filter."}
+{"class":"restatement","title":"Link echo","body":"Restating that record links live in the checkout database and a checkout does not link to itself."}
+{"class":"restatement","title":"Prompt echo","body":"The same sentence as the add-decision prompt: a decision is a choice among real alternatives."}

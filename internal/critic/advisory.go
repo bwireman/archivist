@@ -29,13 +29,17 @@ type Advisory struct {
 	Reason  string `json:"reason"`
 }
 
-// RememberAdvisory scores title and body after the record is stored.
+// RememberAdvisory scores title and body.
 // An empty critic model, the embed model, an Ollama error, or unusable JSON
-// returns nil. The stored record is left as the caller wrote it.
+// returns nil.
 func RememberAdvisory(ctx context.Context, baseURL, criticModel, embedModel string, httpClient *http.Client, title, body string) *Advisory {
 	criticModel = strings.TrimSpace(criticModel)
 	embedModel = strings.TrimSpace(embedModel)
 	if criticModel == "" || criticModel == embedModel {
+		return nil
+	}
+	keepType, keepLasting := Enabled(PhaseReport())
+	if !keepType && !keepLasting {
 		return nil
 	}
 	if httpClient == nil {
@@ -50,10 +54,6 @@ func RememberAdvisory(ctx context.Context, baseURL, criticModel, embedModel stri
 	}
 	res, err := client.Judge(ctx, title, body)
 	if err != nil || !res.OK {
-		return nil
-	}
-	keepType, keepLasting := Enabled(PhaseReport())
-	if !keepType && !keepLasting {
 		return nil
 	}
 	adv := &Advisory{Reason: res.Reason}

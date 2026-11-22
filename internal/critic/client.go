@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/bwireman/archivist/internal/record"
 )
 
 const reasonRunes = 200
@@ -22,7 +24,7 @@ type Result struct {
 	OK      bool
 }
 
-// Client calls Ollama /api/chat. Schema and prompt are the embedded files.
+// Client calls Ollama /api/chat.
 type Client struct {
 	BaseURL  string
 	Model    string
@@ -69,13 +71,16 @@ func (c *Client) HasModel(ctx context.Context, model string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	resp, err := c.http().Do(req)
+	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return false, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 400 {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return false, err
+		}
 		return false, fmt.Errorf("ollama tags: %s", bytes.TrimSpace(body))
 	}
 	var out struct {
@@ -109,7 +114,7 @@ func (c *Client) Judge(ctx context.Context, title, body string) (Result, error) 
 		return Result{}, err
 	}
 	req.Header.Set("Content-Type", "application/json")
-	resp, err := c.http().Do(req)
+	resp, err := c.HTTP.Do(req)
 	if err != nil {
 		return Result{}, err
 	}
@@ -142,13 +147,6 @@ func requestBody(model, content string, schema []byte) []byte {
 	return b.Bytes()
 }
 
-func (c *Client) http() *http.Client {
-	if c.HTTP != nil {
-		return c.HTTP
-	}
-	return http.DefaultClient
-}
-
 func parseAnswer(content string) Result {
 	dec := json.NewDecoder(strings.NewReader(content))
 	dec.DisallowUnknownFields()
@@ -163,9 +161,7 @@ func parseAnswer(content string) Result {
 	if a.Type == nil || a.Lasting == nil || a.Reason == nil {
 		return Result{}
 	}
-	switch *a.Type {
-	case "decision", "rule", "feature", "guide", "map", "pitfall":
-	default:
+	if !record.ValidType(record.Type(*a.Type)) {
 		return Result{}
 	}
 	return Result{Type: *a.Type, Lasting: *a.Lasting, Reason: cutReason(*a.Reason), OK: true}
