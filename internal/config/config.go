@@ -209,11 +209,9 @@ func Load(repoRoot string) (*Config, error) {
 	cfg := &Config{}
 	globalPath := GlobalConfigPath()
 	legacyShape := false
-	haveGlobal := false
 	if globalPath != "" {
 		data, err := os.ReadFile(globalPath)
 		if err == nil {
-			haveGlobal = true
 			legacyShape, err = applyConfigBytes(cfg, data)
 			if err != nil {
 				return nil, err
@@ -226,18 +224,10 @@ func Load(repoRoot string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-	pending := locals
-	if !haveGlobal && len(locals) > 0 {
-		cfg = &Config{}
-		if _, err := applyConfigBytes(cfg, locals[0].data); err != nil {
-			return nil, err
-		}
-		pending = locals[1:]
-	}
-	for _, local := range pending {
+	for _, local := range locals {
 		extra := &Config{}
-		if err := json.Unmarshal(local.data, extra); err != nil {
-			return nil, fmt.Errorf("parse config: %w", err)
+		if _, err := applyConfigBytes(extra, local.data); err != nil {
+			return nil, err
 		}
 		mergeMissing(cfg, extra)
 	}
@@ -304,8 +294,8 @@ func localConfigPaths(repoRoot string) []string {
 		canon = repoRoot
 	}
 	var paths []string
-	if p := checkoutConfigPath(canon); p != "" {
-		paths = append(paths, p)
+	if dir := CheckoutDir(canon); dir != "" {
+		paths = append(paths, filepath.Join(dir, "config.json"))
 	}
 	if strings.TrimSpace(canon) != "" {
 		paths = append(paths, filepath.Join(canon, DefaultConfigName))
@@ -322,9 +312,6 @@ func readLocalConfigs(repoRoot string) ([]localConfig, error) {
 				continue
 			}
 			return nil, fmt.Errorf("read config: %w", err)
-		}
-		if _, err := isLegacyOllama(data); err != nil {
-			return nil, fmt.Errorf("parse config: %w", err)
 		}
 		out = append(out, localConfig{path: path, data: data})
 	}

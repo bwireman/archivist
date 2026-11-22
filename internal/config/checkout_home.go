@@ -31,14 +31,6 @@ func GlobalConfigPath() string {
 	return filepath.Join(home, "config.json")
 }
 
-func checkoutConfigPath(root string) string {
-	dir := CheckoutDir(root)
-	if dir == "" {
-		return ""
-	}
-	return filepath.Join(dir, "config.json")
-}
-
 // RelocateCheckoutFiles folds a repo .archivist.json or checkout config.json
 // into ~/.archivist/config.json and moves commands.log under the home
 // checkout directory. The log moves only when the home log is not already there.
