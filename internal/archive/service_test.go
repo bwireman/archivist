@@ -3,6 +3,7 @@ package archive
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/bwireman/archivist/internal/config"
@@ -338,5 +339,97 @@ func TestPatchTextReplacesAppliesTo(t *testing.T) {
 	PatchText(rec, "Title", "", "", []string{"internal/store/**", "internal/cmd/link.go"})
 	if rec.Title != "Title" || len(rec.AppliesTo) != 2 || rec.AppliesTo[1] != "internal/cmd/link.go" {
 		t.Fatalf("patch %#v", rec)
+	}
+}
+
+func TestSlugLookupStaysInCheckout(t *testing.T) {
+	a := t.TempDir()
+	b := t.TempDir()
+	db, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	for _, row := range []struct {
+		id, checkout, body string
+	}{
+		{"rec_a", a, "here"},
+		{"rec_b", b, "there"},
+	} {
+		rec := &record.Record{
+			ID: row.id, Slug: "shared", Type: record.TypeDecision, Scope: record.ScopeRepo,
+			Title: row.id, Status: record.StatusAccepted, Body: row.body,
+			SourcePath: "docs/decisions/" + row.id + ".md", Checkout: row.checkout,
+		}
+		if err := db.UpsertRecord(rec); err != nil {
+			t.Fatal(err)
+		}
+	}
+	svc := New(a, config.Default(), db)
+	got, err := svc.Get("shared")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.ID != "rec_a" {
+		t.Fatalf("id %s checkout %s", got.ID, got.Checkout)
+	}
+	if err := svc.Update("shared", func(r *record.Record) error {
+		r.Body = "changed"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	other, ok, err := db.GetRecordByID("rec_b")
+	if err != nil || !ok || other.Body != "there" {
+		t.Fatalf("other body %q ok=%v err=%v", other.Body, ok, err)
+	}
+	mine, ok, err := db.GetRecordByID("rec_a")
+	if err != nil || !ok || mine.Body != "changed" {
+		t.Fatalf("updated body %q ok=%v err=%v", mine.Body, ok, err)
+	}
+	lonely := New(t.TempDir(), config.Default(), db)
+	if _, err := lonely.Get("shared"); err == nil {
+		t.Fatal("slug in another checkout was returned")
+	}
+}
+
+func TestSlugLookupErrorsWhenAmbiguous(t *testing.T) {
+	repo := t.TempDir()
+	db, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	repoRec := &record.Record{
+		ID: "rec_repo", Slug: "shared", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Repo", Status: record.StatusAccepted, Body: "repo",
+		SourcePath: "docs/decisions/repo.md", Checkout: repo,
+	}
+	globalRec := &record.Record{
+		ID: "rec_global", Slug: "shared", Type: record.TypeDecision, Scope: record.ScopeGlobal,
+		Title: "Global", Status: record.StatusAccepted, Body: "global",
+		SourcePath: "global/shared.md",
+	}
+	if err := db.UpsertRecord(repoRec); err != nil {
+		t.Fatal(err)
+	}
+	if err := db.UpsertRecord(globalRec); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(repo, config.Default(), db)
+	if _, err := svc.Get("shared"); err == nil || !strings.Contains(err.Error(), "matches") {
+		t.Fatalf("err %v", err)
+	}
+	if err := svc.Update("shared", func(r *record.Record) error {
+		r.Body = "nope"
+		return nil
+	}); err == nil {
+		t.Fatal("update resolved an ambiguous slug")
+	}
+	for _, id := range []string{"rec_repo", "rec_global"} {
+		got, ok, err := db.GetRecordByID(id)
+		if err != nil || !ok || got.Body == "nope" {
+			t.Fatalf("%s body %q ok=%v err=%v", id, got.Body, ok, err)
+		}
 	}
 }

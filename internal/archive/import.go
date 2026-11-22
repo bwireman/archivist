@@ -177,6 +177,7 @@ func (s *Service) importFile(sourcePath, abs string, fallbackScope record.Scope,
 		parsed.ID = existing.ID
 		parsed.CreatedAt = existing.CreatedAt
 		parsed.SourcePath = existing.SourcePath
+		parsed.Checkout = existing.Checkout
 		if err := s.DB.UpsertRecord(parsed); err != nil {
 			return err
 		}

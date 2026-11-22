@@ -682,7 +682,69 @@ func anyArgs(ids []string) []any {
 }
 
 func (s *Store) GetRecordBySlug(slug string) (*record.Record, bool, error) {
-	return s.oneRecord(`SELECT `+recordCols+` FROM records WHERE slug = ?`, slug)
+	recs, err := s.recordsBySlug(slug, nil)
+	if err != nil {
+		return nil, false, err
+	}
+	switch len(recs) {
+	case 0:
+		return nil, false, nil
+	case 1:
+		return recs[0], true, nil
+	default:
+		return nil, false, fmt.Errorf("slug %q matches %d records", slug, len(recs))
+	}
+}
+
+// RecordBySlug returns the one row with slug whose checkout is empty or listed.
+// Empty checkout is a global or dev row. Another checkout's row is left out.
+// More than one visible row is an error.
+func (s *Store) RecordBySlug(slug string, checkouts []string) (*record.Record, bool, error) {
+	if checkouts == nil {
+		checkouts = []string{}
+	}
+	recs, err := s.recordsBySlug(slug, checkouts)
+	if err != nil {
+		return nil, false, err
+	}
+	switch len(recs) {
+	case 0:
+		return nil, false, nil
+	case 1:
+		return recs[0], true, nil
+	default:
+		return nil, false, fmt.Errorf("slug %q matches %d records", slug, len(recs))
+	}
+}
+
+// recordsBySlug lists rows for slug. A nil checkouts argument means every checkout.
+// A non-nil list keeps empty checkout plus those paths.
+func (s *Store) recordsBySlug(slug string, checkouts []string) ([]*record.Record, error) {
+	q := `SELECT ` + recordCols + ` FROM records WHERE slug = ?`
+	args := []any{slug}
+	if checkouts != nil {
+		clause := "checkout = ?"
+		args = append(args, "")
+		seen := map[string]struct{}{"": {}}
+		for _, checkout := range checkouts {
+			if checkout == "" {
+				continue
+			}
+			if _, ok := seen[checkout]; ok {
+				continue
+			}
+			seen[checkout] = struct{}{}
+			clause += " OR checkout = ?"
+			args = append(args, checkout)
+		}
+		q += ` AND (` + clause + `)`
+	}
+	rows, err := s.db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return collectRecords(rows)
 }
 
 func (s *Store) GetRecordByPath(checkout, path string) (*record.Record, bool, error) {
@@ -767,6 +829,42 @@ ON CONFLICT(record_id) DO UPDATE SET model=excluded.model, dim=excluded.dim, emb
 	}
 	_, err = s.db.Exec(`DELETE FROM embed_giveup WHERE record_id = ?`, recordID)
 	return err
+}
+
+// CommitRecordVector stores the embedding and drops the queue row only when
+// text_hash is still the hash of the text that was embedded. A different hash
+// leaves the row and does not write the vector.
+func (s *Store) CommitRecordVector(recordID, model, textHash string, embedding []float32) (bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`DELETE FROM embed_queue WHERE record_id = ? AND text_hash = ?`, recordID, textHash)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
+	}
+	blob := encodeEmbedding(embedding)
+	if _, err = tx.Exec(`
+INSERT INTO record_vectors (record_id, model, dim, embedding) VALUES (?, ?, ?, ?)
+ON CONFLICT(record_id) DO UPDATE SET model=excluded.model, dim=excluded.dim, embedding=excluded.embedding
+`, recordID, model, len(embedding), blob); err != nil {
+		return false, err
+	}
+	if _, err = tx.Exec(`DELETE FROM embed_giveup WHERE record_id = ?`, recordID); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func (s *Store) GetRecordVector(recordID string) ([]float32, string, bool, error) {
@@ -1140,6 +1238,12 @@ FROM embed_queue ORDER BY enqueued_at`
 
 func (s *Store) DropQueueItem(recordID string) error {
 	_, err := s.db.Exec(`DELETE FROM embed_queue WHERE record_id = ?`, recordID)
+	return err
+}
+
+// DropQueueItemHash removes the queue row only when it still holds textHash.
+func (s *Store) DropQueueItemHash(recordID, textHash string) error {
+	_, err := s.db.Exec(`DELETE FROM embed_queue WHERE record_id = ? AND text_hash = ?`, recordID, textHash)
 	return err
 }
 

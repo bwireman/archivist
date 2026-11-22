@@ -171,6 +171,7 @@ func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.Que
 		fmt.Fprintf(os.Stderr, "dropping embed queue row with no record: %s\n", item.RecordID)
 		return false, st.DropQueueItem(item.RecordID)
 	}
+	textHash := rec.ContentHash
 	emb, err := w.Embedder.Embed(ctx, rec.EmbedText())
 	if err != nil {
 		if item.Attempts+1 >= maxAttempts {
@@ -188,17 +189,27 @@ func (w *Worker) processOne(ctx context.Context, st *store.Store, item store.Que
 			}
 			return false, nil
 		}
-		_ = recStore.FailQueueItem(item.RecordID, err.Error())
+		if ferr := recStore.FailQueueItem(item.RecordID, err.Error()); ferr != nil {
+			return false, ferr
+		}
 		if recStore != st {
-			_ = st.FailQueueItem(item.RecordID, err.Error())
+			if ferr := st.FailQueueItem(item.RecordID, err.Error()); ferr != nil {
+				return false, ferr
+			}
 		}
 		return false, fmt.Errorf("embed %s: %w", rec.SourcePath, err)
 	}
-	if err := recStore.SetRecordVector(rec.ID, w.resolvedModel(), emb); err != nil {
+	committed, err := recStore.CommitRecordVector(rec.ID, w.resolvedModel(), textHash, emb)
+	if err != nil {
 		return false, err
 	}
+	if !committed {
+		return false, nil
+	}
 	if recStore != st {
-		_ = st.DropQueueItem(item.RecordID)
+		if err := st.DropQueueItemHash(item.RecordID, textHash); err != nil {
+			return false, err
+		}
 	}
 	return true, nil
 }
@@ -259,6 +270,8 @@ func (w *Worker) processFile(ctx context.Context, st *store.Store, item store.Fi
 	if text == "" {
 		return false, st.DropFileEmbed(item.Checkout, item.Path)
 	}
+	sum := sha256.Sum256([]byte(text))
+	hash := hex.EncodeToString(sum[:])
 	emb, err := w.Embedder.Embed(ctx, text)
 	if err != nil {
 		if item.Attempts+1 >= maxAttempts {
@@ -268,13 +281,14 @@ func (w *Worker) processFile(ctx context.Context, st *store.Store, item store.Fi
 			}
 			return false, st.DropFileQueueItem(item.Checkout, item.Path)
 		}
-		_ = st.FailFileQueueItem(item.Checkout, item.Path, err.Error())
+		if ferr := st.FailFileQueueItem(item.Checkout, item.Path, err.Error()); ferr != nil {
+			return false, ferr
+		}
 		return false, fmt.Errorf("embed %s: %w", item.Path, err)
 	}
-	sum := sha256.Sum256([]byte(text))
-	hash := hex.EncodeToString(sum[:])
-	if err := st.SetFileVector(item.Checkout, item.Path, w.resolvedModel(), hash, emb); err != nil {
+	committed, err := st.CommitFileVector(item.Checkout, item.Path, w.resolvedModel(), hash, emb)
+	if err != nil {
 		return false, err
 	}
-	return true, nil
+	return committed, nil
 }

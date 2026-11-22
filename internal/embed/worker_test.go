@@ -2,6 +2,8 @@ package embed
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -12,6 +14,7 @@ import (
 	"time"
 
 	"github.com/bwireman/archivist/internal/config"
+	"github.com/bwireman/archivist/internal/index"
 	"github.com/bwireman/archivist/internal/record"
 	"github.com/bwireman/archivist/internal/store"
 )
@@ -269,7 +272,12 @@ func TestWorkerEmbedsFileQueue(t *testing.T) {
 	}}, nil); err != nil {
 		t.Fatal(err)
 	}
-	if err := st.EnqueueFileEmbed("/checkout", "jar.go", "hash"); err != nil {
+	syms, err := st.SymbolsForFile("/checkout", "jar.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(index.FileEmbedText("jar.go", syms)))
+	if err := st.EnqueueFileEmbed("/checkout", "jar.go", hex.EncodeToString(sum[:])); err != nil {
 		t.Fatal(err)
 	}
 	w := &Worker{Stores: []*store.Store{st}, Embedder: &FakeEmbedder{Dim: 4}, Model: "test"}
@@ -287,6 +295,87 @@ func TestWorkerEmbedsFileQueue(t *testing.T) {
 	depth, _ := st.FileQueueDepth()
 	if depth != 0 {
 		t.Fatalf("file queue %d", depth)
+	}
+}
+
+func TestWorkerSkipsStaleRecordVector(t *testing.T) {
+	st := openStore(t)
+	upsertQueued(t, st, "rec_stale", "Original")
+	rec, ok, err := st.GetRecordByID("rec_stale")
+	if err != nil || !ok {
+		t.Fatal(err)
+	}
+	original := rec.ContentHash
+	w := &Worker{
+		Stores: []*store.Store{st},
+		Model:  "test",
+		Embedder: embedFunc(func(context.Context, string) ([]float32, error) {
+			updated := *rec
+			updated.Body = "newer body"
+			updated.ContentHash = ""
+			if err := st.UpsertRecord(&updated); err != nil {
+				return nil, err
+			}
+			return []float32{1, 0, 0, 0}, nil
+		}),
+	}
+	committed, err := w.processOne(context.Background(), st, store.QueueItem{RecordID: "rec_stale", TextHash: original})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committed {
+		t.Fatal("stale embed was stored")
+	}
+	if _, _, found, err := st.GetRecordVector("rec_stale"); err != nil || found {
+		t.Fatalf("vector found=%v err=%v", found, err)
+	}
+	items, err := st.DequeueEmbed(0)
+	if err != nil || len(items) != 1 || items[0].TextHash == original {
+		t.Fatalf("queue %+v err %v", items, err)
+	}
+}
+
+func TestWorkerSkipsStaleFileVector(t *testing.T) {
+	st := openStore(t)
+	if err := st.ReplaceFileMap(store.FileRecord{
+		Checkout: "/checkout", Path: "jar.go", ContentHash: "h", IndexedAt: time.Now().UTC(),
+	}, []store.Symbol{{
+		Name: "Seal", Kind: "function_declaration", Line: 1, Exported: true,
+	}}, nil); err != nil {
+		t.Fatal(err)
+	}
+	syms, err := st.SymbolsForFile("/checkout", "jar.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	sum := sha256.Sum256([]byte(index.FileEmbedText("jar.go", syms)))
+	hash := hex.EncodeToString(sum[:])
+	if err := st.EnqueueFileEmbed("/checkout", "jar.go", hash); err != nil {
+		t.Fatal(err)
+	}
+	w := &Worker{
+		Stores: []*store.Store{st},
+		Model:  "test",
+		Embedder: embedFunc(func(context.Context, string) ([]float32, error) {
+			if err := st.EnqueueFileEmbed("/checkout", "jar.go", "newer"); err != nil {
+				return nil, err
+			}
+			return []float32{1, 0, 0, 0}, nil
+		}),
+	}
+	committed, err := w.processFile(context.Background(), st, store.FileQueueItem{Checkout: "/checkout", Path: "jar.go", TextHash: hash})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if committed {
+		t.Fatal("stale file embed was stored")
+	}
+	if _, ok, err := st.FileVectorHash("/checkout", "jar.go"); err != nil || ok {
+		t.Fatalf("vector ok=%v err=%v", ok, err)
+	}
+	items, err := st.DequeueFileEmbed()
+	if err != nil || len(items) != 1 || items[0].TextHash != "newer" {
+		t.Fatalf("queue %+v err %v", items, err)
 	}
 }
 

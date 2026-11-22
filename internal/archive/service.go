@@ -248,7 +248,7 @@ func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bo
 	if ok {
 		return rec, s.DB, true, nil
 	}
-	rec, ok, err = s.DB.GetRecordBySlug(idOrSlug)
+	rec, ok, err = s.DB.RecordBySlug(idOrSlug, s.slugCheckouts())
 	if err != nil {
 		return nil, nil, false, err
 	}
@@ -256,6 +256,19 @@ func (s *Service) findPrimary(idOrSlug string) (*record.Record, *store.Store, bo
 		return rec, s.DB, true, nil
 	}
 	return nil, nil, false, nil
+}
+
+// slugCheckouts are this process checkout, including its canonical path.
+// Global and dev rows use an empty checkout and are included by RecordBySlug.
+func (s *Service) slugCheckouts() []string {
+	if s == nil || s.RepoRoot == "" {
+		return nil
+	}
+	out := []string{s.RepoRoot}
+	if canon, err := config.Canonical(s.RepoRoot); err == nil && canon != "" && canon != s.RepoRoot {
+		out = append(out, canon)
+	}
+	return out
 }
 
 func (s *Service) defaultPath(rec *record.Record) string {

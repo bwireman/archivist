@@ -97,14 +97,15 @@ func buildTrace(root string, cfg *config.Config, since string, after, until time
 				return nil, err
 			}
 			defer db.Close()
-			cat = storeCatalog{db: db}
+			cat = storeCatalog{db: db, checkout: root}
 		}
 	}
 	return trace.Build(entries, opts, cat)
 }
 
 type storeCatalog struct {
-	db *store.Store
+	db       *store.Store
+	checkout string
 }
 
 func (c storeCatalog) Record(id string) (*record.Record, error) {
@@ -118,7 +119,7 @@ func (c storeCatalog) Record(id string) (*record.Record, error) {
 	if ok {
 		return rec, nil
 	}
-	rec, ok, err = c.db.GetRecordBySlug(id)
+	rec, ok, err = c.db.RecordBySlug(id, []string{c.checkout})
 	if err != nil || !ok {
 		return nil, err
 	}

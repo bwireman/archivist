@@ -160,6 +160,42 @@ ON CONFLICT(checkout, path) DO UPDATE SET
 	return s.DropFileQueueItem(checkout, path)
 }
 
+// CommitFileVector stores the embedding and drops the queue row only when
+// text_hash is still the hash of the text that was embedded. A different hash
+// leaves the row and does not write the vector.
+func (s *Store) CommitFileVector(checkout, path, model, textHash string, embedding []float32) (bool, error) {
+	tx, err := s.db.Begin()
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback() }()
+	res, err := tx.Exec(`DELETE FROM file_embed_queue WHERE checkout = ? AND path = ? AND text_hash = ?`, checkout, path, textHash)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if _, err = tx.Exec(`
+INSERT INTO file_vectors (checkout, path, model, dim, embedding, text_hash) VALUES (?, ?, ?, ?, ?, ?)
+ON CONFLICT(checkout, path) DO UPDATE SET
+    model = excluded.model,
+    dim = excluded.dim,
+    embedding = excluded.embedding,
+    text_hash = excluded.text_hash
+`, checkout, path, model, len(embedding), encodeEmbedding(embedding), textHash); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 func (s *Store) RecordFileGiveup(checkout, path string, attempts int, lastError string) error {
 	_, err := s.db.Exec(`
 INSERT INTO file_embed_giveup (checkout, path, attempts, last_error, failed_at)

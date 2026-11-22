@@ -243,3 +243,59 @@ func TestImportDoesNotDeleteDBOnly(t *testing.T) {
 		t.Fatalf("record removed: ok=%v err=%v", ok, err)
 	}
 }
+
+func TestImportUpdateKeepsCheckout(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	repo := t.TempDir()
+	db, err := store.Open(filepath.Join(t.TempDir(), "archive.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = db.Close() })
+	const checkout = "/kept/checkout"
+	rec := &record.Record{
+		ID: "rec_keep", Slug: "keep-checkout", Type: record.TypeDecision, Scope: record.ScopeRepo,
+		Title: "Keep", Status: record.StatusAccepted, Body: "Old.",
+		SourcePath: "docs/decisions/keep-checkout.md", Checkout: checkout,
+	}
+	rec.ContentHash = record.ContentHash(rec)
+	if err := db.UpsertRecord(rec); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(repo, config.DefaultDecisionsDir, "keep-checkout.md")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	content := `---
+id: rec_keep
+type: decision
+scope: repo
+status: accepted
+title: Keep
+---
+
+New body.
+`
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	svc := New(repo, config.Default(), db)
+	res, err := svc.Import()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if res.Updated != 1 {
+		t.Fatalf("updated %d imported %d skipped %d", res.Updated, res.Imported, res.Skipped)
+	}
+	got, ok, err := db.GetRecordByID("rec_keep")
+	if err != nil || !ok {
+		t.Fatalf("get ok=%v err=%v", ok, err)
+	}
+	if got.Checkout != checkout {
+		t.Fatalf("checkout %q", got.Checkout)
+	}
+	if got.Body != "New body." {
+		t.Fatalf("body %q", got.Body)
+	}
+}
